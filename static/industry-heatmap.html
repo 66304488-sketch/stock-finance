@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>行业创新高个股分布</title>
+<style>
+  :root {
+    --bg: #1a1d23;
+    --surface: #21252b;
+    --border: #333842;
+    --text: #abb2bf;
+    --text-bright: #dcdfe4;
+    --text-dim: #6b717a;
+    --header-bg: #282c34;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Mono", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .container { width: 100%; max-width: 1800px; }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .title-section h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: 0.5px;
+  }
+  .title-section .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+  .subtitle span { color: #e5c07b; }
+
+  /* Header right */
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  /* Legend */
+  .legend-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .legend-bar {
+    display: flex;
+    height: 14px;
+    border-radius: 3px;
+    overflow: hidden;
+    width: 180px;
+  }
+  .legend-bar span { flex: 1; }
+
+  /* Type toggle */
+  .type-toggle {
+    display: flex;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .toggle-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .toggle-btn.active {
+    background: #61afef;
+    color: #1a1d23;
+    font-weight: 600;
+  }
+  .toggle-btn:not(.active):hover {
+    color: var(--text-bright);
+    background: rgba(97,175,239,0.1);
+  }
+
+  /* Export button */
+  .export-wrap { position: relative; }
+  .export-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #98c379;
+    border-radius: 6px;
+    background: transparent;
+    color: #98c379;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .export-btn:hover:not(:disabled) { background: #98c379; color: #1a1d23; }
+  .export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .export-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    min-width: 140px;
+    z-index: 50;
+    overflow: hidden;
+  }
+  .export-dropdown.show { display: block; }
+  .export-dropdown .export-date-option {
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    transition: background 0.1s;
+  }
+  .export-dropdown .export-date-option:hover { background: #2a2e36; color: var(--text-bright); }
+
+  /* Loading state */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 80px;
+    color: var(--text-dim);
+    font-size: 16px;
+  }
+  .loading::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: #61afef;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Table wrapper */
+  .table-wrapper {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .scroll-container {
+    overflow-x: auto;
+    max-height: 85vh;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 1300px;
+  }
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
+  thead th {
+    background: var(--header-bg);
+    color: var(--text-bright);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 10px 6px;
+    text-align: center;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    min-width: 50px;
+  }
+  thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    text-align: left;
+    min-width: 90px;
+    padding-left: 14px;
+  }
+  thead th.col-total,
+  thead th.col-ratio {
+    background: #2a3040;
+    color: #61afef;
+  }
+
+  /* Body */
+  tbody td {
+    font-size: 12px;
+    padding: 5px 6px;
+    text-align: center;
+    border-bottom: 1px solid rgba(51,56,66,0.5);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+  tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 500;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+    color: var(--text-bright);
+    padding-left: 14px;
+  }
+  tbody tr:hover td:first-child { background: #2a2e36; }
+  tbody tr:hover td { background: #2a2e36; }
+
+  /* Heatmap cells */
+  .heat-cell {
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.1s, box-shadow 0.1s;
+    border-radius: 3px;
+  }
+  .heat-cell:hover {
+    transform: scale(1.15);
+    z-index: 5;
+    box-shadow: 0 0 12px rgba(0,0,0,0.6);
+    outline: 2px solid rgba(255,255,255,0.5);
+    outline-offset: -2px;
+    border-radius: 3px;
+  }
+  .heat-cell.no-data { cursor: default; }
+  .heat-cell.no-data:hover {
+    transform: none;
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* Stock count & ratio */
+  td.col-total, td.col-ratio {
+    background: rgba(42,48,64,0.4);
+    color: #abb2bf;
+    font-weight: 500;
+  }
+  td.col-ratio { font-weight: 600; }
+
+  /* Totals row */
+  tbody tr.row-total td {
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    border-top: 2px solid var(--border);
+    background: #252830;
+    color: var(--text-bright);
+  }
+  tbody tr.row-total td:first-child {
+    color: #e5c07b;
+    font-weight: 700;
+  }
+
+  /* Ratio color classes */
+  .ratio-hot  { color: #e06c75 !important; }
+  .ratio-warm { color: #e5c07b !important; }
+  .ratio-cool { color: #61afef !important; }
+  .ratio-cold { color: #98c379 !important; }
+
+  /* Update info */
+  .update-note {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header h2 {
+    font-size: 16px;
+    color: var(--text-bright);
+  }
+  .modal-header h2 span {
+    color: #e5c07b;
+    font-weight: 700;
+  }
+  .modal-close {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .modal-close:hover { color: #e06c75; border-color: #e06c75; }
+
+  .modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .modal-stats {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .modal-stats strong { color: var(--text-bright); }
+
+  .stock-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .stock-table thead th {
+    background: var(--header-bg);
+    color: var(--text-dim);
+    font-weight: 500;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .stock-table tbody td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(51,56,66,0.4);
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 13px;
+    color: var(--text-bright);
+  }
+  .stock-table tbody tr:hover td { background: #2a2e36; }
+  .stock-table .change-up { color: #e06c75; }
+  .stock-table .change-down { color: #61afef; }
+
+  .stock-table .stock-link {
+    color: var(--text-bright);
+    text-decoration: none;
+  }
+  .stock-table .stock-link:hover {
+    color: #61afef;
+    text-decoration: underline;
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    body { padding: 12px; }
+    .header { flex-direction: column; align-items: flex-start; }
+    .header-right { flex-direction: column; align-items: flex-start; gap: 12px; }
+    table { min-width: 1000px; }
+    .modal { width: 95%; max-height: 90vh; }
+  }
+
+  /* Error message */
+  .error-msg {
+    padding: 80px 20px;
+    text-align: center;
+    color: #e06c75;
+    font-size: 15px;
+  }
+  .error-msg button {
+    margin-top: 16px;
+    padding: 8px 20px;
+    background: #61afef;
+    color: #1a1d23;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="title-section">
+      <h1>行业创新高个股分布</h1>
+      <div class="subtitle">申万一级行业 · <span id="typeLabel">创20日新高</span> · <span id="dateRange"></span></div>
+    </div>
+    <div class="header-right">
+      <div class="legend-section">
+        <span>创新高家数</span>
+        <div class="legend-bar">
+          <span style="background:#3d8c40"></span>
+          <span style="background:#6aaa3a"></span>
+          <span style="background:#a8c43a"></span>
+          <span style="background:#e5c73a"></span>
+          <span style="background:#e8a236"></span>
+          <span style="background:#e06c35"></span>
+          <span style="background:#c93a3a"></span>
+        </div>
+        <span>少 → 多</span>
+      </div>
+      <div class="type-toggle" id="typeToggle">
+        <button class="toggle-btn active" data-type="month">20日</button>
+        <button class="toggle-btn" data-type="60d">60日</button>
+        <button class="toggle-btn" data-type="120d">120日</button>
+        <button class="toggle-btn" data-type="1year">一年新高</button>
+        <button class="toggle-btn" data-type="alltime">收盘历史新高</button>
+      </div>
+      <div class="export-wrap" id="exportWrap">
+        <button class="export-btn" id="exportBtn" disabled>导出Excel</button>
+        <div class="export-dropdown" id="exportDropdown"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="table-wrapper" id="mainContent">
+    <div class="loading">正在加载数据...</div>
+  </div>
+
+  <div class="update-note" id="updateNote"></div>
+
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle"></h2>
+      <button class="modal-close" id="modalCloseBtn">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script>
+// =========================================================================
+//  数据加载 & 渲染
+// =========================================================================
+
+let currentType = 'month';
+let tableData = null;
+let detailsData = null;
+let detailsLoading = false;
+let detailsLoadedType = null;
+
+function getUrls() {
+  var suffix = currentType;
+  return {
+    counts: '/new_highs_data_' + suffix + '.json',
+    details: '/new_highs_details_' + suffix + '.json',
+  };
+}
+
+async function loadData() {
+  var mainContent = document.getElementById('mainContent');
+  mainContent.innerHTML = '<div class="loading">正在加载数据...</div>';
+  try {
+    var urls = getUrls();
+    var resp = await fetch(urls.counts);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    tableData = await resp.json();
+    renderTable();
+    setupExportButton();
+    document.getElementById('updateNote').textContent =
+      '数据更新于 ' + (tableData.updated_at || 'unknown') + ' · 数据源: 同花顺/申万研究所 · 点击单元格查看个股明细';
+  } catch (e) {
+    mainContent.innerHTML =
+      '<div class="error-msg">' +
+      '数据加载失败: ' + e.message +
+      '<br><button onclick="location.reload()">重试</button>' +
+      '<br><br><span style="font-size:12px;color:var(--text-dim)">请先运行: python fetch_new_highs.py --type ' + currentType + '</span>' +
+      '</div>';
+  }
+}
+
+async function ensureDetails() {
+  if (detailsData && detailsLoadedType === currentType) return detailsData;
+  if (detailsLoading) {
+    while (detailsLoading) await new Promise(function(r) { setTimeout(r, 100); });
+    if (detailsData && detailsLoadedType === currentType) return detailsData;
+  }
+  detailsLoading = true;
+  try {
+    var urls = getUrls();
+    var resp = await fetch(urls.details);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    detailsData = await resp.json();
+    detailsLoadedType = currentType;
+    return detailsData;
+  } catch (e) {
+    console.error('加载明细失败:', e);
+    return null;
+  } finally {
+    detailsLoading = false;
+  }
+}
+
+// =========================================================================
+//  颜色插值
+// =========================================================================
+
+function heatColor(value, maxVal) {
+  if (value === 0) return { bg: 'rgba(45,58,45,0.4)', text: '#8aaa8a' };
+  var t = Math.min(Math.max(value / Math.max(maxVal, 1), 0), 1);
+  var r, g, b;
+  if (t < 0.25) {
+    var s = t / 0.25;
+    r = Math.round(55  + s * 115);
+    g = Math.round(135 + s * 45);
+    b = Math.round(60  - s * 20);
+  } else if (t < 0.5) {
+    var s = (t - 0.25) / 0.25;
+    r = Math.round(170 + s * 58);
+    g = Math.round(180 - s * 20);
+    b = 40;
+  } else if (t < 0.75) {
+    var s = (t - 0.5) / 0.25;
+    r = Math.round(228 + s * 12);
+    g = Math.round(160 - s * 80);
+    b = Math.round(40 - s * 10);
+  } else {
+    var s = (t - 0.75) / 0.25;
+    r = Math.round(240 - s * 20);
+    g = Math.round(80  - s * 45);
+    b = Math.round(30  + s * 5);
+  }
+  var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  return { bg: 'rgb(' + r + ',' + g + ',' + b + ')', text: lum > 140 ? '#1a1d23' : '#f0f0f0' };
+}
+
+// =========================================================================
+//  渲染表格
+// =========================================================================
+
+function renderTable() {
+  var data = tableData;
+  if (!data || !data.industries || !data.dates) return;
+
+  var fallbackLabels = { month: '创20日新高', '60d': '创60日新高', '120d': '创120日新高', '1year': '创一年新高', alltime: '收盘创历史新高' };
+  document.getElementById('typeLabel').textContent =
+    data.type_label || fallbackLabels[currentType] || '创新高';
+
+  var firstDate = data.dates[0] ? data.dates[0].full_label || '' : '';
+  var lastDate = data.dates[data.dates.length - 1] ? data.dates[data.dates.length - 1].full_label || '' : '';
+  document.getElementById('dateRange').textContent =
+    firstDate + ' — ' + lastDate + '（共 ' + data.dates.length + ' 个交易日）';
+
+  var industries = data.industries.filter(function(r) { return !r.is_total; });
+  var totalRow = data.industries.find(function(r) { return r.is_total; });
+
+  var allValues = [];
+  industries.forEach(function(r) { allValues = allValues.concat(r.daily_counts); });
+  var sorted = allValues.slice().sort(function(a, b) { return a - b; });
+  var p90 = sorted[Math.floor(sorted.length * 0.9)] || 1;
+  var colorMax = Math.max(p90, 20);
+
+  var mainContent = document.getElementById('mainContent');
+  var html = '<div class="scroll-container" id="scrollContainer"><table id="heatmapTable"><thead><tr><th>行业</th>';
+
+  data.dates.forEach(function(d) {
+    html += '<th>' + d.label + '</th>';
+  });
+  html += '<th class="col-total">个股总数</th><th class="col-ratio">占比%</th></tr></thead><tbody>';
+
+  industries.forEach(function(row) {
+    html += '<tr>';
+    html += '<td>' + row.industry + '</td>';
+
+    row.daily_counts.forEach(function(count, di) {
+      if (count > 0) {
+        var c = heatColor(count, colorMax);
+        var dateLabel = data.dates[di].label;
+        html += '<td class="heat-cell" style="background:' + c.bg + ';color:' + c.text + '"' +
+                ' data-industry="' + row.industry + '"' +
+                ' data-date="' + dateLabel + '"' +
+                ' data-count="' + count + '">' + count + '</td>';
+      } else {
+        html += '<td class="heat-cell no-data" style="background:rgba(45,58,45,0.3);color:#8aaa8a">0</td>';
+      }
+    });
+
+    html += '<td class="col-total">' + row.total + '</td>';
+
+    var ratio = row.ratio;
+    var ratioClass = 'ratio-cold';
+    if (ratio >= 7) ratioClass = 'ratio-hot';
+    else if (ratio >= 5) ratioClass = 'ratio-warm';
+    else if (ratio > 2) ratioClass = 'ratio-cool';
+    html += '<td class="col-ratio ' + ratioClass + '">' + ratio.toFixed(1) + '%</td>';
+    html += '</tr>';
+  });
+
+  // 合计行
+  if (totalRow) {
+    html += '<tr class="row-total"><td>全市场合计</td>';
+    totalRow.daily_counts.forEach(function(count, di) {
+      if (count > 0) {
+        var c = heatColor(count, Math.max(colorMax * 2, count));
+        var dateLabel = data.dates[di].label;
+        html += '<td class="heat-cell" style="background:' + c.bg + ';color:' + c.text + '"' +
+                ' data-industry="全市场"' +
+                ' data-date="' + dateLabel + '"' +
+                ' data-count="' + count + '">' + count + '</td>';
+      } else {
+        html += '<td class="heat-cell no-data" style="background:rgba(45,58,45,0.3);color:#8aaa8a">0</td>';
+      }
+    });
+    var grandTotal = industries.reduce(function(s, r) { return s + r.total; }, 0);
+    html += '<td class="col-total" style="color:#e5c07b">' + grandTotal + '</td>';
+    html += '<td class="col-ratio">—</td></tr>';
+  }
+
+  html += '</tbody></table></div>';
+  mainContent.innerHTML = html;
+  setupScrollShadow();
+  setupTableClick();
+}
+
+// =========================================================================
+//  事件委托 — 表格点击
+// =========================================================================
+
+function setupTableClick() {
+  var table = document.getElementById('heatmapTable');
+  if (!table) return;
+  table.addEventListener('click', function(e) {
+    var cell = e.target.closest('.heat-cell');
+    if (!cell) return;
+    var industry = cell.getAttribute('data-industry');
+    var dateLabel = cell.getAttribute('data-date');
+    var count = parseInt(cell.getAttribute('data-count')) || 0;
+    if (!industry || !dateLabel || count === 0) return;
+
+    if (industry === '全市场') {
+      openTotalDetail(dateLabel, count);
+    } else {
+      openDetail(industry, dateLabel, count);
+    }
+  });
+}
+
+// =========================================================================
+//  模态框
+// =========================================================================
+
+async function openDetail(industry, dateLabel, count) {
+  document.getElementById('modalTitle').innerHTML = '<span>' + industry + '</span> · ' + dateLabel;
+  document.getElementById('modalBody').innerHTML = '<div class="loading">加载明细中...</div>';
+  document.getElementById('modalFooter').innerHTML = '';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  var details = await ensureDetails();
+  if (!details) {
+    document.getElementById('modalBody').innerHTML =
+      '<div class="error-msg">明细数据加载失败，请<a href="javascript:location.reload()">刷新</a>重试</div>';
+    return;
+  }
+
+  var indDetails = details[industry];
+  var stocks = indDetails ? (indDetails[dateLabel] || []) : [];
+  var row = null;
+  for (var i = 0; i < tableData.industries.length; i++) {
+    if (tableData.industries[i].industry === industry) { row = tableData.industries[i]; break; }
+  }
+  var total = row ? row.total : 0;
+  var typeLabel = tableData.type_label || '创新高';
+
+  document.getElementById('modalTitle').innerHTML =
+    '<span>' + industry + '</span> · ' + dateLabel + ' — ' + typeLabel + ' ' + stocks.length + ' 只';
+
+  var html = '<div class="modal-stats">' +
+    '<div>行业个股总数: <strong>' + total + '</strong></div>' +
+    '<div>当日' + typeLabel + ': <strong>' + stocks.length + '</strong></div>' +
+    '<div>占比: <strong>' + (total > 0 ? (stocks.length / total * 100).toFixed(1) : 0) + '%</strong></div>' +
+    '</div>';
+
+  html += '<div style="max-height:50vh;overflow-y:auto;"><table class="stock-table"><thead><tr>';
+  html += '<th>#</th><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th>';
+  html += '</tr></thead><tbody>';
+
+  stocks.forEach(function(s, i) {
+    var changeCls = s.change_pct >= 0 ? 'change-up' : 'change-down';
+    var sign = s.change_pct >= 0 ? '+' : '';
+    var prefix = s.code.startsWith('6') ? 'sh' : 'sz';
+    html += '<tr>' +
+      '<td style="color:var(--text-dim)">' + (i + 1) + '</td>' +
+      '<td><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
+      '<td>' + s.name + '</td>' +
+      '<td>' + s.price.toFixed(2) + '</td>' +
+      '<td class="' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalFooter').innerHTML = '共 ' + stocks.length + ' 只个股 · 点击代码可在东方财富查看详情';
+}
+
+async function openTotalDetail(dateLabel, count) {
+  document.getElementById('modalTitle').innerHTML = '<span>全市场</span> · ' + dateLabel;
+  document.getElementById('modalBody').innerHTML = '<div class="loading">加载明细中...</div>';
+  document.getElementById('modalFooter').innerHTML = '';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  var details = await ensureDetails();
+  if (!details) {
+    document.getElementById('modalBody').innerHTML =
+      '<div class="error-msg">明细数据加载失败，请<a href="javascript:location.reload()">刷新</a>重试</div>';
+    return;
+  }
+
+  var totalDetails = details['全市场合计'];
+  var allStocks = totalDetails ? (totalDetails[dateLabel] || []) : [];
+  var typeLabel = tableData.type_label || '创新高';
+
+  var byIndustry = {};
+  allStocks.forEach(function(s) {
+    var ind = s.industry || '其他';
+    if (!byIndustry[ind]) byIndustry[ind] = [];
+    byIndustry[ind].push(s);
+  });
+
+  document.getElementById('modalTitle').innerHTML =
+    '<span>全市场</span> · ' + dateLabel + ' — ' + typeLabel + ' ' + allStocks.length + ' 只';
+
+  var html = '<div class="modal-stats">' +
+    '<div>当日全市场' + typeLabel + ': <strong>' + allStocks.length + '</strong> 只</div>' +
+    '<div>涉及行业: <strong>' + Object.keys(byIndustry).length + '</strong> 个</div>' +
+    '</div>';
+
+  html += '<div style="max-height:50vh;overflow-y:auto;">';
+  var entries = Object.entries(byIndustry).sort(function(a, b) { return b[1].length - a[1].length; });
+  entries.forEach(function(entry) {
+    var ind = entry[0];
+    var stocks = entry[1];
+    html += '<div style="margin-bottom:16px">' +
+      '<h3 style="font-size:14px;color:#e5c07b;margin-bottom:6px;padding:4px 0;border-bottom:1px solid var(--border)">' +
+      ind + ' <span style="color:var(--text-dim);font-weight:400">(' + stocks.length + ' 只)</span>' +
+      '</h3>' +
+      '<table class="stock-table"><thead><tr>' +
+      '<th>#</th><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th>' +
+      '</tr></thead><tbody>';
+
+    stocks.forEach(function(s, i) {
+      var changeCls = s.change_pct >= 0 ? 'change-up' : 'change-down';
+      var sign = s.change_pct >= 0 ? '+' : '';
+      var prefix = s.code.startsWith('6') ? 'sh' : 'sz';
+      html += '<tr>' +
+        '<td style="color:var(--text-dim)">' + (i + 1) + '</td>' +
+        '<td><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
+        '<td>' + s.name + '</td>' +
+        '<td>' + s.price.toFixed(2) + '</td>' +
+        '<td class="' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+        '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+  });
+  html += '</div>';
+
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalFooter').innerHTML = '全市场 ' + allStocks.length + ' 只个股 · 按行业分组 · 点击代码跳转东方财富';
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
+
+// =========================================================================
+//  类型切换
+// =========================================================================
+
+document.getElementById('typeToggle').addEventListener('click', function(e) {
+  var btn = e.target.closest('.toggle-btn');
+  if (!btn) return;
+  var newType = btn.getAttribute('data-type');
+  if (newType === currentType) return;
+
+  currentType = newType;
+  var buttons = this.querySelectorAll('.toggle-btn');
+  for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
+  btn.classList.add('active');
+
+  detailsData = null;
+  detailsLoadedType = null;
+  loadData();
+});
+
+// =========================================================================
+//  滚动阴影
+// =========================================================================
+
+function setupScrollShadow() {
+  var container = document.getElementById('scrollContainer');
+  if (!container) return;
+  container.addEventListener('scroll', function() {
+    if (this.scrollLeft > 0) {
+      this.classList.add('scrolled');
+    } else {
+      this.classList.remove('scrolled');
+    }
+  });
+}
+
+// =========================================================================
+//  导出 Excel
+// =========================================================================
+
+function setupExportButton() {
+  var btn = document.getElementById('exportBtn');
+  btn.disabled = false;
+  var dropdown = document.getElementById('exportDropdown');
+  if (!tableData || !tableData.dates) return;
+
+  var html = '';
+  tableData.dates.forEach(function(d) {
+    html += '<div class="export-date-option" data-date="' + d.label + '">' + d.label + ' (' + d.full_label + ')</div>';
+  });
+  dropdown.innerHTML = html;
+
+  dropdown.addEventListener('click', function(e) {
+    var opt = e.target.closest('.export-date-option');
+    if (!opt) return;
+    var dateLabel = opt.getAttribute('data-date');
+    dropdown.classList.remove('show');
+    exportToExcel(dateLabel);
+  });
+}
+
+document.getElementById('exportBtn').addEventListener('click', function() {
+  var dropdown = document.getElementById('exportDropdown');
+  dropdown.classList.toggle('show');
+});
+
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('exportWrap');
+  if (!wrap.contains(e.target)) {
+    document.getElementById('exportDropdown').classList.remove('show');
+  }
+});
+
+async function exportToExcel(dateLabel) {
+  var details = await ensureDetails();
+  if (!details) {
+    alert('请先加载明细数据（点击任意热力图单元格）');
+    return;
+  }
+
+  var rows = [];
+  var typeLabel = tableData.type_label || '创新高';
+
+  for (var ind in details) {
+    if (ind === '全市场合计') continue;
+    var dateData = details[ind];
+    var stocks = dateData ? (dateData[dateLabel] || []) : [];
+    stocks.forEach(function(s) {
+      rows.push({
+        '行业': ind,
+        '股票代码': s.code,
+        '股票名称': s.name,
+        '最新价': s.price,
+        '涨跌幅%': s.change_pct,
+      });
+    });
+  }
+
+  if (rows.length === 0) {
+    alert(dateLabel + ' 无数据可导出');
+    return;
+  }
+
+  // 按行业分组排序
+  rows.sort(function(a, b) {
+    if (a['行业'] !== b['行业']) return a['行业'].localeCompare(b['行业']);
+    return b['涨跌幅%'] - a['涨跌幅%'];
+  });
+
+  var ws = XLSX.utils.json_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, dateLabel);
+  var filename = typeLabel + '_' + dateLabel + '.xlsx';
+  XLSX.writeFile(wb, filename);
+}
+
+// =========================================================================
+//  启动
+// =========================================================================
+
+loadData();
+</script>
+</body>
+</html>

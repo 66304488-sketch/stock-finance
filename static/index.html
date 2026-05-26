@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>个股财务信息</title>
+<style>
+  :root {
+    --bg: #f1f5f9; --card: #fff; --primary: #2563eb;
+    --accent: #1d4ed8; --text: #0f172a; --muted: #64748b;
+    --border: #e2e8f0; --green: #16a34a; --red: #dc2626;
+    --radius: 12px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .header { text-align: center; margin-bottom: 28px; }
+  .header h1 { font-size: 26px; font-weight: 700; }
+  .header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+  .search-box { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .search-box input {
+    width: 240px; padding: 10px 16px; border: 2px solid var(--border);
+    border-radius: 8px; font-size: 16px; outline: none; transition: border .2s;
+  }
+  .search-box input:focus { border-color: var(--primary); }
+  .search-box button {
+    padding: 10px 28px; background: var(--primary); color: #fff; border: none;
+    border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;
+    transition: background .15s;
+  }
+  .search-box button:hover { background: var(--accent); }
+  .search-box button:disabled { opacity: .5; cursor: not-allowed; }
+  .hint { text-align: center; margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+  .stock-title {
+    text-align: center; margin-bottom: 20px;
+    font-size: 22px; font-weight: 700; letter-spacing: -.3px;
+  }
+  .stock-title small { font-weight: 400; color: var(--muted); font-size: 14px; }
+  .stock-title .tick { color: var(--green); }
+  .stock-title .tick.down { color: var(--red); }
+
+  .error {
+    background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+    padding: 12px 20px; border-radius: var(--radius); margin-bottom: 20px;
+    display: none;
+  }
+  .loading { display: none; justify-content: center; padding: 60px 0; }
+  .loading .spinner {
+    width: 40px; height: 40px; border: 4px solid var(--border);
+    border-top-color: var(--primary); border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .section { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; overflow: hidden; }
+  .section-hd {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px; cursor: pointer; user-select: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-hd h2 { font-size: 15px; font-weight: 600; }
+  .section-hd .tag { font-size: 11px; background: #eef2ff; color: var(--primary); padding: 2px 10px; border-radius: 99px; font-weight: 500; }
+  .section-hd .arrow { margin-left: auto; transition: transform .3s; color: var(--muted); font-size: 12px; }
+  .section-hd.collapsed .arrow { transform: rotate(-90deg); }
+  .section-bd { padding: 16px 20px; overflow-x: auto; }
+  .section-bd.hidden { display: none; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 8px 12px; background: #f8fafc; font-weight: 600; color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace; }
+  .red { color: var(--red); }
+  .green { color: var(--green); }
+  .na { color: #94a3b8; font-style: italic; }
+
+  .quote-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px;
+  }
+  .quote-item { background: #f8fafc; border-radius: 8px; padding: 12px; text-align: center; }
+  .quote-item .lab { font-size: 12px; color: var(--muted); }
+  .quote-item .val { font-size: 19px; font-weight: 700; margin-top: 2px; word-break: break-all; }
+  .quote-item .val.sm { font-size: 16px; }
+
+  .timeline { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .timeline button {
+    padding: 6px 16px; border: 1px solid var(--border); background: var(--card);
+    border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+    transition: all .15s;
+  }
+  .timeline button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .timeline button:hover:not(.active) { background: #f1f5f9; }
+
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  @media (max-width: 640px) {
+    .container { padding: 12px; }
+    .search-box input { width: 100%; }
+    .quote-grid { grid-template-columns: repeat(2, 1fr); }
+    .section-bd { padding: 12px; }
+  }
+
+  .footer { text-align: center; padding: 28px 0 8px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>个股财务信息</h1>
+    <p>实时行情 · 财务数据 · 杜邦拆解 · 技术指标</p>
+    <div class="search-box">
+      <input id="codeInput" type="text" placeholder="股票代码，如 600519" maxlength="6" enterkeyhint="search">
+      <button id="searchBtn" onclick="search()">查询</button>
+    </div>
+    <div class="hint">沪深 A 股 · 输入 6 位代码</div>
+  </div>
+
+  <div id="error" class="error"></div>
+  <div id="loading" class="loading"><div class="spinner"></div></div>
+
+  <div id="results" style="display:none">
+    <div id="stockTitle" class="stock-title"></div>
+
+    <!-- A -->
+    <div class="section">
+      <div class="section-hd" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+        <h2>A · 实时行情</h2><span class="tag">11 字段</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-bd" id="quoteBody"></div>
+    </div>
+
+    <!-- B -->
+    <div class="section">
+      <div class="section-hd" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+        <h2>B · 财务数据</h2><span class="tag">带同比</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-bd">
+        <div id="finTimeline" class="timeline"></div>
+        <div id="finBody"></div>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="section">
+      <div class="section-hd" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+        <h2>C · 杜邦拆解</h2><span class="tag">3 核心指标</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-bd" id="dupontBody"></div>
+    </div>
+
+    <!-- D -->
+    <div class="section">
+      <div class="section-hd" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+        <h2>D · 筹码面</h2><span class="tag">股东人数</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-bd" id="shareholderBody"></div>
+    </div>
+
+    <!-- E -->
+    <div class="section">
+      <div class="section-hd" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+        <h2>E · 盈利预测</h2><span class="tag">未来 3 年</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-bd" id="forecastBody"></div>
+    </div>
+
+    <!-- F -->
+    <div class="section">
+      <div class="section-hd" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+        <h2>F · 技术指标</h2><span class="tag">8 字段</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-bd" id="techBody"></div>
+    </div>
+  </div>
+
+  <div class="footer">数据来源: 腾讯财经 · 东方财富 · Sina 财经 · 仅供学习参考</div>
+</div>
+
+<script>
+const input = document.getElementById('codeInput');
+input.addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+
+let stockData = null;
+
+async function search() {
+  let code = input.value.trim().toUpperCase().replace(/[^0-9]/g, '');
+  if (!code || !/^\d{6}$/.test(code)) {
+    showError('请输入 6 位数字股票代码，如 600519');
+    return;
+  }
+  hideError();
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('searchBtn').disabled = true;
+
+  try {
+    const res = await fetch(`/api/stock/${code}`);
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`HTTP ${res.status}: ${txt.slice(0, 120)}`);
+    }
+    stockData = await res.json();
+    renderAll(stockData);
+    document.getElementById('results').style.display = 'block';
+  } catch (err) {
+    showError('查询失败: ' + err.message);
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('searchBtn').disabled = false;
+  }
+}
+
+// ── display helpers ──
+
+function n(v, dec = 2) {
+  if (v == null || v === '') return '<span class="na">—</span>';
+  return Number(v).toFixed(dec);
+}
+
+function pct(v) {
+  if (v == null) return '<span class="na">—</span>';
+  const cls = v > 0 ? 'red' : v < 0 ? 'green' : '';
+  return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}%</span>`;
+}
+
+function money(v) {
+  if (v == null) return '<span class="na">—</span>';
+  const abs = Math.abs(v);
+  if (abs >= 1e8) return (v / 1e8).toFixed(2) + ' 亿';
+  if (abs >= 1e4) return (v / 1e4).toFixed(2) + ' 万';
+  return n(v);
+}
+
+// ── render all sections ──
+
+function renderAll(d) {
+  const q = d.quote || {};
+  const title = document.getElementById('stockTitle');
+  const cp = q.changePercent;
+  const cls = cp > 0 ? 'tick' : cp < 0 ? 'tick down' : '';
+  const arrow = cp > 0 ? '▲' : cp < 0 ? '▼' : '';
+  title.innerHTML =
+    (q.name || q.code || '') +
+    (q.latestPrice ? ` <small>${n(q.latestPrice)}</small>` : '') +
+    (cp != null ? ` <small class="${cls}">${arrow} ${Math.abs(cp).toFixed(2)}%</small>` : '') +
+    (q.code ? ` <small>${q.code}</small>` : '');
+
+  renderQuote(q, d.technicals);
+  renderFinancials(d.financials);
+  renderDupont(d.dupont);
+  renderShareholders(d.shareholders);
+  renderForecast(d.forecast);
+  renderTechnicals(d.technicals);
+}
+
+// A
+function renderQuote(q, t) {
+  if (!q || !q.latestPrice) {
+    document.getElementById('quoteBody').innerHTML = '<p class="na">暂无行情数据</p>';
+    return;
+  }
+  const items = [
+    ['最新价', n(q.latestPrice)],
+    ['昨收', n(q.prevClose)],
+    ['今开', n(q.open)],
+    ['最高', n(q.high)],
+    ['最低', n(q.low)],
+    ['涨跌幅', pct(q.changePercent)],
+    ['成交量', q.volume != null ? (q.volume / 10000).toFixed(0) + ' 万手' : '—'],
+    ['换手率', q.turnoverRate != null ? q.turnoverRate.toFixed(2) + '%' : '—'],
+    ['PE (静态)', n(q.pe)],
+    ['总市值', q.marketCap != null ? q.marketCap.toFixed(2) + ' 亿' : '—'],
+    ['52周最高', t && t.yearHigh ? n(t.yearHigh) : '—'],
+    ['52周最低', t && t.yearLow ? n(t.yearLow) : '—'],
+  ];
+  let html = '<div class="quote-grid">';
+  for (const [lab, val] of items) {
+    html += `<div class="quote-item"><div class="lab">${lab}</div><div class="val sm">${val}</div></div>`;
+  }
+  html += '</div>';
+  document.getElementById('quoteBody').innerHTML = html;
+}
+
+// B
+function renderFinancials(fin) {
+  const container = document.getElementById('finBody');
+  const timeline = document.getElementById('finTimeline');
+
+  if (!fin.income || !fin.income.length) {
+    container.innerHTML = '<p class="na">暂无财务数据</p>';
+    timeline.innerHTML = '';
+    return;
+  }
+
+  const dates = [...new Set(fin.income.map(i =>
+    (i.REPORT_DATE || '').replace('T00:00:00', '')
+  ))].filter(Boolean).sort().reverse();
+
+  const annuals = dates.filter(d => d.endsWith('12-31'));
+  const latest = dates[0];
+
+  const tabs = [];
+  if (latest) tabs.push({ label: '最新(' + latest.slice(5) + ')', key: latest });
+  for (const a of annuals.slice(0, 2)) {
+    if (a !== latest) tabs.push({ label: a.slice(0, 7), key: a });
+  }
+
+  function pick(report, dt) {
+    return (report || []).find(i =>
+      (i.REPORT_DATE || '').replace('T00:00:00', '') === dt
+    ) || {};
+  }
+
+  function renderTab(dt) {
+    const ii = pick(fin.income, dt);
+    const bb = pick(fin.balance, dt);
+    const ci = pick(fin.indicators, dt);
+    const cf = pick(fin.cashflow, dt);
+
+    // YoY date
+    let yoyDt = null;
+    if (dt.endsWith('12-31')) {
+      const y = parseInt(dt) - 1;
+      yoyDt = dates.find(d => d === `${y}-12-31`);
+    } else if (dt === latest) {
+      const mmdd = dt.slice(5);
+      const y = parseInt(dt) - 1;
+      yoyDt = dates.find(d => d === `${y}-${mmdd}`);
+    }
+
+    function yoy(cur, prev) {
+      if (cur == null || prev == null || prev === 0) return '<span class="na">—</span>';
+      return pct((cur - prev) / Math.abs(prev) * 100);
+    }
+
+    const pii = yoyDt ? pick(fin.income, yoyDt) : {};
+    const pci = yoyDt ? pick(fin.indicators, yoyDt) : {};
+    const pcf = yoyDt ? pick(fin.cashflow, yoyDt) : {};
+
+    function f(obj, names) {
+      for (const n of names) if (obj[n] != null) return obj[n];
+      return null;
+    }
+
+    const rev = f(ii, ['TOTAL_OPERATE_INCOME', 'TOTAL_OPERATE_INCOME_0']);
+    const np = f(ii, ['PARENT_NETPROFIT']);
+    const npExcl = f(ii, ['DEDUCT_PARENT_NETPROFIT']);
+    const eps = f(ci, ['BASIC_EPS']);
+    const bps = f(ci, ['BPS']);
+    const roe = f(ci, ['WEIGHTAVG_ROE']);
+    const grossM = f(ci, ['XSMLL']);
+    const mgjxjje = f(ci, ['MGJYXJJE']);
+    const debtRatio = f(bb, ['DEBT_ASSET_RATIO']);
+
+    // 净利率 = 净利润/营收
+    let netM = null;
+    if (rev && np && rev !== 0) netM = np / rev * 100;
+
+    const rows = [
+      ['营业总收入', money(rev), yoy(rev, f(pii, ['TOTAL_OPERATE_INCOME', 'TOTAL_OPERATE_INCOME_0']))],
+      ['净利润', money(np), yoy(np, f(pii, ['PARENT_NETPROFIT']))],
+      ['扣非净利润', money(npExcl), yoy(npExcl, f(pii, ['DEDUCT_PARENT_NETPROFIT']))],
+      ['毛利率', grossM != null ? grossM.toFixed(2) + '%' : '—', ''],
+      ['净利率', netM != null ? netM.toFixed(2) + '%' : '—', ''],
+      ['ROE', roe != null ? roe.toFixed(2) + '%' : '—', ''],
+      ['资产负债率', debtRatio != null ? debtRatio.toFixed(2) + '%' : '—', ''],
+      ['EPS (每股收益)', eps != null ? eps.toFixed(3) : '—', yoy(eps, f(pci, ['BASIC_EPS']))],
+      ['BPS (每股净资产)', bps != null ? bps.toFixed(2) : '—', ''],
+      ['每股经营现金流', mgjxjje != null ? mgjxjje.toFixed(3) : '—', yoy(mgjxjje, f(pcf, ['MGJYXJJE']))],
+    ];
+
+    let html = `<table><thead><tr><th>指标</th><th class="num">数值</th><th class="num">同比</th></tr></thead><tbody>`;
+    for (const [lab, val, y] of rows) {
+      html += `<tr><td>${lab}</td><td class="num">${val}</td><td class="num">${y}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    if (yoyDt) html += `<div class="note">同比基准: ${yoyDt}</div>`;
+    container.innerHTML = html;
+  }
+
+  timeline.innerHTML = tabs.map((t, i) =>
+    `<button class="${i === 0 ? 'active' : ''}" data-key="${t.key}">${t.label}</button>`
+  ).join('');
+  timeline.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      timeline.querySelector('.active')?.classList.remove('active');
+      btn.classList.add('active');
+      renderTab(btn.dataset.key);
+    });
+  });
+  if (tabs.length) renderTab(tabs[0].key);
+}
+
+// C
+function renderDupont(d) {
+  const el = document.getElementById('dupontBody');
+  if (!d || !Object.keys(d).length) {
+    el.innerHTML = '<p class="na">暂无数据（需要年报）</p>';
+    return;
+  }
+  let html = `<table><thead><tr><th>指标</th><th class="num">数值</th><th>说明</th></tr></thead><tbody>`;
+  html += row('净利率', d.netProfitMargin != null ? d.netProfitMargin.toFixed(2) + '%' : '—', '净利润 ÷ 营收');
+  html += row('资产周转率', d.assetTurnover != null ? d.assetTurnover.toFixed(4) : '—', '营收 ÷ 总资产');
+  html += row('权益乘数', d.equityMultiplier != null ? d.equityMultiplier.toFixed(4) : '—', '总资产 ÷ 净资产');
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// D
+function renderShareholders(s) {
+  const el = document.getElementById('shareholderBody');
+  if (!s || !s.latestCount) {
+    el.innerHTML = '<p class="na">暂无股东人数数据</p>';
+    return;
+  }
+  const rows = [
+    ['最新股东人数', s.latestCount != null ? s.latestCount.toLocaleString() : '—'],
+    ['上期股东人数', s.prevCount != null ? s.prevCount.toLocaleString() : '—'],
+    ['增减比例', s.changeRatio != null ? pct(s.changeRatio) : '—'],
+    ['截止日期', s.endDate || '—'],
+  ];
+  let html = `<table><thead><tr><th>指标</th><th class="num">数值</th></tr></thead><tbody>`;
+  for (const [lab, val] of rows) html += `<tr><td>${lab}</td><td class="num">${val}</td></tr>`;
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// E
+function renderForecast(f) {
+  const el = document.getElementById('forecastBody');
+  if (!f || (f.eps2026E == null && f.eps2027E == null && f.eps2028E == null)) {
+    el.innerHTML = '<p class="na">暂无盈利预测数据</p>';
+    return;
+  }
+  const rows = [
+    ['2026E', n(f.eps2026E, 3), f.forecastCount2026 != null ? f.forecastCount2026 + ' 家' : '—'],
+    ['2027E', n(f.eps2027E, 3), f.forecastCount2027 != null ? f.forecastCount2027 + ' 家' : '—'],
+    ['2028E', n(f.eps2028E, 3), f.forecastCount2028 != null ? f.forecastCount2028 + ' 家' : '—'],
+  ];
+  let html = `<table><thead><tr><th>年份</th><th class="num">一致预期 EPS</th><th class="num">预测机构</th></tr></thead><tbody>`;
+  for (const [yr, eps, cnt] of rows) html += `<tr><td>${yr}</td><td class="num">${eps}</td><td class="num">${cnt}</td></tr>`;
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// F
+function renderTechnicals(t) {
+  const el = document.getElementById('techBody');
+  if (!t || !Object.keys(t).length) {
+    el.innerHTML = '<p class="na">暂无技术指标</p>';
+    return;
+  }
+  const macdStr = t.macd && t.macd.dif != null
+    ? `DIF ${n(t.macd.dif, 4)} · DEA ${n(t.macd.dea, 4)} · MACD ${n(t.macd.macd, 4)}`
+    : '—';
+
+  const items = [
+    ['MA5', n(t.ma5)],
+    ['MA10', n(t.ma10)],
+    ['MA20', n(t.ma20)],
+    ['MACD', macdStr],
+    ['RSI(14)', t.rsi14 != null ? t.rsi14.toFixed(2) : '—'],
+    ['BIAS(20)', t.bias20 != null ? t.bias20.toFixed(2) + '%' : '—'],
+    ['20日波动率', t.volatility20 != null ? t.volatility20.toFixed(2) + '%' : '—'],
+    ['近1年最大回撤', t.maxDrawdown1y != null ? t.maxDrawdown1y.toFixed(2) + '%' : '—'],
+  ];
+  let html = `<table><thead><tr><th>指标</th><th class="num">数值</th></tr></thead><tbody>`;
+  for (const [lab, val] of items) html += `<tr><td>${lab}</td><td class="num">${val}</td></tr>`;
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function row(a, b, c) { return `<tr><td>${a}</td><td class="num">${b}</td><td style="color:var(--muted);font-size:13px;">${c}</td></tr>`; }
+
+function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.style.display = 'block'; }
+function hideError() { document.getElementById('error').style.display = 'none'; }
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+*.apkg
+anki-converter*.html
+new_highs_data.json
+new_highs_details.json
