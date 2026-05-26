@@ -299,7 +299,7 @@ def run_type(args, dates, active_codes, industry_map, all_data):
     }
     type_labels = {
         "month": "创20日新低", "60d": "创60日新低", "120d": "创120日新低",
-        "1year": "创一年新低", "alltime": "收盘创历史新低",
+        "1year": "创一年新低", "alltime": "收盘创近7年新低",
     }
     window = window_map[args.type]
     target_dates = set(dates)

@@ -611,7 +611,7 @@ function updateLabels() {
   var newLabels = ['20日', '60日', '120日'];
   if (currentDirection === 'lows') {
     newLabels.push('一年新低');
-    newLabels.push('收盘历史新低');
+    newLabels.push('收盘近7年新低');
   } else {
     newLabels.push('一年新高');
     newLabels.push('收盘历史新高');
@@ -672,11 +672,15 @@ function renderTable() {
   if (!data || !data.industries || !data.dates) return;
 
   var fallbackLabels = { month: '创20日新高', '60d': '创60日新高', '120d': '创120日新高', '1year': '创一年新高', alltime: '收盘创历史新高' };
+  var fallbackLabelsLows = { month: '创20日新低', '60d': '创60日新低', '120d': '创120日新低', '1year': '创一年新低', alltime: '收盘创近7年新低' };
+  var labels = currentDirection === 'lows' ? fallbackLabelsLows : fallbackLabels;
   document.getElementById('typeLabel').textContent =
-    data.type_label || fallbackLabels[currentType] || '创新高';
+    data.type_label || labels[currentType] || '创新高';
 
   var windowLabels = { month: '近20个交易日', '60d': '近60个交易日', '120d': '近120个交易日', '1year': '近250个交易日', alltime: '上市以来' };
-  document.getElementById('dateRange').textContent = windowLabels[currentType] || '';
+  var windowLabelsLows = { month: '近20个交易日', '60d': '近60个交易日', '120d': '近120个交易日', '1year': '近250个交易日', alltime: '近7年' };
+  document.getElementById('dateRange').textContent =
+    (currentDirection === 'lows' ? windowLabelsLows : windowLabels)[currentType] || '';
 
   var industries = data.industries.filter(function(r) { return !r.is_total; });
   var totalRow = data.industries.find(function(r) { return r.is_total; });
