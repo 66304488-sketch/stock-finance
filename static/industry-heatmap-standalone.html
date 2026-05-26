@@ -705,7 +705,7 @@ function openDetail(industry, dateLabel, count) {
   document.getElementById('modalOverlay').classList.add('active');
   document.body.style.overflow = 'hidden';
 
-  var details = await ensureDetails();
+  var details = ensureDetails();
   if (!details) {
     document.getElementById('modalBody').innerHTML =
       '<div class="error-msg">明细数据加载失败，请<a href="javascript:location.reload()">刷新</a>重试</div>';
@@ -759,7 +759,7 @@ function openTotalDetail(dateLabel, count) {
   document.getElementById('modalOverlay').classList.add('active');
   document.body.style.overflow = 'hidden';
 
-  var details = await ensureDetails();
+  var details = ensureDetails();
   if (!details) {
     document.getElementById('modalBody').innerHTML =
       '<div class="error-msg">明细数据加载失败，请<a href="javascript:location.reload()">刷新</a>重试</div>';
@@ -908,7 +908,7 @@ document.addEventListener('click', function(e) {
 });
 
 function exportToExcel(dateLabel) {
-  var details = await ensureDetails();
+  var details = ensureDetails();
   if (!details) {
     alert('请先加载明细数据（点击任意热力图单元格）');
     return;

@@ -64,7 +64,7 @@ def main():
         "function ensureDetails() {\n  if (detailsData && detailsLoadedType === currentType) return detailsData;\n  detailsData = EMBEDDED_DETAILS[currentType] || null;\n  detailsLoadedType = currentType;\n  return detailsData;\n}"
     )
 
-    # 修改 openDetail/exportToExcel 等函数中的 async — 因为 ensureDetails 不再是 async
+    # 移除 async/await — ensureDetails 改为同步
     html = html.replace(
         "async function openDetail(industry, dateLabel, count) {",
         "function openDetail(industry, dateLabel, count) {"
@@ -77,6 +77,7 @@ def main():
         "async function exportToExcel(dateLabel) {",
         "function exportToExcel(dateLabel) {"
     )
+    html = html.replace("var details = await ensureDetails();", "var details = ensureDetails();")
 
     # 保存
     output_path = os.path.join(STATIC, "industry-heatmap-standalone.html")
