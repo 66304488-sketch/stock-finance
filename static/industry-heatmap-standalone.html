@@ -373,24 +373,36 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
+    table-layout: fixed;
   }
   .stock-table thead th {
     background: var(--header-bg);
     color: var(--text-dim);
     font-weight: 500;
-    padding: 6px 8px;
-    text-align: left;
+    padding: 5px 4px;
+    text-align: center;
     border-bottom: 1px solid var(--border);
     font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  .stock-table thead th.col-idx { width: 24px; }
+  .stock-table thead th.col-code { width: 58px; }
+  .stock-table thead th.col-name { text-align: left; }
+  .stock-table thead th.col-price { width: 52px; }
+  .stock-table thead th.col-chg { width: 58px; }
   .stock-table tbody td {
-    padding: 6px 8px;
-    text-align: left;
+    padding: 5px 4px;
+    text-align: center;
     border-bottom: 1px solid rgba(51,56,66,0.3);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     font-size: 12px;
     color: var(--text-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  .stock-table tbody td.col-idx { color: var(--text-dim); }
+  .stock-table tbody td.col-name { text-align: left; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
   .stock-table tbody tr:hover td { background: #2a2e36; }
   .stock-table .change-up { color: #e06c75; }
   .stock-table .change-down { color: #61afef; }
@@ -428,8 +440,13 @@
     .modal-header { padding: 8px 10px; }
     .modal-body { padding: 8px 10px; }
     .modal-footer { padding: 6px 10px; }
-    .stock-table thead th { padding: 5px 4px; font-size: 10px; }
-    .stock-table tbody td { padding: 5px 4px; font-size: 11px; }
+    .stock-table { font-size: 10px; }
+    .stock-table thead th { padding: 3px 2px; font-size: 9px; }
+    .stock-table thead th.col-idx { width: 18px; }
+    .stock-table thead th.col-code { width: 48px; }
+    .stock-table thead th.col-price { width: 44px; }
+    .stock-table thead th.col-chg { width: 50px; }
+    .stock-table tbody td { padding: 3px 2px; font-size: 10px; }
   }
 
   /* Error message */
@@ -792,7 +809,7 @@ function openDetail(industry, dateLabel, count) {
     typeLabel + ' · <strong>' + stocks.length + '</strong> 只 · 占比 <strong>' + ratio + '%</strong> · 行业共 ' + total + ' 只';
 
   var html = '<div style="max-height:55vh;overflow-y:auto;"><table class="stock-table"><thead><tr>';
-  html += '<th>#</th><th>代码</th><th>名称</th><th>价格</th><th>涨跌</th>';
+  html += '<th class="col-idx">#</th><th class="col-code">代码</th><th class="col-name">名称</th><th class="col-price">价格</th><th class="col-chg">涨跌</th>';
   html += '</tr></thead><tbody>';
 
   stocks.forEach(function(s, i) {
@@ -800,11 +817,11 @@ function openDetail(industry, dateLabel, count) {
     var sign = s.change_pct >= 0 ? '+' : '';
     var prefix = s.code.startsWith('6') ? 'sh' : 'sz';
     html += '<tr>' +
-      '<td style="color:var(--text-dim)">' + (i + 1) + '</td>' +
-      '<td><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
-      '<td>' + s.name + '</td>' +
-      '<td>' + s.price.toFixed(2) + '</td>' +
-      '<td class="' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+      '<td class="col-idx">' + (i + 1) + '</td>' +
+      '<td class="col-code"><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
+      '<td class="col-name">' + s.name + '</td>' +
+      '<td class="col-price">' + s.price.toFixed(2) + '</td>' +
+      '<td class="col-chg ' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
       '</tr>';
   });
 
@@ -852,7 +869,7 @@ function openTotalDetail(dateLabel, count) {
     html += '<div class="industry-group-title">' +
       ind + ' <span>(' + stocks.length + ' 只)</span></div>' +
       '<table class="stock-table"><thead><tr>' +
-      '<th>#</th><th>代码</th><th>名称</th><th>价格</th><th>涨跌</th>' +
+      '<th class="col-idx">#</th><th class="col-code">代码</th><th class="col-name">名称</th><th class="col-price">价格</th><th class="col-chg">涨跌</th>' +
       '</tr></thead><tbody>';
 
     stocks.forEach(function(s, i) {
@@ -860,11 +877,11 @@ function openTotalDetail(dateLabel, count) {
       var sign = s.change_pct >= 0 ? '+' : '';
       var prefix = s.code.startsWith('6') ? 'sh' : 'sz';
       html += '<tr>' +
-        '<td style="color:var(--text-dim)">' + (i + 1) + '</td>' +
-        '<td><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
-        '<td>' + s.name + '</td>' +
-        '<td>' + s.price.toFixed(2) + '</td>' +
-        '<td class="' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+        '<td class="col-idx">' + (i + 1) + '</td>' +
+        '<td class="col-code"><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
+        '<td class="col-name">' + s.name + '</td>' +
+        '<td class="col-price">' + s.price.toFixed(2) + '</td>' +
+        '<td class="col-chg ' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
         '</tr>';
     });
 
