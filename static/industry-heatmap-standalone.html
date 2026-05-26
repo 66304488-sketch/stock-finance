@@ -677,8 +677,7 @@ function renderTable() {
 
   var firstDate = data.dates[0] ? data.dates[0].full_label || '' : '';
   var lastDate = data.dates[data.dates.length - 1] ? data.dates[data.dates.length - 1].full_label || '' : '';
-  document.getElementById('dateRange').textContent =
-    firstDate + ' — ' + lastDate + '（共 ' + data.dates.length + ' 个交易日）';
+  document.getElementById('dateRange').textContent = firstDate + ' — ' + lastDate;
 
   var industries = data.industries.filter(function(r) { return !r.is_total; });
   var totalRow = data.industries.find(function(r) { return r.is_total; });
