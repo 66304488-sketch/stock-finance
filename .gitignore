@@ -7,3 +7,4 @@ new_highs_data.json
 new_highs_details.json
 new_lows_details_*.json
 new_highs_details_*.json
+all_klines.pkl
