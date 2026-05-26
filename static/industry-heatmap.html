@@ -667,9 +667,8 @@ function renderTable() {
   document.getElementById('typeLabel').textContent =
     data.type_label || fallbackLabels[currentType] || '创新高';
 
-  var firstDate = data.dates[0] ? data.dates[0].full_label || '' : '';
-  var lastDate = data.dates[data.dates.length - 1] ? data.dates[data.dates.length - 1].full_label || '' : '';
-  document.getElementById('dateRange').textContent = firstDate + ' — ' + lastDate;
+  var windowLabels = { month: '近20个交易日', '60d': '近60个交易日', '120d': '近120个交易日', '1year': '近250个交易日', alltime: '上市以来' };
+  document.getElementById('dateRange').textContent = windowLabels[currentType] || '';
 
   var industries = data.industries.filter(function(r) { return !r.is_total; });
   var totalRow = data.industries.find(function(r) { return r.is_total; });
