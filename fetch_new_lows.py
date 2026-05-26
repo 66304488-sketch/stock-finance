@@ -35,7 +35,7 @@ SW2021_INDUSTRY_MAP = {
     "75": "石油石化", "76": "环保", "77": "美容护理",
 }
 
-LOOKBACK_DAYS = 400
+LOOKBACK_DAYS = 2500
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "static", "all_klines.pkl")
 
 
