@@ -445,12 +445,12 @@
 
   <div class="header">
     <div class="title-section">
-      <h1>行业创新高个股分布</h1>
-      <div class="subtitle">申万一级行业 · <span id="typeLabel">创20日新高</span> · <span id="dateRange"></span></div>
+      <h1>行业创新高/新低个股分布</h1>
+      <div class="subtitle">申万一级行业 · <span id="directionLabel">新高</span> · <span id="typeLabel">创20日新高</span> · <span id="dateRange"></span></div>
     </div>
     <div class="header-right">
       <div class="legend-section">
-        <span>创新高家数</span>
+        <span id="legendLabel">创新高家数</span>
         <div class="legend-bar">
           <span style="background:#3d8c40"></span>
           <span style="background:#6aaa3a"></span>
@@ -461,6 +461,10 @@
           <span style="background:#c93a3a"></span>
         </div>
         <span>少 → 多</span>
+      </div>
+      <div class="type-toggle" id="directionToggle">
+        <button class="toggle-btn active" data-direction="highs">创新高</button>
+        <button class="toggle-btn" data-direction="lows">创新低</button>
       </div>
       <div class="type-toggle" id="typeToggle">
         <button class="toggle-btn active" data-type="month">20日</button>
@@ -504,16 +508,19 @@
 // =========================================================================
 
 let currentType = 'month';
+let currentDirection = 'highs';
 let tableData = null;
 let detailsData = null;
 let detailsLoading = false;
 let detailsLoadedType = null;
+let detailsLoadedDirection = null;
 
 function getUrls() {
   var suffix = currentType;
+  var prefix = currentDirection === 'lows' ? 'new_lows' : 'new_highs';
   return {
-    counts: '/new_highs_data_' + suffix + '.json',
-    details: '/new_highs_details_' + suffix + '.json',
+    counts: '/' + prefix + '_data_' + suffix + '.json',
+    details: '/' + prefix + '_details_' + suffix + '.json',
   };
 }
 
@@ -525,25 +532,33 @@ async function loadData() {
     var resp = await fetch(urls.counts);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     tableData = await resp.json();
+    updateLabels();
     renderTable();
     setupExportButton();
     document.getElementById('updateNote').textContent =
       '数据更新于 ' + (tableData.updated_at || 'unknown') + ' · 数据源: 同花顺/申万研究所 · 点击单元格查看个股明细';
   } catch (e) {
+    var scriptName = currentDirection === 'lows' ? 'fetch_new_lows.py' : 'fetch_new_highs.py';
     mainContent.innerHTML =
       '<div class="error-msg">' +
       '数据加载失败: ' + e.message +
       '<br><button onclick="location.reload()">重试</button>' +
-      '<br><br><span style="font-size:12px;color:var(--text-dim)">请先运行: python fetch_new_highs.py --type ' + currentType + '</span>' +
+      '<br><br><span style="font-size:12px;color:var(--text-dim)">请先运行: python ' + scriptName + ' --type ' + currentType + '</span>' +
       '</div>';
   }
 }
 
+function updateLabels() {
+  var dirLabel = currentDirection === 'lows' ? '新低' : '新高';
+  document.getElementById('directionLabel').textContent = dirLabel;
+  document.getElementById('legendLabel').textContent = '创' + dirLabel + '家数';
+}
+
 async function ensureDetails() {
-  if (detailsData && detailsLoadedType === currentType) return detailsData;
+  if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection) return detailsData;
   if (detailsLoading) {
     while (detailsLoading) await new Promise(function(r) { setTimeout(r, 100); });
-    if (detailsData && detailsLoadedType === currentType) return detailsData;
+    if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection) return detailsData;
   }
   detailsLoading = true;
   try {
@@ -552,6 +567,7 @@ async function ensureDetails() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     detailsData = await resp.json();
     detailsLoadedType = currentType;
+    detailsLoadedDirection = currentDirection;
     return detailsData;
   } catch (e) {
     console.error('加载明细失败:', e);
@@ -862,6 +878,25 @@ document.getElementById('typeToggle').addEventListener('click', function(e) {
 
   detailsData = null;
   detailsLoadedType = null;
+  detailsLoadedDirection = null;
+  loadData();
+});
+
+// 方向切换（新高 / 新低）
+document.getElementById('directionToggle').addEventListener('click', function(e) {
+  var btn = e.target.closest('.toggle-btn');
+  if (!btn) return;
+  var newDir = btn.getAttribute('data-direction');
+  if (newDir === currentDirection) return;
+
+  currentDirection = newDir;
+  var buttons = this.querySelectorAll('.toggle-btn');
+  for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
+  btn.classList.add('active');
+
+  detailsData = null;
+  detailsLoadedType = null;
+  detailsLoadedDirection = null;
   loadData();
 });
 

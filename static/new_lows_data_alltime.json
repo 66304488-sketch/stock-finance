@@ -1,0 +1,576 @@
+{
+  "dates": [
+    {
+      "label": "5月26日",
+      "full_label": "2026年5月26日"
+    },
+    {
+      "label": "5月25日",
+      "full_label": "2026年5月25日"
+    },
+    {
+      "label": "5月22日",
+      "full_label": "2026年5月22日"
+    },
+    {
+      "label": "5月21日",
+      "full_label": "2026年5月21日"
+    },
+    {
+      "label": "5月20日",
+      "full_label": "2026年5月20日"
+    },
+    {
+      "label": "5月19日",
+      "full_label": "2026年5月19日"
+    },
+    {
+      "label": "5月15日",
+      "full_label": "2026年5月15日"
+    },
+    {
+      "label": "5月14日",
+      "full_label": "2026年5月14日"
+    },
+    {
+      "label": "5月13日",
+      "full_label": "2026年5月13日"
+    },
+    {
+      "label": "5月12日",
+      "full_label": "2026年5月12日"
+    }
+  ],
+  "updated_at": "2026-05-26 22:29:07",
+  "type": "alltime",
+  "type_label": "收盘创历史新低",
+  "industries": [
+    {
+      "industry": "医药生物",
+      "total": 464,
+      "daily_counts": [
+        5,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 1.1
+    },
+    {
+      "industry": "家用电器",
+      "total": 94,
+      "daily_counts": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 2.1
+    },
+    {
+      "industry": "食品饮料",
+      "total": 125,
+      "daily_counts": [
+        2,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 1.6
+    },
+    {
+      "industry": "美容护理",
+      "total": 27,
+      "daily_counts": [
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 7.4
+    },
+    {
+      "industry": "农林牧渔",
+      "total": 103,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 1.0
+    },
+    {
+      "industry": "电子",
+      "total": 465,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.2
+    },
+    {
+      "industry": "汽车",
+      "total": 293,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.3
+    },
+    {
+      "industry": "纺织服饰",
+      "total": 108,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.9
+    },
+    {
+      "industry": "轻工制造",
+      "total": 159,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.6
+    },
+    {
+      "industry": "商贸零售",
+      "total": 104,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 1.0
+    },
+    {
+      "industry": "社会服务",
+      "total": 77,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 1.3
+    },
+    {
+      "industry": "建筑装饰",
+      "total": 156,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.6
+    },
+    {
+      "industry": "机械设备",
+      "total": 550,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.2
+    },
+    {
+      "industry": "国防军工",
+      "total": 134,
+      "daily_counts": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.7
+    },
+    {
+      "industry": "基础化工",
+      "total": 422,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "钢铁",
+      "total": 47,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "有色金属",
+      "total": 143,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "公用事业",
+      "total": 123,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "交通运输",
+      "total": 127,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "房地产",
+      "total": 73,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "银行",
+      "total": 42,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "非银金融",
+      "total": 77,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "建筑材料",
+      "total": 77,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "电力设备",
+      "total": 386,
+      "daily_counts": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "计算机",
+      "total": 324,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "传媒",
+      "total": 138,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "通信",
+      "total": 132,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "煤炭",
+      "total": 37,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "石油石化",
+      "total": 45,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "环保",
+      "total": 133,
+      "daily_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ratio": 0.0
+    },
+    {
+      "industry": "全市场合计",
+      "total": 5185,
+      "daily_counts": [
+        21,
+        17,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "is_total": true
+    }
+  ]
+}

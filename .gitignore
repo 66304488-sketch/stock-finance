@@ -5,3 +5,5 @@ __pycache__/
 anki-converter*.html
 new_highs_data.json
 new_highs_details.json
+new_lows_details_*.json
+new_highs_details_*.json
