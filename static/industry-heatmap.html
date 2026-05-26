@@ -552,6 +552,19 @@ function updateLabels() {
   var dirLabel = currentDirection === 'lows' ? '新低' : '新高';
   document.getElementById('directionLabel').textContent = dirLabel;
   document.getElementById('legendLabel').textContent = '创' + dirLabel + '家数';
+  // 更新类型切换按钮文字
+  var btns = document.querySelectorAll('#typeToggle .toggle-btn');
+  var newLabels = ['20日', '60日', '120日'];
+  if (currentDirection === 'lows') {
+    newLabels.push('一年新低');
+    newLabels.push('收盘历史新低');
+  } else {
+    newLabels.push('一年新高');
+    newLabels.push('收盘历史新高');
+  }
+  for (var i = 0; i < btns.length && i < newLabels.length; i++) {
+    btns[i].textContent = newLabels[i];
+  }
 }
 
 async function ensureDetails() {
