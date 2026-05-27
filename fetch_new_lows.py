@@ -93,22 +93,65 @@ def format_date_short(date_str):
 
 
 def download_klines_cached(codes, target_dates, force_refresh=False):
-    """下载K线数据（带缓存）"""
+    """下载K线数据（带缓存，增量更新）"""
+    all_dates = sorted(target_dates)
+    latest_target = all_dates[-1]
+    latest_str = f"{latest_target[:4]}-{latest_target[4:6]}-{latest_target[6:8]}"
+
     if not force_refresh and os.path.exists(CACHE_FILE):
         print(f"[2/5] 从缓存加载K线数据: {CACHE_FILE}")
         with open(CACHE_FILE, "rb") as f:
             cache = pickle.load(f)
-        cached_codes = set(cache["codes"])
-        new_codes = [c for c in codes if c not in cached_codes]
-        if new_codes:
-            print(f"  新增 {len(new_codes)} 只股票，补充下载...")
-            new_data = download_klines_raw(new_codes, target_dates)
-            cache["data"].update(new_data)
-            cache["codes"] = codes
-            with open(CACHE_FILE, "wb") as f:
-                pickle.dump(cache, f)
-        return cache["data"]
 
+        cached_data = cache["data"]
+        cached_codes = set(cache["codes"])
+
+        # 分类：全新股票 vs 已有但缺最新数据的股票
+        new_codes = [c for c in codes if c not in cached_codes]
+        stale_codes = []
+        for c in codes:
+            if c in cached_codes:
+                df = cached_data.get(c)
+                if df is None or df.empty:
+                    stale_codes.append(c)
+                else:
+                    max_date = df["date"].max().strftime("%Y-%m-%d")
+                    if max_date < latest_str:
+                        stale_codes.append(c)
+
+        if not new_codes and not stale_codes:
+            print(f"  缓存已是最新 ({len(cached_data)} 只)，无需下载")
+            return cached_data
+
+        if new_codes:
+            print(f"  新上市股票: {len(new_codes)} 只，下载完整历史...")
+        if stale_codes:
+            print(f"  需补充最新数据: {len(stale_codes)} 只")
+
+        # 新股票：下载完整历史
+        if new_codes:
+            new_data = download_klines_raw(new_codes, target_dates)
+            cached_data.update(new_data)
+
+        # 已有股票：只下载缺失的最新数据段
+        if stale_codes:
+            print(f"  增量下载中 ({len(stale_codes)} 只, 仅最新数据)...")
+            incremental = _download_incremental_batch(stale_codes, latest_str, cached_data)
+            for code, df_new in incremental.items():
+                if df_new is not None and not df_new.empty:
+                    df_old = cached_data.get(code)
+                    if df_old is not None and not df_old.empty:
+                        cached_data[code] = pd.concat([df_old, df_new], ignore_index=True)
+                    else:
+                        cached_data[code] = df_new
+
+        cache["codes"] = codes
+        with open(CACHE_FILE, "wb") as f:
+            pickle.dump(cache, f)
+        print(f"  缓存已更新: {len(cached_data)} 只")
+        return cached_data
+
+    # 无缓存：全量下载
     print(f"[2/5] 下载日K线数据 (共 {len(codes)} 只股票, 首次较慢, 后续缓存)...")
     data = download_klines_raw(codes, target_dates)
     cache = {"codes": codes, "data": data}
@@ -119,8 +162,66 @@ def download_klines_cached(codes, target_dates, force_refresh=False):
     return data
 
 
+def _download_incremental_batch(codes, end_str, cached_data):
+    """批量增量下载：只拉取每只股票距缓存最新日期之间的数据"""
+    stale_ranges = {}
+    for code in codes:
+        df = cached_data.get(code)
+        if df is not None and not df.empty:
+            max_date = df["date"].max()
+            gap_start = (max_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            gap_start = (pd.Timestamp(end_str) - pd.Timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+        stale_ranges[code] = gap_start
+
+    bs.login()
+    result = {}
+    failed = 0
+    total = len(codes)
+    t0 = time.time()
+
+    for i, code in enumerate(codes):
+        if (i + 1) % 200 == 0:
+            elapsed = time.time() - t0
+            rate = (i + 1) / elapsed if elapsed > 0 else 0
+            eta = (total - i - 1) / rate if rate > 0 else 0
+            print(f"    {i+1}/{total} ({rate:.0f} stk/s, ETA {eta:.0f}s, 失败: {failed})")
+
+        market = "sz" if code.startswith(("0", "3")) else "sh"
+        symbol = f"{market}.{code}"
+        try:
+            rs = bs.query_history_k_data_plus(
+                symbol, "date,close",
+                start_date=stale_ranges[code], end_date=end_str,
+                frequency="d", adjustflag="2"
+            )
+            if rs.error_code != "0":
+                failed += 1
+                continue
+            rows = []
+            while rs.next():
+                row_data = rs.get_row_data()
+                if row_data and len(row_data) >= 2 and row_data[1]:
+                    try:
+                        rows.append({"date": row_data[0], "close": float(row_data[1])})
+                    except (ValueError, TypeError):
+                        pass
+            if rows:
+                df = pd.DataFrame(rows)
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.sort_values("date")
+                result[code] = df
+        except Exception:
+            failed += 1
+
+    bs.logout()
+    elapsed = time.time() - t0
+    print(f"    完成: {len(result)} 只 ({elapsed:.0f}s, 失败: {failed})")
+    return result
+
+
 def download_klines_raw(codes, target_dates):
-    """实际下载K线数据"""
+    """批量下载K线数据（全量）"""
     all_dates = sorted(target_dates)
     earliest = all_dates[0]
     latest = all_dates[-1]
