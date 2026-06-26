@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-26 16:32:45",
+  "config": {
+    "sources": {
+      "highs": "sina_kline",
+      "lows": "sina_kline",
+      "capital_flow": "sina_kline_cache",
+      "basics": "akshare_excel"
+    },
+    "frozen": {
+      "highs": false,
+      "lows": false,
+      "capital_flow": false,
+      "ai": false,
+      "standalone": false
+    }
+  },
+  "datasets": {
+    "capital_flow": {
+      "label": "资金流向",
+      "source": "sina_kline_cache",
+      "last_success_at": "2026-06-26 16:32:45",
+      "date_args": "20260626",
+      "mode": "incremental",
+      "status": "success",
+      "note": ""
+    },
+    "highs": {
+      "label": "创新高",
+      "source": "sina_kline",
+      "last_success_at": "2026-06-26 16:31:55",
+      "date_args": "20260626",
+      "mode": "incremental",
+      "status": "success",
+      "note": ""
+    },
+    "lows": {
+      "label": "创新低",
+      "source": "sina_kline",
+      "last_success_at": "2026-06-26 16:32:13",
+      "date_args": "20260626",
+      "mode": "incremental",
+      "status": "success",
+      "note": ""
+    }
+  }
+}

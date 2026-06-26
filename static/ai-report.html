@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 市场复盘</title>
+<style>
+  :root {
+    --bg: #1a1d23;
+    --bg-card: #21252b;
+    --text: #abb2bf;
+    --text-bright: #e5e5e5;
+    --accent: #61afef;
+    --green: #98c379;
+    --red: #e06c75;
+    --yellow: #e5c07b;
+    --border: #333842;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.7;
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .header {
+    text-align: center;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .header h1 { color: var(--text-bright); font-size: 1.5em; }
+  .header .meta { color: var(--text); font-size: 0.85em; margin-top: 8px; }
+  .tone-badge {
+    display: inline-block;
+    padding: 2px 12px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .tone-强势 { background: #98c37933; color: var(--green); }
+  .tone-偏多 { background: #98c37922; color: var(--green); }
+  .tone-震荡 { background: #e5c07b22; color: var(--yellow); }
+  .tone-偏空 { background: #e06c7522; color: var(--red); }
+  .tone-弱势 { background: #e06c7533; color: var(--red); }
+
+  .report-body {
+    background: var(--bg-card);
+    border-radius: 8px;
+    padding: 24px;
+    border: 1px solid var(--border);
+  }
+  .report-body h2 {
+    color: var(--text-bright);
+    font-size: 1.1em;
+    margin: 20px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .report-body h2:first-child { margin-top: 0; }
+  .report-body p { margin: 8px 0; }
+  .report-body ul { padding-left: 20px; margin: 8px 0; }
+  .report-body li { margin: 4px 0; }
+  .report-body strong { color: var(--text-bright); }
+  .report-body code {
+    background: #282c34;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: var(--accent);
+    font-size: 0.9em;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 600px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+  .metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .metric-card .value {
+    font-size: 1.6em;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+  .metric-card .label {
+    font-size: 0.75em;
+    color: var(--text);
+    margin-top: 4px;
+  }
+  .metric-card .change {
+    font-size: 0.8em;
+    margin-top: 2px;
+  }
+  .change-up { color: var(--green); }
+  .change-down { color: var(--red); }
+
+  .loading { text-align: center; padding: 40px; color: var(--text); }
+  .error { color: var(--red); text-align: center; padding: 40px; }
+  .fallback { color: var(--yellow); font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🤖 AI 市场复盘</h1>
+  <div class="meta" id="meta"></div>
+</div>
+
+<div id="metricsGrid" class="metrics-grid"></div>
+<div id="reportBody" class="report-body">
+  <div class="loading">正在加载分析报告...</div>
+</div>
+
+<script>
+(async function() {
+  try {
+    const resp = await fetch('/api/report/latest');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    const m = data.metrics || {};
+    const ai = data.ai_report;
+
+    // Meta
+    document.getElementById('meta').innerHTML =
+      `${data.date} <span class="tone-badge tone-${data.market_tone}">${data.market_tone}</span>`;
+
+    // Metrics grid
+    const cards = [
+      { label: '20日新低', value: m.lows_month_total || '-', change: m.lows_month_change_pct },
+      { label: '一年新低', value: m.lows_1year_total || '-', change: m.lows_1year_change_pct },
+      { label: '近7年新低', value: m.lows_alltime_total || '-' },
+      { label: '历史新高', value: m.highs_alltime_total || '-' },
+    ];
+    document.getElementById('metricsGrid').innerHTML = cards.map(c =>
+      `<div class="metric-card">
+        <div class="value">${c.value}</div>
+        <div class="label">${c.label}</div>
+        ${c.change !== undefined ? `<div class="change ${c.change > 0 ? 'change-up' : 'change-down'}">日环比 ${c.change > 0 ? '+' : ''}${c.change}%</div>` : ''}
+      </div>`
+    ).join('');
+
+    // Report body
+    if (ai) {
+      document.getElementById('reportBody').innerHTML = markdownToHtml(ai);
+    } else {
+      document.getElementById('reportBody').innerHTML =
+        '<p class="fallback">⚠️ AI 分析未生成。请设置 ANTHROPIC_API_KEY 环境变量后运行 ai_analyzer.py。</p>';
+    }
+  } catch (err) {
+    document.getElementById('reportBody').innerHTML =
+      `<div class="error">无法加载分析报告: ${err.message}<br>请确保已运行 ai_analyzer.py</div>`;
+  }
+})();
+
+function markdownToHtml(md) {
+  let html = md
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  return '<p>' + html + '</p>';
+}
+</script>
+</body>
+</html>

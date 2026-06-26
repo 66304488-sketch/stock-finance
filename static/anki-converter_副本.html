@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q&A to Anki APKG Converter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f5f5; color: #333; min-height: 100vh;
+}
+.header {
+  background: #2196f3; color: #fff; padding: 20px 24px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.header h1 { font-size: 22px; font-weight: 600; }
+.header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+.container {
+  max-width: 1200px; margin: 24px auto; padding: 0 24px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+}
+@media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+.panel {
+  background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 20px;
+}
+.panel h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #555; }
+textarea {
+  width: 100%; height: 360px; border: 1px solid #ddd; border-radius: 6px;
+  padding: 12px; font-size: 14px; font-family: "Menlo", "Consolas", monospace;
+  line-height: 1.6; resize: vertical; tab-size: 2;
+}
+textarea:focus { outline: none; border-color: #2196f3; box-shadow: 0 0 0 2px rgba(33,150,243,0.15); }
+.format-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.format-bar label { font-size: 13px; color: #666; white-space: nowrap; }
+.format-bar select, .format-bar input {
+  padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;
+}
+.format-bar input { width: 140px; }
+.format-bar select:focus, .format-bar input:focus { outline: none; border-color: #2196f3; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px;
+  font-weight: 500; cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: #2196f3; color: #fff; }
+.btn-primary:hover { background: #1976d2; }
+.btn-primary:disabled { background: #90caf9; cursor: not-allowed; }
+.btn-group { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.note-type-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.note-type-tab {
+  padding: 6px 16px; border: 1px solid #ddd; border-radius: 4px;
+  background: #fafafa; font-size: 13px; cursor: pointer; transition: all 0.15s;
+}
+.note-type-tab.active { background: #2196f3; color: #fff; border-color: #2196f3; }
+.card-preview { max-height: 500px; overflow-y: auto; }
+.card-item {
+  border: 1px solid #eee; border-radius: 6px; margin-bottom: 10px; overflow: hidden;
+}
+.card-item-header {
+  background: #f9f9f9; padding: 6px 12px; font-size: 11px; color: #999;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.card-front, .card-back {
+  padding: 14px 18px; font-size: 14px; line-height: 1.7;
+}
+.card-front { border-bottom: 1px dashed #eee; }
+.card-front::before {
+  content: "Q: "; font-weight: 600; color: #2196f3; font-size: 12px;
+}
+.card-back::before {
+  content: "A: "; font-weight: 600; color: #4caf50; font-size: 12px;
+}
+.card-cloze { padding: 14px 18px; font-size: 14px; line-height: 1.7; }
+.cloze-tag {
+  background: #e3f2fd; color: #1976d2; padding: 1px 6px; border-radius: 3px;
+  font-weight: 500; font-size: 13px;
+}
+.empty-state { text-align: center; color: #bbb; padding: 60px 20px; font-size: 14px; }
+.status { font-size: 13px; color: #888; margin-top: 8px; min-height: 20px; }
+.status.success { color: #4caf50; }
+.status.error { color: #f44336; }
+.tag-input-row { display: flex; align-items: center; gap: 6px; }
+.tag-input-row input { flex: 1; }
+.help-text { font-size: 12px; color: #999; margin-top: 8px; line-height: 1.6; }
+.help-text code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Q&A to Anki APKG Converter</h1>
+  <p>Convert Q&A pairs into Anki flashcards (.apkg) — everything runs locally in your browser.</p>
+</div>
+<div class="container">
+  <div class="panel">
+    <h2>Input</h2>
+    <div class="note-type-tabs">
+      <div class="note-type-tab active" data-type="basic">Basic (Q & A)</div>
+      <div class="note-type-tab" data-type="cloze">Cloze (Fill-in-blank)</div>
+    </div>
+    <div class="format-bar">
+      <label>Deck:</label>
+      <input type="text" id="deckName" value="Default" placeholder="Deck name">
+      <label style="margin-left:8px;">Tags:</label>
+      <input type="text" id="tagsInput" value="" placeholder="space-separated" style="width:120px;">
+    </div>
+    <textarea id="inputArea" placeholder="Paste Q&A pairs below...
+
+Q: What is the capital of China?
+A: Beijing
+
+Q: What is photosynthesis?
+A: The process by which plants convert sunlight into energy.
+
+Q: What year did WWII end?
+A: 1945"></textarea>
+    <div class="help-text" id="helpBasic">
+      Format: <code>Q: question</code> followed by <code>A: answer</code><br>
+      Also supported: <code>问：...</code> <code>答：...</code> pairs, or blank-line-separated pairs (odd=question, even=answer).
+    </div>
+    <div class="help-text" id="helpCloze" style="display:none;">
+      Use <code>{{c1::hidden text}}</code> for cloze deletions.<br>
+      Separate notes with blank lines. Example:<br>
+      <code>Beijing is the capital of {{c1::China}}.</code><br>
+      <code>The {{c1::sun}} rises in the {{c2::east}}.</code>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnGenerate" onclick="handleGenerate()">
+        Download .apkg
+      </button>
+      <button class="btn" style="background:#eee;color:#555;" onclick="handleClear()">Clear</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="panel">
+    <h2>Preview (<span id="cardCount">0</span> cards)</h2>
+    <div class="card-preview" id="previewArea">
+      <div class="empty-state">Enter Q&A pairs on the left to see a preview here.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  CRC32
+// ============================================================
+function crc32(str) {
+  let table = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c;
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc = table[(crc ^ str.charCodeAt(i)) & 0xFF] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// ============================================================
+//  Helpers
+// ============================================================
+function guid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+function nowSeconds() { return Math.floor(Date.now() / 1000); }
+function nowMillis() { return Date.now(); }
+
+// ============================================================
+//  Build Models JSON
+// ============================================================
+// ============================================================
+//  Create .apkg
+// ============================================================
+async function createApkg(notes_data, options) {
+  const { deckName, noteType, tags } = options;
+  const SQL = await initSqlJs({
+    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+  });
+  const db = new SQL.Database();
+
+  const ts = nowSeconds();
+  const did = 1;
+  const dcid = 1;
+  const mid = nowMillis();
+
+  // --- Tables (schema 11 — JSON-only format, max compatibility) ---
+  db.run(`CREATE TABLE col (
+    id INTEGER PRIMARY KEY,
+    crt INTEGER NOT NULL,
+    mod INTEGER NOT NULL,
+    scm INTEGER NOT NULL,
+    ver INTEGER NOT NULL,
+    dty INTEGER NOT NULL,
+    usn INTEGER NOT NULL,
+    ls INTEGER NOT NULL,
+    conf TEXT NOT NULL,
+    models TEXT NOT NULL,
+    decks TEXT NOT NULL,
+    dconf TEXT NOT NULL,
+    tags TEXT NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE notes (
+    id INTEGER PRIMARY KEY,
+    guid TEXT NOT NULL,
+    mid INTEGER NOT NULL,
+    mod INTEGER NOT NULL,
+    usn INTEGER NOT NULL,
+    tags TEXT NOT NULL,
+    flds TEXT NOT NULL,
+    sfld TEXT NOT NULL,
+    csum INTEGER NOT NULL,
+    flags INTEGER NOT NULL,
+    data TEXT NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE cards (
+    id INTEGER PRIMARY KEY,
+    nid INTEGER NOT NULL,
+    did INTEGER NOT NULL,
+    ord INTEGER NOT NULL,
+    mod INTEGER NOT NULL,
+    usn INTEGER NOT NULL,
+    type INTEGER NOT NULL,
+    queue INTEGER NOT NULL,
+    due INTEGER NOT NULL,
+    ivl INTEGER NOT NULL,
+    factor INTEGER NOT NULL,
+    reps INTEGER NOT NULL,
+    lapses INTEGER NOT NULL,
+    left INTEGER NOT NULL,
+    odue INTEGER NOT NULL,
+    odid INTEGER NOT NULL,
+    flags INTEGER NOT NULL,
+    data TEXT NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE revlog (
+    id INTEGER PRIMARY KEY,
+    cid INTEGER NOT NULL,
+    usn INTEGER NOT NULL,
+    ease INTEGER NOT NULL,
+    ivl INTEGER NOT NULL,
+    lastIvl INTEGER NOT NULL,
+    factor INTEGER NOT NULL,
+    time INTEGER NOT NULL,
+    type INTEGER NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE graves (
+    usn INTEGER NOT NULL,
+    oid INTEGER NOT NULL,
+    type INTEGER NOT NULL
+  )`);
+
+  // --- Build models/decks/dconf as JSON ---
+  const isCloze = noteType === "cloze";
+  const ntName = isCloze ? "Cloze" : "Basic";
+  const ntType = isCloze ? 1 : 0;
+
+  const flds = isCloze
+    ? [{ name: "Text", ord: 0, sticky: false, rtl: false, font: "Arial", size: 20, media: [] },
+       { name: "Extra", ord: 1, sticky: false, rtl: false, font: "Arial", size: 20, media: [] }]
+    : [{ name: "Front", ord: 0, sticky: false, rtl: false, font: "Arial", size: 20, media: [] },
+       { name: "Back", ord: 1, sticky: false, rtl: false, font: "Arial", size: 20, media: [] }];
+
+  const tmpls = isCloze
+    ? [{ name: "Cloze", ord: 0,
+         qfmt: "{{cloze:Text}}",
+         afmt: "{{cloze:Text}}<br>\n{{#Extra}}<br>\n<hr id=answer>\n<br>\n{{Extra}}{{/Extra}}",
+         bqfmt: "", bafmt: "", did: null, bfont: "", bsize: 0 }]
+    : [{ name: "Card 1", ord: 0,
+         qfmt: "{{Front}}",
+         afmt: "{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}",
+         bqfmt: "", bafmt: "", did: null, bfont: "", bsize: 0 }];
+
+  const css = isCloze
+    ? ".card {\n font-family: arial;\n font-size: 20px;\n text-align: center;\n color: black;\n background-color: white;\n}\n.cloze {\n font-weight: bold;\n color: blue;\n}\n"
+    : ".card {\n font-family: arial;\n font-size: 20px;\n text-align: center;\n color: black;\n background-color: white;\n}\n";
+
+  const req = isCloze ? [[0, "any", [0]]] : [[0, "all", [0]]];
+
+  const modelsJSON = {
+    [String(mid)]: {
+      id: mid, name: ntName, type: ntType, mod: ts, usn: -1,
+      sortf: 0, did: null, flds: flds, tmpls: tmpls, css: css, req: req,
+      latexPre: "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
+      latexPost: "\\end{document}"
+    }
+  };
+
+  const decksJSON = {
+    [String(did)]: {
+      id: did, name: deckName, mod: ts, usn: -1,
+      lrnToday: [0, 0], revToday: [0, 0], newToday: [0, 0], timeToday: [0, 0],
+      collapsed: false, browserCollapsed: false, desc: "", dyn: 0, conf: 1,
+      extendNew: 10, extendRev: 50
+    }
+  };
+
+  const dconfJSON = {
+    [String(dcid)]: {
+      id: dcid, name: "Default", mod: ts, usn: -1,
+      maxTaken: 60, autoplay: true, timer: 0, replayq: true,
+      new: { bury: true, delays: [1, 10], initialFactor: 2500, ints: [1, 4, 7], order: 1, perDay: 20, separate: true },
+      rev: { bury: true, ease4: 1.3, fuzz: 0.05, ivlFct: 1, maxIvl: 36500, minSpace: 1, perDay: 200 },
+      lapse: { delays: [10], leechAction: 0, leechFails: 8, minInt: 1, mult: 0 },
+      dyn: false
+    }
+  };
+
+  const confJSON = {
+    activeDecks: [did], curDeck: did, newSpread: 0, collapseTime: 1200,
+    timeLim: 0, estTimes: true, dueCounts: true, curModel: mid,
+    nextPos: 1, sortType: "noteFld", sortBackwards: false,
+    addToCur: true, dayLearnFirst: false
+  };
+
+  const tagsJSON = {};
+
+  db.run(`INSERT INTO col VALUES (1, ?, ?, ?, 11, 0, -1, 0, ?, ?, ?, ?, ?)`, [
+    ts, ts, ts,
+    JSON.stringify(confJSON),
+    JSON.stringify(modelsJSON),
+    JSON.stringify(decksJSON),
+    JSON.stringify(dconfJSON),
+    JSON.stringify(tagsJSON)
+  ]);
+
+  // --- Insert notes & cards ---
+  const SEP = "\x1f";
+  for (let i = 0; i < notes_data.length; i++) {
+    const nd = notes_data[i];
+    const noteId = nowMillis() + i;
+    const cardId = nowMillis() + i + 1000;
+    const noteGuid = guid();
+    const noteMod = ts;
+
+    let flds, sfld;
+    if (noteType === "cloze") {
+      flds = nd.text + SEP + (nd.extra || "");
+      sfld = nd.text;
+    } else {
+      flds = nd.front + SEP + nd.back;
+      sfld = nd.front;
+    }
+
+    const csum = crc32(sfld);
+    const tagsStr = tags || "";
+
+    db.run(`INSERT INTO notes VALUES (?, ?, ?, ?, -1, ?, ?, ?, ?, 0, ?)`, [
+      noteId, noteGuid, mid, noteMod, tagsStr, flds, sfld, csum, ""
+    ]);
+
+    // New card: type=0, queue=0, due=sequential
+    db.run(`INSERT INTO cards VALUES (?, ?, ?, 0, ?, -1, 0, 0, ?, 0, 0, 0, 0, 0, 0, 0, 0, ?)`, [
+      cardId, noteId, did, noteMod, i, ""
+    ]);
+  }
+
+  // --- Package ---
+  const dbData = db.export();
+  db.close();
+
+  const zip = new JSZip();
+  zip.file("collection.anki2", dbData);
+  zip.file("media", "{}");
+
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  return blob;
+}
+
+// ============================================================
+//  Parsers
+// ============================================================
+function parseBasicQA(text) {
+  const results = [];
+  // Try Q:/A: format (English or Chinese)
+  const qaPattern = /(?:Q|问|質問)\s*[:：]\s*(.+?)\s*\n\s*(?:A|答|回答)\s*[:：]\s*(.+?)(?=\n(?:Q|问|質問)\s*[:：]|\n*$)/gis;
+  let match;
+  while ((match = qaPattern.exec(text)) !== null) {
+    results.push({ front: match[1].trim(), back: match[2].trim() });
+  }
+  if (results.length > 0) return results;
+
+  // Fallback: blank-line-separated pairs (odd=Q, even=A)
+  const blocks = text.split(/\n\n+/).map(b => b.trim()).filter(b => b);
+  for (let i = 0; i + 1 < blocks.length; i += 2) {
+    results.push({ front: blocks[i], back: blocks[i + 1] });
+  }
+  return results;
+}
+
+function parseCloze(text) {
+  const results = [];
+  const blocks = text.split(/\n\n+/).map(b => b.trim()).filter(b => b);
+  for (const block of blocks) {
+    if (block.includes("{{c")) {
+      results.push({ text: block, extra: "" });
+    }
+  }
+  return results;
+}
+
+// ============================================================
+//  UI
+// ============================================================
+let currentNoteType = "basic";
+
+document.querySelectorAll(".note-type-tab").forEach(tab => {
+  tab.addEventListener("click", function() {
+    document.querySelectorAll(".note-type-tab").forEach(t => t.classList.remove("active"));
+    this.classList.add("active");
+    currentNoteType = this.dataset.type;
+    document.getElementById("helpBasic").style.display = currentNoteType === "basic" ? "" : "none";
+    document.getElementById("helpCloze").style.display = currentNoteType === "cloze" ? "" : "none";
+    updatePreview();
+  });
+});
+
+const inputArea = document.getElementById("inputArea");
+inputArea.addEventListener("input", updatePreview);
+
+function updatePreview() {
+  const text = inputArea.value;
+  const previewArea = document.getElementById("previewArea");
+  const cardCount = document.getElementById("cardCount");
+
+  let cards;
+  if (currentNoteType === "cloze") {
+    cards = parseCloze(text);
+  } else {
+    cards = parseBasicQA(text);
+  }
+
+  cardCount.textContent = cards.length;
+
+  if (cards.length === 0) {
+    previewArea.innerHTML = '<div class="empty-state">Enter Q&A pairs on the left to see a preview here.</div>';
+    return;
+  }
+
+  previewArea.innerHTML = cards.map((c, i) => {
+    if (currentNoteType === "cloze") {
+      // Highlight cloze deletions
+      const highlighted = escapeHTML(c.text).replace(
+        /\{\{c(\d+)::(.*?)\}\}/g,
+        '<span class="cloze-tag">c$1: $2</span>'
+      );
+      return `<div class="card-item">
+        <div class="card-item-header">Card ${i + 1} — Cloze</div>
+        <div class="card-cloze">${highlighted}</div>
+      </div>`;
+    }
+    return `<div class="card-item">
+      <div class="card-item-header">Card ${i + 1}</div>
+      <div class="card-front">${escapeHTML(c.front)}</div>
+      <div class="card-back">${escapeHTML(c.back)}</div>
+    </div>`;
+  }).join("");
+}
+
+function escapeHTML(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function handleGenerate() {
+  const btn = document.getElementById("btnGenerate");
+  const status = document.getElementById("status");
+  const text = inputArea.value.trim();
+
+  if (!text) {
+    status.textContent = "Please enter Q&A content first.";
+    status.className = "status error";
+    return;
+  }
+
+  let notes;
+  if (currentNoteType === "cloze") {
+    notes = parseCloze(text);
+  } else {
+    notes = parseBasicQA(text);
+  }
+
+  if (notes.length === 0) {
+    status.textContent = "No Q&A pairs detected. Check the format and try again.";
+    status.className = "status error";
+    return;
+  }
+
+  const deckName = document.getElementById("deckName").value.trim() || "Default";
+  const tags = document.getElementById("tagsInput").value.trim();
+
+  btn.disabled = true;
+  btn.textContent = "Generating...";
+  status.textContent = "Loading SQLite engine...";
+  status.className = "status";
+
+  try {
+    const blob = await createApkg(notes, {
+      deckName,
+      noteType: currentNoteType,
+      tags
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${deckName.replace(/[^a-zA-Z0-9_\-一-鿿]/g, "_")}.apkg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    status.textContent = `Done! Generated ${notes.length} cards → "${a.download}"`;
+    status.className = "status success";
+  } catch (err) {
+    status.textContent = "Error: " + err.message;
+    status.className = "status error";
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Download .apkg";
+  }
+}
+
+function handleClear() {
+  inputArea.value = "";
+  document.getElementById("status").textContent = "";
+  document.getElementById("status").className = "status";
+  updatePreview();
+}
+
+// Init
+updatePreview();
+</script>
+</body>
+</html>

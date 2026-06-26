@@ -39,7 +39,15 @@ def main():
     with open(template_path, "r", encoding="utf-8") as f:
         html = f.read()
 
-    # 构建内嵌数据脚本（插入在 SheetJS CDN 之后）
+    # 内嵌 xlsx 库（独立版不依赖 CDN）
+    xlsx_path = os.path.join(STATIC, "xlsx.full.min.js")
+    with open(xlsx_path, "r", encoding="utf-8") as f:
+        xlsx_js = f.read()
+    # 替换外部引用为内嵌脚本
+    sheetjs_tag = '<script src="/xlsx.full.min.js"></script>'
+    html = html.replace(sheetjs_tag, '<script>' + xlsx_js + '</script>')
+
+    # 构建内嵌数据脚本
     embed_js = "\n<script>\n// === 内嵌数据（免服务器） ===\n"
     embed_js += "var EMBEDDED_COUNTS = {\n"
     embed_js += '  "highs": {\n'
@@ -65,9 +73,8 @@ def main():
     embed_js += "};\n"
     embed_js += "</script>\n"
 
-    # 插入到 SheetJS script 之后
-    sheetjs_tag = '<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>'
-    html = html.replace(sheetjs_tag, sheetjs_tag + "\n" + embed_js)
+    # 插入到 SheetJS 内嵌脚本之后
+    html = html.replace('</script>', '</script>\n' + embed_js, 1)
 
     # 修改 getUrls() — 独立模式下不需要
     # 匹配更新后的 getUrls（包含 direction 判断）

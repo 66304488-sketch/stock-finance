@@ -10,6 +10,7 @@ import math
 import os
 import logging
 import re
+import threading
 from datetime import datetime
 from typing import Optional
 
@@ -17,7 +18,16 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+
+from kline_cache import KlineCache, get_active_codes, load_industry_map
+from heatmap_data import build_chat_context
+from mcp_config import (
+    MCP_TOKEN_MASK,
+    build_anthropic_mcp_parts,
+    merge_mcp_servers,
+    sanitize_mcp_servers,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("stock-finance")
@@ -259,8 +269,8 @@ async def calc_technicals(code: str) -> dict:
 
     yr_hi = max(k["high"] for k in kl[-260:]) if n >= 260 else max(k["high"] for k in kl)
     yr_lo = min(k["low"] for k in kl[-260:]) if n >= 260 else min(k["low"] for k in kl)
-    yr_hi_r = round(yr_hi, 2) if yr_hi else None
-    yr_lo_r = round(yr_lo, 2) if yr_lo else None
+    yr_hi_r = round(yr_hi, 2) if yr_hi is not None else None
+    yr_lo_r = round(yr_lo, 2) if yr_lo is not None else None
 
     return {
         "ma5": ma(5),
@@ -421,6 +431,954 @@ async def health():
 
 
 # ======================================================================
+# 设置端点
+# ======================================================================
+
+CONFIG_DIR = os.path.expanduser("~/.stock-finance")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+
+
+def _load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            logger.warning("config.json 损坏，使用默认配置")
+            return {}
+    return {}
+
+
+def _save_config(cfg):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
+
+
+@app.get("/api/settings")
+async def settings_get():
+    cfg = _load_config()
+    return {
+        "ai_provider": cfg.get("ai_provider", "anthropic"),
+        "api_key_configured": bool(cfg.get("api_key")),
+        "mcp_enabled": bool(cfg.get("mcp_enabled", False)),
+        "mcp_servers": sanitize_mcp_servers(cfg.get("mcp_servers") or []),
+    }
+
+
+@app.post("/api/settings")
+async def settings_save(req: dict):
+    provider = (req.get("ai_provider") or "anthropic").strip()
+    key = (req.get("api_key") or "").strip()
+    if provider not in ("anthropic", "deepseek"):
+        raise HTTPException(400, "Invalid provider")
+    cfg = _load_config()
+    cfg["ai_provider"] = provider
+    if key and key != MCP_TOKEN_MASK:
+        cfg["api_key"] = key
+    if "mcp_enabled" in req:
+        cfg["mcp_enabled"] = bool(req.get("mcp_enabled"))
+    if "mcp_servers" in req:
+        try:
+            cfg["mcp_servers"] = merge_mcp_servers(
+                cfg.get("mcp_servers") or [],
+                req.get("mcp_servers") or [],
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    _save_config(cfg)
+    return {"status": "ok"}
+
+
+@app.post("/api/settings/run-analysis")
+async def settings_run_analysis():
+    """重新运行 AI 分析"""
+    import subprocess, sys
+    proc = subprocess.run(
+        [sys.executable, "ai_analyzer.py"],
+        cwd=os.path.dirname(__file__),
+        capture_output=True, text=True,
+        timeout=120,
+    )
+    return {"status": "ok", "output": proc.stdout[-500:] if proc.stdout else proc.stderr[-500:]}
+
+
+@app.post("/api/intraday-scan")
+async def intraday_scan(req: dict):
+    """盘中实时扫描新高/新低"""
+    import subprocess, sys
+    window = (req.get("window") or "all").strip()
+    proc = subprocess.run(
+        [sys.executable, "scan_intraday.py", "--window", window],
+        cwd=os.path.dirname(__file__),
+        capture_output=True, text=True,
+        timeout=300,
+    )
+    return {"status": "ok", "output": proc.stdout[-1000:] if proc.stdout else proc.stderr[-500:]}
+
+
+# 数据刷新状态（带锁保证线程安全）
+_refresh_status = {
+    "running": False,
+    "current_step": "",
+    "success": None,
+    "error": None,
+    "progress": None,
+    "steps": [],
+}
+_refresh_lock = None
+
+DATASET_LABELS = {
+    "highs": "创新高",
+    "lows": "创新低",
+    "capital_flow": "资金流向",
+    "ai": "AI 分析",
+    "standalone": "独立 HTML",
+}
+DATASET_FILES = {
+    "highs": ["new_highs_data_*.json", "new_highs_details_*.json"],
+    "lows": ["new_lows_data_*.json", "new_lows_details_*.json"],
+    "capital_flow": ["capital_flow.json"],
+    "ai": ["ai_report_latest.json"],
+    "standalone": ["industry-heatmap-standalone.html"],
+}
+DEFAULT_UPDATE_CONFIG = {
+    "sources": {
+        "highs": "sina_kline",
+        "lows": "sina_kline",
+        "capital_flow": "sina_kline_cache",
+        "basics": "akshare_excel",
+    },
+    "frozen": {
+        "highs": False,
+        "lows": False,
+        "capital_flow": False,
+        "ai": False,
+        "standalone": False,
+    },
+}
+SUPPORTED_SOURCES = {
+    "highs": {"sina_kline", "sina_kline_cache"},
+    "lows": {"sina_kline", "sina_kline_cache"},
+    "capital_flow": {"sina_kline_cache"},
+    "basics": {"akshare_excel"},
+}
+
+
+def _init_refresh_lock():
+    global _refresh_lock
+    if _refresh_lock is None:
+        import threading
+        _refresh_lock = threading.Lock()
+
+
+def _manifest_path():
+    return os.path.join(static_dir, "update_manifest.json")
+
+
+def _history_path():
+    return os.path.join(static_dir, "update_history.jsonl")
+
+
+def _load_update_manifest():
+    manifest = {
+        "version": 1,
+        "updated_at": None,
+        "config": json.loads(json.dumps(DEFAULT_UPDATE_CONFIG)),
+        "datasets": {},
+    }
+    path = _manifest_path()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            if isinstance(saved, dict):
+                manifest.update(saved)
+        except Exception as e:
+            logger.warning("update_manifest.json 读取失败，使用默认配置: %s", e)
+    cfg = manifest.setdefault("config", {})
+    cfg.setdefault("sources", {}).update({
+        k: cfg.get("sources", {}).get(k, v)
+        for k, v in DEFAULT_UPDATE_CONFIG["sources"].items()
+    })
+    cfg.setdefault("frozen", {}).update({
+        k: bool(cfg.get("frozen", {}).get(k, v))
+        for k, v in DEFAULT_UPDATE_CONFIG["frozen"].items()
+    })
+    manifest.setdefault("datasets", {})
+    return manifest
+
+
+def _save_update_manifest(manifest):
+    os.makedirs(static_dir, exist_ok=True)
+    manifest["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tmp = _manifest_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, _manifest_path())
+
+
+def _append_update_history(event):
+    try:
+        event = dict(event)
+        event.setdefault("time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        with open(_history_path(), "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.warning("写入 update_history.jsonl 失败: %s", e)
+
+
+def _set_refresh_status(**kwargs):
+    _init_refresh_lock()
+    with _refresh_lock:
+        _refresh_status.update(kwargs)
+
+
+def _get_trade_date_args(days):
+    """取最近 N 个交易日。15 点前默认使用上一交易日，避免当天未收盘数据污染。"""
+    import akshare as ak
+    import pandas as pd
+    now = datetime.now()
+    df = ak.tool_trade_date_hist_sina()
+    df["trade_date"] = pd.to_datetime(df["trade_date"])
+    today = pd.Timestamp(now.date())
+    last = df[df["trade_date"] <= today].iloc[-1]["trade_date"]
+    if last == today and now.hour < 15:
+        last = df[df["trade_date"] < today].iloc[-1]["trade_date"]
+    dates = df[df["trade_date"] <= last].tail(days)["trade_date"]
+    return ",".join(d.strftime("%Y%m%d") for d in dates)
+
+
+def _parse_full_label(lbl):
+    m = re.match(r"(\d{4})年(\d{1,2})月(\d{1,2})日", lbl or "")
+    if m:
+        return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return datetime.min
+
+
+def _date_key(d):
+    return d.get("full_label") or d.get("label") or ""
+
+
+def _merge_data(old_data, new_data, max_dates=15):
+    """合并两个 counts JSON，优先以 full_label 对齐，避免只用“6月25日”跨年撞车。"""
+    date_map = {}
+    for d in old_data.get("dates", []):
+        date_map[_date_key(d)] = d
+    for d in new_data.get("dates", []):
+        date_map[_date_key(d)] = d
+    merged_dates = sorted(
+        date_map.values(),
+        key=lambda d: _parse_full_label(d.get("full_label", d.get("label", ""))),
+        reverse=True,
+    )[:max_dates]
+    labels = [d["label"] for d in merged_dates]
+    keys = [_date_key(d) for d in merged_dates]
+
+    old_rows = {r["industry"]: r for r in old_data.get("industries", [])}
+    new_rows = {r["industry"]: r for r in new_data.get("industries", [])}
+    old_keys = [_date_key(d) for d in old_data.get("dates", [])]
+    new_keys = [_date_key(d) for d in new_data.get("dates", [])]
+
+    merged_rows = []
+    for ind in sorted(set(old_rows.keys()) | set(new_rows.keys())):
+        if ind == "全市场合计":
+            continue
+        old_row = old_rows.get(ind)
+        new_row = new_rows.get(ind)
+        old_counts = {}
+        if old_row:
+            for i, c in enumerate(old_row.get("daily_counts", [])):
+                if i < len(old_keys):
+                    old_counts[old_keys[i]] = c
+        new_counts = {}
+        if new_row:
+            for i, c in enumerate(new_row.get("daily_counts", [])):
+                if i < len(new_keys):
+                    new_counts[new_keys[i]] = c
+        total = 0
+        if new_row and new_row.get("total"):
+            total = new_row["total"]
+        elif old_row and old_row.get("total"):
+            total = old_row["total"]
+        counts = []
+        for key in keys:
+            if key in new_counts:
+                counts.append(new_counts[key])
+            elif key in old_counts:
+                counts.append(old_counts[key])
+            else:
+                counts.append(0)
+        ratio = round(counts[0] / max(total, 1) * 100, 1) if total else 0.0
+        merged_rows.append({"industry": ind, "total": total, "daily_counts": counts, "ratio": ratio})
+
+    merged_rows.sort(key=lambda r: r["daily_counts"][0] if r["daily_counts"] else 0, reverse=True)
+    total_counts = [0] * len(labels)
+    all_total = 0
+    for r in merged_rows:
+        all_total += r["total"]
+        for i, c in enumerate(r["daily_counts"]):
+            total_counts[i] += c
+    merged_rows.append({
+        "industry": "全市场合计",
+        "total": all_total,
+        "daily_counts": total_counts,
+        "ratio": 0,
+        "is_total": True,
+    })
+    return {
+        "dates": merged_dates,
+        "updated_at": new_data.get("updated_at", old_data.get("updated_at", "")),
+        "type": new_data.get("type", old_data.get("type", "")),
+        "type_label": new_data.get("type_label", old_data.get("type_label", "")),
+        "industries": merged_rows,
+    }
+
+
+def _merge_details(old_details, new_details, labels):
+    if not isinstance(old_details, dict):
+        old_details = {}
+    if not isinstance(new_details, dict):
+        new_details = {}
+    merged = {}
+    for ind in set(old_details.keys()) | set(new_details.keys()):
+        old_dd = old_details.get(ind, {})
+        new_dd = new_details.get(ind, {})
+        dd = {}
+        for lbl in labels:
+            if lbl in new_dd:
+                dd[lbl] = new_dd[lbl]
+            elif lbl in old_dd:
+                dd[lbl] = old_dd[lbl]
+            else:
+                dd[lbl] = []
+        merged[ind] = dd
+    return merged
+
+
+def _glob_dataset_files(dataset):
+    import glob
+    files = []
+    for pattern in DATASET_FILES.get(dataset, []):
+        files.extend(glob.glob(os.path.join(static_dir, pattern)))
+    return sorted(set(files))
+
+
+def _backup_dataset(dataset):
+    import shutil
+    backups = []
+    for fp in _glob_dataset_files(dataset):
+        backup_fp = fp + ".backup"
+        shutil.copy2(fp, backup_fp)
+        backups.append((fp, backup_fp))
+    return backups
+
+
+def _restore_backups(backups):
+    import shutil
+    for fp, backup_fp in backups:
+        if os.path.exists(backup_fp):
+            shutil.copy2(backup_fp, fp)
+            os.remove(backup_fp)
+
+
+def _drop_backups(backups):
+    for _, backup_fp in backups:
+        if os.path.exists(backup_fp):
+            os.remove(backup_fp)
+
+
+def _merge_back(base_name):
+    fp = os.path.join(static_dir, base_name)
+    backup_fp = fp + ".backup"
+    details_name = base_name.replace("_data_", "_details_")
+    details_fp = os.path.join(static_dir, details_name)
+    details_backup_fp = details_fp + ".backup"
+
+    if not os.path.exists(backup_fp) or not os.path.exists(fp):
+        return
+
+    with open(fp, "r", encoding="utf-8") as f:
+        new_data = json.load(f)
+    with open(backup_fp, "r", encoding="utf-8") as f:
+        old_data = json.load(f)
+    merged = _merge_data(old_data, new_data)
+    with open(fp, "w", encoding="utf-8") as f:
+        json.dump(merged, f, ensure_ascii=False)
+    os.remove(backup_fp)
+
+    if os.path.exists(details_backup_fp) and os.path.exists(details_fp):
+        with open(details_fp, "r", encoding="utf-8") as f:
+            new_details = json.load(f)
+        with open(details_backup_fp, "r", encoding="utf-8") as f:
+            old_details = json.load(f)
+        labels = [d["label"] for d in merged.get("dates", [])]
+        merged_details = _merge_details(old_details, new_details, labels)
+        with open(details_fp, "w", encoding="utf-8") as f:
+            json.dump(merged_details, f, ensure_ascii=False)
+        os.remove(details_backup_fp)
+
+
+def _run_refresh_step(step_name, script_args, timeout_sec=300):
+    import subprocess, sys, threading
+    _set_refresh_status(current_step=f"{step_name} (启动...)", progress=None)
+    proc = subprocess.Popen(
+        [sys.executable] + script_args,
+        cwd=os.path.dirname(__file__),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    def _read_stdout():
+        try:
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                m = re.search(r'(\d+)\s*/\s*(\d+)', line)
+                if m:
+                    cur, tot = int(m.group(1)), int(m.group(2))
+                    pct = min(99, int(cur / max(tot, 1) * 100))
+                    _set_refresh_status(
+                        progress={"current": cur, "total": tot, "pct": pct},
+                        current_step=f"{step_name} ({cur}/{tot}, {pct}%)",
+                    )
+                else:
+                    _set_refresh_status(current_step=f"{step_name}: {line[:80]}")
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_read_stdout, daemon=True)
+    t.start()
+    try:
+        proc.wait(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        return False, f"{step_name} 超时 ({timeout_sec}s)"
+    t.join(timeout=2)
+    _set_refresh_status(progress=None)
+    if proc.returncode != 0:
+        stderr_txt = ""
+        try:
+            stderr_txt = proc.stderr.read()[-500:] if proc.stderr else ""
+        except Exception:
+            stderr_txt = f"code={proc.returncode}"
+        return False, stderr_txt or f"退出码 {proc.returncode}"
+    return True, ""
+
+
+def _update_dataset_success(manifest, dataset, source, date_args, mode, note=""):
+    manifest.setdefault("datasets", {})[dataset] = {
+        "label": DATASET_LABELS.get(dataset, dataset),
+        "source": source,
+        "last_success_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "date_args": date_args,
+        "mode": mode,
+        "status": "success",
+        "note": note,
+    }
+    _save_update_manifest(manifest)
+    _append_update_history({"dataset": dataset, "status": "success", "source": source, "dates": date_args, "mode": mode})
+
+
+def _update_dataset_failure(manifest, dataset, source, date_args, mode, error):
+    manifest.setdefault("datasets", {})[dataset] = {
+        "label": DATASET_LABELS.get(dataset, dataset),
+        "source": source,
+        "last_failure_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "date_args": date_args,
+        "mode": mode,
+        "status": "failed",
+        "error": error,
+    }
+    _save_update_manifest(manifest)
+    _append_update_history({"dataset": dataset, "status": "failed", "source": source, "dates": date_args, "mode": mode, "error": error})
+
+
+@app.get("/api/update-config")
+async def update_config_get():
+    """返回数据更新配置、冻结状态和最近同步 manifest。"""
+    manifest = _load_update_manifest()
+    return {
+        "config": manifest.get("config", {}),
+        "datasets": manifest.get("datasets", {}),
+        "supported_sources": {k: sorted(v) for k, v in SUPPORTED_SOURCES.items()},
+    }
+
+
+@app.post("/api/update-config")
+async def update_config_save(req: dict):
+    """保存按数据集的数据源和冻结配置。"""
+    manifest = _load_update_manifest()
+    cfg = manifest.setdefault("config", {})
+    sources = cfg.setdefault("sources", {})
+    frozen = cfg.setdefault("frozen", {})
+
+    for dataset, source in (req or {}).get("sources", {}).items():
+        if dataset in SUPPORTED_SOURCES and source in SUPPORTED_SOURCES[dataset]:
+            sources[dataset] = source
+    for dataset, value in (req or {}).get("frozen", {}).items():
+        if dataset in DEFAULT_UPDATE_CONFIG["frozen"]:
+            frozen[dataset] = bool(value)
+
+    _save_update_manifest(manifest)
+    return {"status": "ok", "config": manifest["config"]}
+
+
+@app.post("/api/update-config/freeze")
+async def update_config_freeze(req: dict):
+    dataset = (req or {}).get("dataset")
+    if dataset not in DEFAULT_UPDATE_CONFIG["frozen"]:
+        raise HTTPException(400, "未知数据集")
+    manifest = _load_update_manifest()
+    manifest.setdefault("config", {}).setdefault("frozen", {})[dataset] = bool((req or {}).get("frozen", True))
+    _save_update_manifest(manifest)
+    return {"status": "ok", "dataset": dataset, "frozen": manifest["config"]["frozen"][dataset]}
+
+
+@app.post("/api/refresh-capital-flow")
+async def refresh_capital_flow():
+    """兼容旧按钮：只更新资金流向。"""
+    return await refresh_data({"days": 1, "datasets": ["capital_flow"]})
+
+
+@app.post("/api/refresh-data")
+async def refresh_data(req: dict = None):
+    """启动可分数据集的数据更新流水线。默认增量更新新高、新低、资金流向。"""
+    import threading
+    _init_refresh_lock()
+    req = req or {}
+    days = max(1, min(int(req.get("days", 1)), 30))
+    requested = req.get("datasets") or ["highs", "lows", "capital_flow"]
+    datasets = [d for d in requested if d in DATASET_LABELS]
+    mode = req.get("mode") or "incremental"
+    if mode not in ("incremental", "missing", "rebuild"):
+        raise HTTPException(400, "mode 必须是 incremental/missing/rebuild")
+    force_rebuild = bool(req.get("force_rebuild")) or mode == "rebuild"
+
+    with _refresh_lock:
+        if _refresh_status["running"]:
+            return {"status": "already_running"}
+        _refresh_status.update({
+            "running": True,
+            "current_step": "初始化...",
+            "success": None,
+            "error": None,
+            "progress": None,
+            "steps": [],
+        })
+
+    def run_pipeline():
+        manifest = _load_update_manifest()
+        cfg = manifest.setdefault("config", {})
+        frozen = cfg.setdefault("frozen", {})
+        sources = cfg.setdefault("sources", {})
+        steps = []
+        try:
+            date_args = _get_trade_date_args(days)
+            latest_date = date_args.split(",")[-1]
+            types = ["month", "60d", "120d", "1year", "alltime"]
+
+            # 只要新高/新低/资金流向需要更新，就先预热 K 线缓存；冻结的数据集不会触发预热。
+            market_datasets = [d for d in datasets if d in ("highs", "lows", "capital_flow") and not frozen.get(d)]
+            if market_datasets:
+                _set_refresh_status(current_step="预热 K 线缓存...")
+                active_codes = get_active_codes()
+                industry_map = load_industry_map(active_codes)
+                codes_with_industry = [c for c in active_codes if c in industry_map]
+                cache = KlineCache(force_refresh=force_rebuild)
+                cache.ensure(codes_with_industry, latest_date)
+                _set_refresh_status(current_step="K 线缓存预热完成")
+
+            for dataset in datasets:
+                label = DATASET_LABELS[dataset]
+                source = sources.get(dataset) or sources.get("basics") or "default"
+                if frozen.get(dataset) and not force_rebuild:
+                    steps.append({"dataset": dataset, "label": label, "status": "skipped", "reason": "已冻结"})
+                    continue
+
+                backups = _backup_dataset(dataset)
+                try:
+                    if dataset == "highs":
+                        args = ["fetch_new_highs.py", "--type", "all", "--dates", date_args]
+                        if force_rebuild:
+                            args.append("--force-refresh")
+                        ok, err = _run_refresh_step(f"{label} (全部类型, 最近{days}天)", args, 900)
+                        if not ok:
+                            raise RuntimeError(err)
+                        for t in types:
+                            _merge_back(f"new_highs_data_{t}.json")
+                    elif dataset == "lows":
+                        args = ["fetch_new_lows.py", "--type", "all", "--dates", date_args]
+                        if force_rebuild:
+                            args.append("--force-refresh")
+                        ok, err = _run_refresh_step(f"{label} (全部类型, 最近{days}天)", args, 600)
+                        if not ok:
+                            raise RuntimeError(err)
+                        for t in types:
+                            _merge_back(f"new_lows_data_{t}.json")
+                    elif dataset == "capital_flow":
+                        ok, err = _run_refresh_step(label, ["fetch_capital_flow.py"], 300)
+                        if not ok:
+                            raise RuntimeError(err)
+                    elif dataset == "ai":
+                        ok, err = _run_refresh_step(label, ["ai_analyzer.py"], 120)
+                        if not ok:
+                            raise RuntimeError(err)
+                    elif dataset == "standalone":
+                        ok, err = _run_refresh_step(label, ["generate_standalone.py"], 60)
+                        if not ok:
+                            raise RuntimeError(err)
+                    _drop_backups(backups)
+                    # 更新多周期计数文件（只要更新了 highs/lows）
+                    if dataset in ("highs", "lows"):
+                        try:
+                            _run_refresh_step("多周期计数", ["build_period_counts.py"], 30)
+                        except Exception:
+                            pass  # 非关键，失败不影响主流程
+                    _update_dataset_success(manifest, dataset, source, date_args, mode)
+                    steps.append({"dataset": dataset, "label": label, "status": "success"})
+                except Exception as e:
+                    _restore_backups(backups)
+                    err = str(e)
+                    _update_dataset_failure(manifest, dataset, source, date_args, mode, err)
+                    steps.append({"dataset": dataset, "label": label, "status": "failed", "error": err})
+                    _set_refresh_status(error=f"{label} 失败: {err}", success=False, running=False, steps=steps)
+                    return
+
+            _set_refresh_status(success=True, current_step="完成", running=False, steps=steps)
+        except Exception as e:
+            _set_refresh_status(error=f"流水线异常: {str(e)}", success=False, running=False, steps=steps)
+
+    threading.Thread(target=run_pipeline, daemon=True).start()
+    return {"status": "started", "datasets": datasets, "mode": mode}
+
+
+@app.get("/api/refresh-data/status")
+async def refresh_data_status():
+    _init_refresh_lock()
+    with _refresh_lock:
+        r = dict(_refresh_status)
+    return {
+        "running": r["running"],
+        "current_step": r["current_step"],
+        "success": r["success"],
+        "error": r.get("error"),
+        "progress": r.get("progress"),
+        "steps": r.get("steps", []),
+        "manifest": _load_update_manifest(),
+        "message": "数据更新完成" if r["success"] else (r.get("error") or ""),
+    }
+
+
+# ======================================================================
+# 数据备份 / 还原 / 清空
+# ======================================================================
+
+def _get_backup_dir():
+    """读取用户设置的备份目录，默认 ~/.stock-finance/backups/"""
+    cfg = _load_config()
+    return cfg.get("backup_dir") or os.path.join(CONFIG_DIR, "backups")
+DATA_GLOB = ["new_highs_data_*.json", "new_lows_data_*.json",
+             "new_highs_details_*.json", "new_lows_details_*.json",
+             "ai_report_latest.json", "all_klines.pkl"]
+
+
+@app.get("/api/backup/settings")
+async def backup_settings():
+    """返回备份目录设置"""
+    return {"backup_dir": _load_config().get("backup_dir") or os.path.join(CONFIG_DIR, "backups")}
+
+
+@app.post("/api/backup/settings")
+async def backup_settings_save(req: dict):
+    """保存备份目录"""
+    path = (req or {}).get("backup_dir", "").strip()
+    if not path:
+        raise HTTPException(400, "路径不能为空")
+    if not os.path.isabs(path):
+        raise HTTPException(400, "请使用绝对路径")
+    cfg = _load_config()
+    cfg["backup_dir"] = path
+    _save_config(cfg)
+    return {"status": "ok", "backup_dir": path}
+
+
+@app.post("/api/backup")
+async def backup_data():
+    """备份所有数据文件到 ~/.stock-finance/backups/"""
+    import shutil, glob
+    os.makedirs(_get_backup_dir(), exist_ok=True)
+    saved = []
+    for pattern in DATA_GLOB:
+        for fp in glob.glob(os.path.join(static_dir, pattern)):
+            base = os.path.basename(fp)
+            dest = os.path.join(_get_backup_dir(), base)
+            shutil.copy2(fp, dest)
+            saved.append(base)
+    return {"status": "ok", "saved": len(saved), "files": saved}
+
+
+@app.post("/api/restore")
+async def restore_data():
+    """从最近备份还原数据文件"""
+    import shutil
+    if not os.path.exists(_get_backup_dir()):
+        raise HTTPException(404, "没有找到备份目录")
+    files = os.listdir(_get_backup_dir())
+    if not files:
+        raise HTTPException(404, "备份目录为空")
+    restored = []
+    for fname in files:
+        src = os.path.join(_get_backup_dir(), fname)
+        dst = os.path.join(static_dir, fname)
+        if os.path.isfile(src):
+            shutil.copy2(src, dst)
+            restored.append(fname)
+    return {"status": "ok", "restored": len(restored), "files": restored}
+
+
+@app.post("/api/clear-data")
+async def clear_data():
+    """清空所有数据文件（新高/新低/AI报告/K线缓存）"""
+    import glob
+    deleted = []
+    for pattern in DATA_GLOB:
+        for fp in glob.glob(os.path.join(static_dir, pattern)):
+            os.remove(fp)
+            deleted.append(os.path.basename(fp))
+    return {"status": "ok", "deleted": len(deleted), "files": deleted}
+
+
+@app.get("/api/backup/status")
+async def backup_status():
+    """查看备份状态"""
+    import time as _time
+    if not os.path.exists(_get_backup_dir()):
+        return {"exists": False, "files": [], "time": None}
+    files = sorted(os.listdir(_get_backup_dir()))
+    mtime = os.path.getmtime(_get_backup_dir()) if files else None
+    return {"exists": True, "count": len(files),
+            "time": _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime(mtime)) if mtime else None}
+
+
+# ======================================================================
+# DuckDB 数据层
+# ======================================================================
+
+# DuckDB 模块已移除，恢复纯 JSON 架构
+
+
+@app.get("/api/db/heatmap/highs")
+async def db_highs(type: str = "month", days: int = 20):
+    try:
+        conn = _db.connect()
+        return _db.get_industry_highs(conn, type, days)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/db/heatmap/lows")
+async def db_lows(type: str = "month", days: int = 20):
+    try:
+        conn = _db.connect()
+        result = _db.get_industry_highs(conn, type, days)
+        # lows 用同一结构查询
+        conn.close()
+        conn2 = _db.connect()
+        # 从 new_lows 表查询
+        rows = conn2.execute("""
+            SELECT trade_date, industry, count, ratio, total_stocks, is_total
+            FROM new_lows WHERE type = ? AND trade_date IN (
+                SELECT DISTINCT trade_date FROM new_lows WHERE type = ? ORDER BY trade_date DESC LIMIT ?
+            ) ORDER BY trade_date DESC, count DESC
+        """, [type, type, days]).fetchall()
+        dates = sorted(set(r[0] for r in rows), reverse=True)
+        result_rows = {}
+        for r in rows:
+            dt, ind, cnt, ratio, total, is_t = r
+            if ind not in result_rows:
+                result_rows[ind] = {"industry": ind, "total": total, "ratio": ratio, "daily_counts": [], "is_total": is_t}
+            result_rows[ind]["daily_counts"].append(cnt)
+        industries = list(result_rows.values())
+        for v in industries:
+            v["daily_counts"] = v["daily_counts"][:len(dates)]
+        industries.sort(key=lambda x: -(x["daily_counts"][0] if x["daily_counts"] else 0))
+        conn2.close()
+        return {
+            "dates": [{"label": d.strftime("%m月%d日"), "full_label": str(d)} for d in dates],
+            "industries": industries,
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/db/capital-flow")
+async def db_capital_flow(days: int = 20):
+    try:
+        conn = _db.connect()
+        result = _db.get_capital_flow(conn, days)
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/db/summary")
+async def db_summary():
+    """数据库概览"""
+    try:
+        conn = _db.connect()
+        tables = {}
+        for tbl, label in [("new_highs","新高"),("new_lows","新低"),("capital_flow","资金流向"),("industry_classification","行业分类")]:
+            cnt = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+            dates = conn.execute(f"SELECT MIN(trade_date), MAX(trade_date) FROM {tbl}").fetchone() if "trade_date" in [c[0] for c in conn.execute(f"DESCRIBE {tbl}").fetchall()] else (None, None)
+            tables[label] = {"rows": cnt, "from": str(dates[0]) if dates and dates[0] else None, "to": str(dates[1]) if dates and dates[1] else None}
+        conn.close()
+        return {
+            "db_size_mb": round(os.path.getsize(_db.DB_PATH) / 1024 / 1024, 1),
+            "tables": tables,
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ======================================================================
+# 资金流向端点
+# ======================================================================
+
+@app.get("/api/capital-flow")
+async def capital_flow():
+    """返回行业资金流向数据（从 DuckDB）"""
+    import json as _json
+    try:
+        conn = _db.connect()
+        result = _db.get_capital_flow(conn, 20)
+        return result
+    except Exception:
+        pass
+    finally:
+        try: conn.close()
+        except: pass
+    # fallback
+    path = os.path.join(static_dir, "capital_flow.json")
+    if not os.path.exists(path):
+        raise HTTPException(404, "资金流向数据尚未生成")
+    with open(path, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+
+# ======================================================================
+# AI 市场分析端点
+# ======================================================================
+
+@app.get("/api/report/latest")
+async def ai_report_latest():
+    """返回最新的 AI 市场分析报告"""
+    import json as _json
+    report_path = os.path.join(static_dir, "ai_report_latest.json")
+    if not os.path.exists(report_path):
+        raise HTTPException(404, "报告尚未生成，请运行 ai_analyzer.py")
+    with open(report_path, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+
+@app.post("/api/chat")
+async def ai_chat(req: dict):
+    """AI 对话接口 (SSE 流式)"""
+    question = (req.get("question") or "").strip()
+    if not question:
+        raise HTTPException(400, "question is required")
+
+    async def generate():
+        import json as _json
+
+        # 加载当前市场数据作为上下文
+        data_ctx = _build_chat_context()
+
+        system_prompt = f"""你是A股市场分析助手，嵌入在"行业热力图"桌面app中。
+你的数据来自实盘行情聚合。回答问题时要具体引用数据中的数字。
+优先基于下方"当前市场数据快照"回答。
+如果用户明确要求查询外部知识库、研报、第三方系统或当前数据没有的信息，且 MCP 工具可用，可以调用 MCP；回答时请区分"本地热力图数据"与"外部 MCP 数据"。
+如果用户问的问题本地数据和可用工具都无法覆盖，就诚实说"这超出了我当前数据的范围"。
+使用中文，简洁直接。
+
+当前市场数据快照:
+{data_ctx}"""
+        messages = [
+            {"role": "user", "content": question},
+        ]
+
+        cfg = _load_config()
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or cfg.get("api_key", "")
+        if not api_key:
+            yield f"data: {_json.dumps({'error': '未设置 API Key，请在设置页面配置'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        provider = cfg.get("ai_provider", "anthropic")
+
+        try:
+            if provider == "deepseek":
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+                stream = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=messages,
+                    max_tokens=1500,
+                    stream=True,
+                )
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        yield f"data: {_json.dumps({'delta': delta})}\n\n"
+            else:
+                from anthropic import Anthropic
+                client = Anthropic(api_key=api_key)
+                mcp_parts = build_anthropic_mcp_parts(cfg)
+                if mcp_parts["mcp_servers"]:
+                    with client.beta.messages.stream(
+                        model="claude-opus-4-8",
+                        max_tokens=1500,
+                        system=system_prompt,
+                        messages=messages,
+                        betas=mcp_parts["betas"],
+                        mcp_servers=mcp_parts["mcp_servers"],
+                        tools=mcp_parts["tools"],
+                    ) as stream:
+                        for text in stream.text_stream:
+                            yield f"data: {_json.dumps({'delta': text})}\n\n"
+                else:
+                    with client.messages.stream(
+                        model="claude-opus-4-8",
+                        max_tokens=1500,
+                        system=system_prompt,
+                        messages=messages,
+                    ) as stream:
+                        for text in stream.text_stream:
+                            yield f"data: {_json.dumps({'delta': text})}\n\n"
+        except Exception as e:
+            yield f"data: {_json.dumps({'error': f'AI 调用失败: {str(e)}'})}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+def _build_chat_context() -> str:
+    """构建注入对话上下文的市场数据摘要"""
+    return build_chat_context(static_dir)
+
+
+# ======================================================================
 # 前端
 # ======================================================================
 
@@ -444,4 +1402,4 @@ if os.path.isdir(static_dir):
         raise HTTPException(404, "Not found")
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=False)

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>板块资金流向</title>
+<style>
+  :root { --bg:#1a1d23; --text:#abb2bf; --accent:#61afef; --border:#333842; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; background:var(--bg); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); }
+  .container { max-width:1100px; margin:0 auto; padding:20px; }
+  .header { text-align:center; margin-bottom:16px; }
+  .header h1 { font-size:1.2em; color:#e5e5e5; }
+  .header .sub { font-size:0.8em; color:#666; margin-top:4px; }
+  .summary { display:flex; gap:10px; margin-bottom:16px; }
+  .summary .card { flex:1; background:#21252b; border-radius:8px; padding:12px; text-align:center; border:1px solid var(--border); }
+  .card .val { font-size:1.3em; font-weight:700; color:#e5e5e5; }
+  .card .lbl { font-size:0.7em; color:#666; margin-top:2px; }
+  .date-tabs { display:flex; gap:4px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px; }
+  .date-tab { padding:5px 10px; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-size:0.75em; white-space:nowrap; background:#21252b; color:var(--text); }
+  .date-tab.active { background:var(--accent); color:#1a1d23; border-color:var(--accent); }
+  table { width:100%; border-collapse:collapse; font-size:0.82em; }
+  th { background:#21252b; padding:8px 6px; text-align:right; border-bottom:2px solid var(--border); font-weight:600; color:#888; font-size:0.78em; position:sticky; top:0; }
+  th:first-child { text-align:left; }
+  td { padding:6px; text-align:right; border-bottom:1px solid #1e2130; }
+  td:first-child { text-align:left; }
+  tr:hover td { background:#21252b22; }
+  .ind-name { color:#e5e5e5; font-weight:600; font-size:0.9em; }
+  .turnover-up { color:#98c379; }
+  .turnover-down { color:#e06c75; }
+  .signal-in { color:#98c379; }
+  .signal-out { color:#e06c75; }
+  .signal-warn { color:#d19a66; }
+  .signal-fire { color:#e5c07b; }
+  .bar { display:inline-block; height:12px; background:var(--accent); border-radius:2px; vertical-align:middle; margin-right:4px; opacity:0.5; }
+  .total-row td { font-weight:700; border-top:2px solid var(--border); background:#21252b44; }
+  .update { text-align:center; font-size:0.7em; color:#555; margin-top:12px; }
+  .error { text-align:center; padding:40px; color:#e06c75; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header"><h1>💰 板块资金流向</h1><div class="sub" id="dateSub"></div></div>
+  <div class="summary" id="summaryCards"></div>
+  <div class="date-tabs" id="dateTabs"></div>
+  <table><thead><tr>
+    <th>行业</th><th>成交额(亿)</th><th>占比</th><th>日环比</th><th>5日趋势</th><th>信号</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+  <div class="update" id="updateNote"></div>
+</div>
+
+<!-- Chart Modal -->
+<div class="chart-overlay" id="chartOverlay" onclick="closeChart()">
+  <div class="chart-modal" onclick="event.stopPropagation()">
+    <button class="chart-close" onclick="closeChart()">&times;</button>
+    <div id="chartBody"></div>
+  </div>
+</div>
+
+<style>
+.chart-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:#000000aa; z-index:1000; justify-content:center; align-items:center; }
+.chart-overlay.active { display:flex; }
+.chart-modal { background:#1a1d23; border-radius:12px; padding:24px; max-width:90vw; max-height:80vh; overflow-y:auto; border:1px solid var(--border); position:relative; }
+.chart-close { position:absolute; top:8px; right:12px; background:none; border:none; color:#666; font-size:1.5em; cursor:pointer; }
+.chart-bar-wrap { display:flex; flex-direction:column; align-items:center; width:32px; cursor:pointer; }
+.chart-bar-wrap:hover .chart-bar { opacity:0.8; }
+.chart-bar { width:24px; border-radius:3px 3px 0 0; min-height:2px; transition:background 0.2s; }
+</style>
+
+<script>
+var flowData = null;
+var activeDate = null;
+
+async function load() {
+  try {
+    var resp = await fetch('/api/capital-flow?_=' + Date.now());
+    if (!resp.ok) throw new Error('数据未生成');
+    flowData = await resp.json();
+    if (flowData.dates && flowData.dates.length > 0) {
+      activeDate = flowData.dates[flowData.dates.length - 1].label;
+      render();
+    }
+  } catch(e) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="6"><div class="error">资金流向数据尚未生成<br><small>请运行 fetch_capital_flow.py</small></div></td></tr>';
+  }
+}
+
+function render() {
+  var latest = flowData.dates[flowData.dates.length - 1];
+  document.getElementById('dateSub').textContent = '数据日期: ' + latest.full_label + ' · ' + flowData.dates.length + '个交易日';
+
+  // 摘要卡片
+  var latestData = getDateData(latest.label);
+  var top3 = flowData.industries.filter(function(r){ return !r.is_total; }).slice(0,3);
+  var h = '';
+  h += '<div class="card"><div class="val">' + (latestData.total/1e8).toFixed(0) + '亿</div><div class="lbl">全市场成交</div></div>';
+  h += '<div class="card"><div class="val">' + top3[0].industry + '</div><div class="lbl">最大 ' + top3[0].share + '%</div></div>';
+  h += '<div class="card"><div class="val">' + top3[1].industry + '</div><div class="lbl">第二 ' + top3[1].share + '%</div></div>';
+  document.getElementById('summaryCards').innerHTML = h;
+
+  // 日期选择器
+  var tabs = '';
+  flowData.dates.slice().reverse().forEach(function(d) {
+    var active = d.label === activeDate ? ' active' : '';
+    tabs += '<div class="date-tab' + active + '" onclick="selectDate(\'' + d.label + '\')">' + d.label + '</div>';
+  });
+  document.getElementById('dateTabs').innerHTML = tabs;
+
+  renderTable();
+}
+
+function getDateData(label) {
+  var total = 0;
+  flowData.industries.forEach(function(r) {
+    if (r.is_total) return;
+    var idx = flowData.dates.findIndex(function(d){ return d.label === label; });
+    if (idx >= 0 && r.daily_turnover) total += (r.daily_turnover[idx] || 0);
+  });
+  return { total: total, label: label };
+}
+
+function selectDate(label) {
+  activeDate = label;
+  render();
+}
+
+function computeTrend(daily, idx) {
+  if (!daily || idx < 4) return '—';
+  var vals = daily.slice(Math.max(0, idx - 4), idx + 1);
+  if (vals.length < 3) return '—';
+  var diffs = [];
+  for (var i = 1; i < vals.length; i++) diffs.push(vals[i] - vals[i - 1]);
+  var up = diffs.filter(function(d){ return d > 0; }).length;
+  var dn = diffs.length - up;
+  return new Array(up + 1).join('↗') + new Array(dn + 1).join('↘') || '—';
+}
+
+function computeSignal(share, chg) {
+  if (share > 3 && chg > 5) return '🔥 持续流入';
+  if (share > 1.5 && chg > 10) return '📈 加速流入';
+  if (chg < -20) return '❄️ 资金撤离';
+  if (share > 2 && chg < -10) return '⚠️ 高位缩量';
+  return '';
+}
+
+function showChart(ind) {
+  var r = flowData.industries.find(function(x){ return x.industry === ind; });
+  if (!r || !r.daily_turnover) return;
+  var maxVal = Math.max.apply(null, r.daily_turnover);
+  var bars = '';
+  flowData.dates.forEach(function(d, i) {
+    var v = r.daily_turnover[i] || 0;
+    var h = maxVal > 0 ? Math.round(v / maxVal * 240) : 0;
+    var isActive = d.label === activeDate;
+    bars += '<div class="chart-bar-wrap" onclick="selectDate(\'' + d.label + '\');closeChart();" title="' + d.full_label + ': ' + (v/1e8).toFixed(1) + '亿">';
+    bars += '<div style="text-align:center;font-size:0.65em;color:#666;margin-bottom:2px">' + (v/1e8).toFixed(0) + '</div>';
+    bars += '<div class="chart-bar" style="height:' + h + 'px;background:' + (isActive ? '#61afef' : '#3a4a5a') + '"></div>';
+    bars += '<div style="text-align:center;font-size:0.6em;color:#555;margin-top:4px">' + d.label.slice(0,-1) + '</div>';
+    bars += '</div>';
+  });
+  var html = '<div style="text-align:center;margin-bottom:10px;color:#e5e5e5;font-size:0.9em">📊 ' + ind + ' 成交额走势（亿）</div>';
+  html += '<div style="display:flex;align-items:flex-end;gap:4px;justify-content:center;min-height:260px">' + bars + '</div>';
+  document.getElementById('chartBody').innerHTML = html;
+  document.getElementById('chartOverlay').classList.add('active');
+}
+
+function closeChart() {
+  document.getElementById('chartOverlay').classList.remove('active');
+}
+
+function renderTable() {
+  var rows = '';
+  var dateIdx = flowData.dates.findIndex(function(d){ return d.label === activeDate; });
+
+  flowData.industries.forEach(function(r) {
+    var cls = r.is_total ? ' class="total-row"' : '';
+    var daily = r.daily_turnover || [];
+    var amt = daily[dateIdx] || 0;
+    var totalNow = getDateData(activeDate).total;
+    var share = totalNow > 0 ? (amt / totalNow * 100).toFixed(1) : '0.0';
+
+    var chgVal = null, chgHtml = '—';
+    if (dateIdx > 0) {
+      var prev = daily[dateIdx - 1] || 0;
+      if (prev > 0) {
+        chgVal = ((amt - prev) / prev * 100);
+        var cls2 = chgVal > 0 ? 'turnover-up' : 'turnover-down';
+        chgHtml = '<span class="' + cls2 + '">' + (chgVal > 0 ? '+' : '') + chgVal.toFixed(1) + '%</span>';
+      }
+    }
+
+    var trend = computeTrend(daily, dateIdx);
+    var sig = computeSignal(parseFloat(share), chgVal || 0);
+
+    var sigCls = '';
+    if (sig.indexOf('流入') >= 0) sigCls = 'signal-in';
+    else if (sig.indexOf('撤离') >= 0) sigCls = 'signal-out';
+    else if (sig.indexOf('缩量') >= 0) sigCls = 'signal-warn';
+    else if (sig.indexOf('🔥') >= 0) sigCls = 'signal-fire';
+
+    var barW = Math.round(parseFloat(share) * 2.5);
+    var clickable = r.is_total ? '' : ' onclick="showChart(\'' + r.industry + '\')" style="cursor:pointer"';
+
+    rows += '<tr' + cls + '>';
+    rows += '<td' + clickable + '><span class="bar" style="width:' + barW + 'px"></span><span class="ind-name">' + r.industry + '</span></td>';
+    rows += '<td>' + (amt/1e8).toFixed(1) + '</td>';
+    rows += '<td>' + share + '%</td>';
+    rows += '<td>' + chgHtml + '</td>';
+    rows += '<td>' + trend + '</td>';
+    rows += '<td class="' + sigCls + '">' + sig + '</td>';
+    rows += '</tr>';
+  });
+  document.getElementById('tbody').innerHTML = rows;
+  document.getElementById('updateNote').textContent = '数据更新于 ' + (flowData.updated_at || '?') + ' · 点击行业名查看走势图';
+}
+
+load();
+</script>
+</body>
+</html>

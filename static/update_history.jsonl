@@ -1,0 +1,10 @@
+{"dataset": "capital_flow", "status": "success", "source": "sina_kline_cache", "dates": "20260625", "mode": "incremental", "time": "2026-06-25 21:17:33"}
+{"dataset": "highs", "status": "success", "source": "sina_kline", "dates": "20260618,20260622,20260623,20260624,20260625", "mode": "incremental", "time": "2026-06-25 21:24:39"}
+{"dataset": "lows", "status": "success", "source": "sina_kline", "dates": "20260618,20260622,20260623,20260624,20260625", "mode": "incremental", "time": "2026-06-25 21:31:27"}
+{"dataset": "capital_flow", "status": "success", "source": "sina_kline_cache", "dates": "20260618,20260622,20260623,20260624,20260625", "mode": "incremental", "time": "2026-06-25 21:32:03"}
+{"dataset": "highs", "status": "success", "source": "sina_kline", "dates": "20260528,20260529,20260601,20260602,20260603,20260604,20260605,20260608,20260609,20260610,20260611,20260612,20260615,20260616,20260617,20260618,20260622,20260623,20260624,20260625", "mode": "incremental", "time": "2026-06-25 23:03:38"}
+{"dataset": "lows", "status": "success", "source": "sina_kline", "dates": "20260528,20260529,20260601,20260602,20260603,20260604,20260605,20260608,20260609,20260610,20260611,20260612,20260615,20260616,20260617,20260618,20260622,20260623,20260624,20260625", "mode": "incremental", "time": "2026-06-25 23:03:57"}
+{"dataset": "capital_flow", "status": "success", "source": "sina_kline_cache", "dates": "20260528,20260529,20260601,20260602,20260603,20260604,20260605,20260608,20260609,20260610,20260611,20260612,20260615,20260616,20260617,20260618,20260622,20260623,20260624,20260625", "mode": "incremental", "time": "2026-06-25 23:04:28"}
+{"dataset": "highs", "status": "success", "source": "sina_kline", "dates": "20260626", "mode": "incremental", "time": "2026-06-26 16:31:55"}
+{"dataset": "lows", "status": "success", "source": "sina_kline", "dates": "20260626", "mode": "incremental", "time": "2026-06-26 16:32:13"}
+{"dataset": "capital_flow", "status": "success", "source": "sina_kline_cache", "dates": "20260626", "mode": "incremental", "time": "2026-06-26 16:32:45"}

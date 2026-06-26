@@ -391,6 +391,7 @@
   .stock-table thead th.col-name { text-align: left; }
   .stock-table thead th.col-price { width: 52px; }
   .stock-table thead th.col-chg { width: 58px; }
+  .stock-table thead th.col-mp { width: 38px; color: #d19a66; font-size: 11px; }
   .stock-table tbody td {
     padding: 5px 4px;
     text-align: center;
@@ -403,6 +404,7 @@
   }
   .stock-table tbody td.col-idx { color: var(--text-dim); }
   .stock-table tbody td.col-name { text-align: left; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .stock-table tbody td.col-mp { color: #d19a66; font-size: 11px; }
   .stock-table tbody tr:hover td { background: #2a2e36; }
   .stock-table .change-up { color: #e06c75; }
   .stock-table .change-down { color: #61afef; }
@@ -446,6 +448,7 @@
     .stock-table thead th.col-code { width: 48px; }
     .stock-table thead th.col-price { width: 44px; }
     .stock-table thead th.col-chg { width: 50px; }
+    .stock-table thead th.col-mp { width: 32px; font-size: 10px; }
     .stock-table tbody td { padding: 3px 2px; font-size: 10px; }
   }
 
@@ -502,6 +505,10 @@
         <button class="toggle-btn" data-type="1year">一年新高</button>
         <button class="toggle-btn" data-type="alltime">收盘历史新高</button>
       </div>
+      <div class="type-toggle" id="modeToggle" style="margin-top:6px">
+        <button class="toggle-btn active" data-mode="daily">📊 收盘数据</button>
+        <button class="toggle-btn" data-mode="intraday">📡 盘中实时</button>
+      </div>
       <div class="export-wrap" id="exportWrap">
         <button class="export-btn" id="exportBtn" disabled>导出Excel</button>
         <div class="export-dropdown" id="exportDropdown"></div>
@@ -533,7 +540,7 @@
   </div>
 </div>
 
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="/xlsx.full.min.js"></script>
 <script>
 // =========================================================================
 //  数据加载 & 渲染
@@ -541,18 +548,29 @@
 
 let currentType = 'month';
 let currentDirection = 'highs';
+let currentMode = 'daily';  // 'daily' | 'intraday'
 let tableData = null;
 let detailsData = null;
 let detailsLoading = false;
 let detailsLoadedType = null;
 let detailsLoadedDirection = null;
+let detailsLoadedMode = null;
 
 function getUrls() {
   var suffix = currentType;
+  var cb = '?_=' + Date.now();
+  if (currentMode === 'intraday') {
+    var intraSuffix = currentType === 'month' ? '20d' : currentType;
+    var prefix2 = currentDirection === 'lows' ? 'intraday_lows' : 'intraday_highs';
+    return {
+      counts: '/' + prefix2 + '_' + intraSuffix + '.json' + cb,
+      details: null,
+    };
+  }
   var prefix = currentDirection === 'lows' ? 'new_lows' : 'new_highs';
   return {
-    counts: '/' + prefix + '_data_' + suffix + '.json',
-    details: '/' + prefix + '_details_' + suffix + '.json',
+    counts: '/' + prefix + '_data_' + suffix + '.json' + cb,
+    details: '/' + prefix + '_details_' + suffix + '.json' + cb,
   };
 }
 
@@ -600,19 +618,37 @@ function updateLabels() {
 }
 
 async function ensureDetails() {
-  if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection) return detailsData;
+  if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection && detailsLoadedMode === currentMode) return detailsData;
   if (detailsLoading) {
     while (detailsLoading) await new Promise(function(r) { setTimeout(r, 100); });
-    if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection) return detailsData;
+    if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection && detailsLoadedMode === currentMode) return detailsData;
   }
   detailsLoading = true;
   try {
+    if (currentMode === 'intraday') {
+      // 盘中模式: 明细嵌入在 data JSON 的 daily_details 中
+      detailsData = {};
+      for (var i = 0; i < tableData.industries.length; i++) {
+        var row = tableData.industries[i];
+        var dd = row.daily_details || {};
+        for (var d in dd) {
+          if (!detailsData[row.industry]) detailsData[row.industry] = {};
+          detailsData[row.industry][d] = dd[d];
+        }
+      }
+      detailsLoadedType = currentType;
+      detailsLoadedDirection = currentDirection;
+      detailsLoadedMode = currentMode;
+      return detailsData;
+    }
     var urls = getUrls();
+    if (!urls.details) return null;
     var resp = await fetch(urls.details);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     detailsData = await resp.json();
     detailsLoadedType = currentType;
     detailsLoadedDirection = currentDirection;
+    detailsLoadedMode = currentMode;
     return detailsData;
   } catch (e) {
     console.error('加载明细失败:', e);
@@ -741,7 +777,6 @@ function renderTable() {
 
   html += '</tbody></table></div>';
   mainContent.innerHTML = html;
-  setupScrollShadow();
   setupTableClick();
 }
 
@@ -771,6 +806,24 @@ function setupTableClick() {
 // =========================================================================
 //  模态框
 // =========================================================================
+
+// ── 多周期新高/新低次数统计（从预计算轻量文件加载）──
+var multiPeriodCache = {};  // key: direction, value: {code: [20d, 60d, 120d, 1year]}
+
+async function loadMultiPeriodCounts(direction) {
+  if (multiPeriodCache[direction]) return multiPeriodCache[direction];
+  try {
+    var url = '/' + direction + '_period_counts.json?_=' + Date.now();
+    var resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    multiPeriodCache[direction] = data;
+    return data;
+  } catch(e) {
+    console.error('loadMultiPeriod error:', e);
+    return {};
+  }
+}
 
 async function openDetail(industry, dateLabel, count) {
   document.getElementById('modalTitle').innerHTML = '<span class="ind-name">' + industry + '</span> ' + dateLabel;
@@ -802,8 +855,31 @@ async function openDetail(industry, dateLabel, count) {
   document.getElementById('modalSub').innerHTML =
     typeLabel + ' · <strong>' + stocks.length + '</strong> 只 · 占比 <strong>' + ratio + '%</strong> · 行业共 ' + total + ' 只';
 
+  var mpCounts = {};
+  loadMultiPeriodCounts(currentDirection).then(function(data) {
+    mpCounts = data || {};
+    // 更新已渲染的计数单元格
+    var rows = document.querySelectorAll('#modalBody .stock-table tbody tr');
+    rows.forEach(function(tr, i) {
+      if (i < stocks.length) {
+        var code = stocks[i].code;
+        var cnt = mpCounts[code] || [0,0,0,0];
+        var tds = tr.querySelectorAll('.col-mp');
+        if (tds.length === 4) {
+          tds[0].textContent = cnt[0];
+          tds[1].textContent = cnt[1];
+          tds[2].textContent = cnt[2];
+          tds[3].textContent = cnt[3];
+        }
+      }
+    });
+  }).catch(function(e) {
+    console.error('多周期计数加载失败:', e);
+  });
+
   var html = '<div style="max-height:55vh;overflow-y:auto;"><table class="stock-table"><thead><tr>';
   html += '<th class="col-idx">#</th><th class="col-code">代码</th><th class="col-name">名称</th><th class="col-price">价格</th><th class="col-chg">涨跌</th>';
+  html += '<th class="col-mp">20日</th><th class="col-mp">60日</th><th class="col-mp">120日</th><th class="col-mp">一年</th>';
   html += '</tr></thead><tbody>';
 
   stocks.forEach(function(s, i) {
@@ -812,16 +888,17 @@ async function openDetail(industry, dateLabel, count) {
     var prefix = s.code.startsWith('6') ? 'sh' : 'sz';
     html += '<tr>' +
       '<td class="col-idx">' + (i + 1) + '</td>' +
-      '<td class="col-code"><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
+      '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + s.code + '/" target="_blank">' + s.code + '</a></td>' +
       '<td class="col-name">' + s.name + '</td>' +
       '<td class="col-price">' + s.price.toFixed(2) + '</td>' +
       '<td class="col-chg ' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+      '<td class="col-mp">-</td><td class="col-mp">-</td><td class="col-mp">-</td><td class="col-mp">-</td>' +
       '</tr>';
   });
 
   html += '</tbody></table></div>';
   document.getElementById('modalBody').innerHTML = html;
-  document.getElementById('modalFooter').innerHTML = '共 ' + stocks.length + ' 只 · 点击代码跳转东方财富';
+  document.getElementById('modalFooter').innerHTML = '共 ' + stocks.length + ' 只 · 点击代码跳转同花顺';
 }
 
 async function openTotalDetail(dateLabel, count) {
@@ -855,6 +932,8 @@ async function openTotalDetail(dateLabel, count) {
   document.getElementById('modalSub').innerHTML =
     typeLabel + ' · <strong>' + allStocks.length + '</strong> 只 · <strong>' + Object.keys(byIndustry).length + '</strong> 个行业';
 
+  var mpCounts = await loadMultiPeriodCounts(currentDirection);
+
   var html = '<div style="max-height:55vh;overflow-y:auto;">';
   var entries = Object.entries(byIndustry).sort(function(a, b) { return b[1].length - a[1].length; });
   entries.forEach(function(entry) {
@@ -864,18 +943,24 @@ async function openTotalDetail(dateLabel, count) {
       ind + ' <span>(' + stocks.length + ' 只)</span></div>' +
       '<table class="stock-table"><thead><tr>' +
       '<th class="col-idx">#</th><th class="col-code">代码</th><th class="col-name">名称</th><th class="col-price">价格</th><th class="col-chg">涨跌</th>' +
+      '<th class="col-mp">20日</th><th class="col-mp">60日</th><th class="col-mp">120日</th><th class="col-mp">一年</th>' +
       '</tr></thead><tbody>';
 
     stocks.forEach(function(s, i) {
       var changeCls = s.change_pct >= 0 ? 'change-up' : 'change-down';
       var sign = s.change_pct >= 0 ? '+' : '';
       var prefix = s.code.startsWith('6') ? 'sh' : 'sz';
+      var cnt = mpCounts[s.code] || [0,0,0,0];
       html += '<tr>' +
         '<td class="col-idx">' + (i + 1) + '</td>' +
-        '<td class="col-code"><a class="stock-link" href="https://quote.eastmoney.com/' + prefix + s.code + '.html" target="_blank">' + s.code + '</a></td>' +
+        '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + s.code + '/" target="_blank">' + s.code + '</a></td>' +
         '<td class="col-name">' + s.name + '</td>' +
         '<td class="col-price">' + s.price.toFixed(2) + '</td>' +
         '<td class="col-chg ' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+        '<td class="col-mp">' + cnt[0] + '</td>' +
+        '<td class="col-mp">' + cnt[1] + '</td>' +
+        '<td class="col-mp">' + cnt[2] + '</td>' +
+        '<td class="col-mp">' + cnt[3] + '</td>' +
         '</tr>';
     });
 
@@ -884,7 +969,7 @@ async function openTotalDetail(dateLabel, count) {
   html += '</div>';
 
   document.getElementById('modalBody').innerHTML = html;
-  document.getElementById('modalFooter').innerHTML = '共 ' + allStocks.length + ' 只 · ' + Object.keys(byIndustry).length + ' 个行业 · 点击代码跳转东方财富';
+  document.getElementById('modalFooter').innerHTML = '共 ' + allStocks.length + ' 只 · ' + Object.keys(byIndustry).length + ' 个行业 · 点击代码跳转同花顺';
 }
 
 function closeModal() {
@@ -938,6 +1023,43 @@ document.getElementById('directionToggle').addEventListener('click', function(e)
   detailsData = null;
   detailsLoadedType = null;
   detailsLoadedDirection = null;
+  detailsLoadedMode = null;
+  loadData();
+});
+
+// 模式切换（收盘数据 / 盘中实时）
+document.getElementById('modeToggle').addEventListener('click', function(e) {
+  var btn = e.target.closest('.toggle-btn');
+  if (!btn) return;
+  var newMode = btn.getAttribute('data-mode');
+  if (newMode === currentMode) return;
+
+  currentMode = newMode;
+  var buttons = this.querySelectorAll('.toggle-btn');
+  for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
+  btn.classList.add('active');
+
+  // 盘中模式隐藏 alltime（历史数据不支持盘中）
+  var typeBtns = document.querySelectorAll('#typeToggle .toggle-btn');
+  for (var j = 0; j < typeBtns.length; j++) {
+    var tb = typeBtns[j];
+    if (tb.getAttribute('data-type') === 'alltime') {
+      tb.style.display = currentMode === 'intraday' ? 'none' : '';
+    }
+  }
+  // 切换到盘中时默认选 20d
+  if (currentMode === 'intraday' && currentType === 'alltime') {
+    currentType = 'month';
+    for (var k = 0; k < typeBtns.length; k++) {
+      typeBtns[k].classList.remove('active');
+      if (typeBtns[k].getAttribute('data-type') === 'month') typeBtns[k].classList.add('active');
+    }
+  }
+
+  detailsData = null;
+  detailsLoadedType = null;
+  detailsLoadedDirection = null;
+  detailsLoadedMode = null;
   loadData();
 });
 
@@ -973,13 +1095,17 @@ function setupExportButton() {
   });
   dropdown.innerHTML = html;
 
-  dropdown.addEventListener('click', function(e) {
-    var opt = e.target.closest('.export-date-option');
-    if (!opt) return;
-    var dateLabel = opt.getAttribute('data-date');
-    dropdown.classList.remove('show');
-    exportToExcel(dateLabel);
-  });
+  // 避免 listener 累积：先移除旧 listener 再绑定
+  dropdown.removeEventListener('click', _onExportClick);
+  dropdown.addEventListener('click', _onExportClick);
+}
+
+function _onExportClick(e) {
+  var opt = e.target.closest('.export-date-option');
+  if (!opt) return;
+  var dateLabel = opt.getAttribute('data-date');
+  document.getElementById('exportDropdown').classList.remove('show');
+  exportToExcel(dateLabel);
 }
 
 document.getElementById('exportBtn').addEventListener('click', function() {
@@ -1024,6 +1150,11 @@ async function exportToExcel(dateLabel) {
     return;
   }
 
+  if (typeof XLSX === 'undefined') {
+    alert('Excel 库加载失败，请刷新页面后重试');
+    return;
+  }
+
   // 按行业分组排序
   rows.sort(function(a, b) {
     if (a['行业'] !== b['行业']) return a['行业'].localeCompare(b['行业']);
@@ -1040,6 +1171,25 @@ async function exportToExcel(dateLabel) {
 // =========================================================================
 //  启动
 // =========================================================================
+
+// 检查 URL 参数，支持 ?mode=intraday
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('mode') === 'intraday') {
+    currentMode = 'intraday';
+    // 更新模式切换按钮状态
+    var modeBtns = document.querySelectorAll('#modeToggle .toggle-btn');
+    for (var i = 0; i < modeBtns.length; i++) {
+      modeBtns[i].classList.remove('active');
+      if (modeBtns[i].getAttribute('data-mode') === 'intraday') modeBtns[i].classList.add('active');
+    }
+    // 隐藏 alltime 按钮
+    var typeBtns = document.querySelectorAll('#typeToggle .toggle-btn');
+    for (var j = 0; j < typeBtns.length; j++) {
+      if (typeBtns[j].getAttribute('data-type') === 'alltime') typeBtns[j].style.display = 'none';
+    }
+  }
+})();
 
 loadData();
 </script>

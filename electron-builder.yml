@@ -1,0 +1,56 @@
+appId: com.stockfinance.heatmap
+productName: 行业热力图
+copyright: Copyright © 2026
+
+mac:
+  category: public.app-category.finance
+  target:
+    - dmg
+    - zip
+  icon: resources/icon.icns
+  artifactName: "${name}-${version}-mac.${ext}"
+
+files:
+  - dist/electron/**/*
+  - resources/**/*
+
+extraResources:
+  - from: static/
+    to: static/
+    filter:
+      - "**/*"
+      - "!all_klines.pkl"
+      - "!kline_cache.pkl"
+      - "!*.backup"
+      - "!industry-heatmap-standalone.html"
+  - from: "server.py"
+    to: "server.py"
+  - from: "kline_cache.py"
+    to: "kline_cache.py"
+  - from: "fetch_new_highs.py"
+    to: "fetch_new_highs.py"
+  - from: "fetch_new_lows.py"
+    to: "fetch_new_lows.py"
+  - from: "ai_analyzer.py"
+    to: "ai_analyzer.py"
+  - from: "generate_standalone.py"
+    to: "generate_standalone.py"
+  - from: "analyze_market.py"
+    to: "analyze_market.py"
+  - from: "fetch_capital_flow.py"
+    to: "fetch_capital_flow.py"
+  - from: "heatmap_data.py"
+    to: "heatmap_data.py"
+  - from: "mcp_config.py"
+    to: "mcp_config.py"
+  - from: "mcp_heatmap_server.py"
+    to: "mcp_heatmap_server.py"
+  - from: "merge_daily_data.py"
+    to: "merge_daily_data.py"
+  - from: "scan_intraday.py"
+    to: "scan_intraday.py"
+  - from: "build_period_counts.py"
+    to: "build_period_counts.py"
+
+asar: true
+compression: normal

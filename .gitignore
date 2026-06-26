@@ -2,9 +2,10 @@ __pycache__/
 *.pyc
 .DS_Store
 *.apkg
-anki-converter*.html
-new_highs_data.json
-new_highs_details.json
-new_lows_details_*.json
-new_highs_details_*.json
-all_klines.pkl
+node_modules/
+dist/
+*.pkl
+*.backup
+*.blockmap
+/build/
+*.log

@@ -1,0 +1,25 @@
+{
+  "name": "industry-heatmap",
+  "version": "1.0.0",
+  "description": "A股行业新高/新低热力图 - macOS Desktop App",
+  "main": "dist/electron/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsc -p tsconfig.electron.json && electron .",
+    "build": "tsc -p tsconfig.electron.json && electron-builder",
+    "build:mac": "tsc -p tsconfig.electron.json && electron-builder --mac",
+    "postinstall": "tsc -p tsconfig.electron.json || true"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/node-cron": "^3.0.11",
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.0"
+  }
+}
