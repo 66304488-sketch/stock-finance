@@ -4,7 +4,7 @@ import os
 import re
 from datetime import datetime
 
-STATIC = "/Users/linyixin/Desktop/jinhua/stock-finance/static"
+STATIC = os.path.join(os.path.dirname(__file__), "static")
 TYPES = ["month", "60d", "120d", "1year", "alltime"]
 
 

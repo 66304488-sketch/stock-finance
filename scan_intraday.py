@@ -234,11 +234,10 @@ def main():
         print(f"\n--- 扫描 {window_key} ({window_days}日) ---")
         try:
             scanned = scan(active_codes, industry_map, cache, window_days)
+            highs, lows = build_output(scanned, window_key, window_days)
         except Exception as e:
             print(f"  ✗ 扫描失败: {e}")
             continue
-
-        highs, lows = build_output(scanned, window_key, window_days)
 
         high_path = os.path.join(output_dir, f"intraday_highs_{window_key}.json")
         low_path = os.path.join(output_dir, f"intraday_lows_{window_key}.json")

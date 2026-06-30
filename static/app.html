@@ -59,58 +59,94 @@
     background: var(--bg);
   }
 
-  .settings-panel {
-    padding: 24px;
-    max-width: 500px;
-    margin: 0 auto;
+  .settings-wrap {
+    display: flex;
+    height: 100%;
     color: var(--text);
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   }
-  .settings-panel h2 {
-    color: #e5e5e5;
-    font-size: 1.2em;
-    margin-bottom: 20px;
+  .settings-sidebar {
+    width: 170px;
+    flex-shrink: 0;
+    background: #1a1d24;
+    border-right: 1px solid var(--border);
+    padding: 8px 0;
+    overflow-y: auto;
   }
-  .settings-panel label {
-    display: block;
+  .settings-nav-item {
+    padding: 9px 16px;
     font-size: 0.85em;
-    margin-bottom: 6px;
-    color: var(--text);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: background 0.15s;
+    border-left: 3px solid transparent;
   }
-  .settings-panel input, .settings-panel textarea {
-    width: 100%;
-    padding: 10px 14px;
+  .settings-nav-item:hover { background: #282c34; color: var(--text); }
+  .settings-nav-item.active {
+    background: #282c34;
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+  .settings-content {
+    flex: 1;
+    padding: 20px 28px;
+    overflow-y: auto;
+  }
+  .settings-content h3 {
+    color: #e5e5e5;
+    font-size: 1.05em;
+    margin: 0 0 16px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-section { display: none; }
+  .settings-section.active { display: block; }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .settings-row label {
+    width: 80px;
+    flex-shrink: 0;
+    font-size: 0.85em;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .settings-row input[type="text"],
+  .settings-row select {
+    padding: 8px 12px;
     background: #282c34;
     border: 1px solid var(--border);
     border-radius: 6px;
     color: #e5e5e5;
-    font-size: 0.9em;
-    font-family: inherit;
-    margin-bottom: 16px;
+    font-size: 0.88em;
     outline: none;
+    flex: 1;
+    max-width: 360px;
   }
-  .settings-panel input:focus { border-color: var(--accent); }
-  .settings-panel button {
-    background: var(--accent);
-    color: #1a1d23;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 6px;
-    font-size: 0.9em;
-    font-weight: 600;
-    cursor: pointer;
+  .settings-row input:focus, .settings-row select:focus { border-color: var(--accent); }
+  .cb-label {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 10px; background: #282c34; border-radius: 5px;
+    font-size: 0.84em; cursor: pointer;
   }
-  .settings-panel .hint {
-    font-size: 0.8em;
-    color: #666;
-    margin-top: -10px;
-    margin-bottom: 16px;
+  .btn-primary {
+    padding: 8px 18px; background: var(--accent); color: #1a1d23;
+    border: none; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer;
   }
-  .settings-panel .status {
-    font-size: 0.85em;
-    margin-top: 16px;
-    padding: 10px;
-    border-radius: 6px;
+  .btn-normal {
+    padding: 8px 14px; background: #282c34; color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; font-size: 0.83em; cursor: pointer;
+  }
+  .btn-warn {
+    padding: 8px 14px; background: #282c34; color: #d19a66;
+    border: 1px solid #d19a66; border-radius: 6px; font-size: 0.83em; cursor: pointer;
+  }
+  .btn-danger {
+    padding: 8px 14px; background: #be5046; color: #fff;
+    border: none; border-radius: 6px; font-size: 0.83em; cursor: pointer;
   }
   .status-ok { background: #98c37922; color: #98c379; }
   .status-warn { background: #e5c07b22; color: #e5c07b; }
@@ -122,6 +158,7 @@
   <button class="tab-btn active" onclick="switchTab('heatmap')">🔥 热力图</button>
   <button class="tab-btn" onclick="switchTab('report')">🤖 AI 日报</button>
   <button class="tab-btn" onclick="switchTab('flow')">💰 资金流向</button>
+  <button class="tab-btn" onclick="switchTab('mcap')">💎 市值</button>
   <button class="tab-btn" onclick="switchTab('chat')">💬 AI 问答</button>
   <button class="tab-btn" onclick="switchTab('settings')">⚙️ 设置</button>
 </div>
@@ -136,146 +173,144 @@
   <div class="tab-panel" id="panel-flow">
     <iframe src="/capital-flow.html"></iframe>
   </div>
+  <div class="tab-panel" id="panel-mcap">
+    <iframe src="/market-cap.html"></iframe>
+  </div>
   <div class="tab-panel" id="panel-chat">
     <iframe src="/ai-chat.html"></iframe>
   </div>
   <div class="tab-panel" id="panel-settings">
-    <div class="settings-panel">
-      <h2>⚙️ 设置</h2>
-
-      <label>AI 模型</label>
-      <select id="aiProvider" onchange="onProviderChange()" style="width:100%;padding:10px 14px;background:#282c34;border:1px solid var(--border);border-radius:6px;color:#e5e5e5;font-size:0.9em;margin-bottom:16px;outline:none">
-        <option value="anthropic">Anthropic Claude (Sonnet 4)</option>
-        <option value="deepseek">DeepSeek (deepseek-chat)</option>
-      </select>
-
-      <label id="apiKeyLabel">API Key</label>
-      <input type="text" id="apiKeyInput" placeholder="sk-...">
-      <button onclick="saveApiKey()" style="margin-top:8px;width:100%">💾 保存 Key</button>
-      <div class="hint" id="apiKeyHint"></div>
-
-      <div style="border-top:1px solid var(--border);margin:18px 0;padding-top:16px">
-        <h3 style="color:#e5e5e5;font-size:1em;margin-bottom:12px">🔌 MCP 服务器</h3>
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <input type="checkbox" id="mcpEnabled" style="width:auto;margin:0"> 启用远程 MCP（仅 Claude）
-        </label>
-        <div class="hint" style="margin-top:0">Claude 可连接 HTTPS MCP 服务。localhost 仅供本机 MCP 客户端使用，Anthropic 远程连接器无法访问。</div>
-        <div id="mcpServers"></div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button onclick="addMcpServerRow()" style="background:#5c6370;flex:1">➕ 添加 MCP</button>
-          <button onclick="saveMcpSettings()" style="flex:1">💾 保存 MCP</button>
-        </div>
-        <div class="hint" style="margin-top:10px">本地热力图 MCP Server：python3 /Users/linyixin/Desktop/jinhua/stock-finance/mcp_heatmap_server.py</div>
+    <div class="settings-wrap">
+      <div class="settings-sidebar" id="settingsSidebar">
+        <div class="settings-nav-item active" data-section="update">🔄 数据更新</div>
+        <div class="settings-nav-item" data-section="strategy">🧊 更新策略</div>
+        <div class="settings-nav-item" data-section="ai">🤖 AI 配置</div>
+        <div class="settings-nav-item" data-section="mcp">🔌 MCP 服务</div>
+        <div class="settings-nav-item" data-section="data">💾 数据管理</div>
+        <div class="settings-nav-item" data-section="guide">📖 使用说明</div>
       </div>
-
-      <div style="display:flex;gap:12px;margin:16px 0;align-items:center">
-        <select id="refreshDays" style="padding:8px;background:#282c34;border:1px solid var(--border);border-radius:6px;color:#e5e5e5;font-size:0.85em">
-          <option value="1">最近 1 天</option>
-          <option value="5">最近 5 天</option>
-          <option value="10">最近 10 天</option>
-          <option value="20">最近 20 天</option>
-        </select>
-        <button onclick="runDataRefresh()" id="refreshBtn">🔄 更新数据</button>
-        <button onclick="runCapitalFlow()" id="flowBtn">💰 更新资金流向</button>
-        <button onclick="runAiAnalysis()" id="analysisBtn">🤖 重新分析</button>
-        <button onclick="runIntradayScan()" id="intradayBtn" style="background:#d19a66">📡 盘中扫描</button>
-      </div>
-      <div class="hint">日常更新选1天就够了。数据清空后选20天重新拉取全部。</div>
-
-      <div style="border-top:1px solid var(--border);margin:20px 0;padding-top:16px">
-        <h3 style="color:#e5e5e5;font-size:1em;margin-bottom:12px">🧊 数据更新策略</h3>
-        <div class="hint" style="margin-bottom:10px">按数据集选择来源和冻结状态。冻结后普通更新会跳过该数据集，只在“强制重建”时覆盖。</div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82em;margin-bottom:12px">
-          <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="dataset-check" value="highs" checked> 创新高</label>
-          <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="dataset-check" value="lows" checked> 创新低</label>
-          <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="dataset-check" value="capital_flow" checked> 资金流向</label>
-          <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="dataset-check" value="standalone"> 生成独立HTML</label>
+      <div class="settings-content">
+        <div class="settings-section active" id="sec-update">
+          <h3>数据更新</h3>
+          <div class="settings-row">
+            <label>更新范围</label>
+            <select id="refreshDays">
+              <option value="1">最近 1 天</option><option value="5">最近 5 天</option>
+              <option value="10">最近 10 天</option><option value="20">最近 20 天</option>
+            </select>
+          </div>
+          <div class="settings-row" style="flex-wrap:wrap;gap:8px">
+            <label>快捷操作</label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <button onclick="runDataRefresh()" id="refreshBtn" class="btn-primary">🔄 批量更新</button>
+              <button onclick="runCapitalFlow()" id="flowBtn" class="btn-normal">💰 资金流向</button>
+              <button onclick="runMarketCap()" id="mcapBtn" class="btn-normal">💎 市值</button>
+              <button onclick="runAiAnalysis()" id="analysisBtn" class="btn-normal">🤖 AI分析</button>
+              <button onclick="runIntradayScan()" id="intradayBtn" class="btn-warn">📡 盘中扫描</button>
+            </div>
+          </div>
+          <div id="refreshStatus" style="display:none;margin-top:8px;padding:8px 12px;border-radius:6px;font-size:0.82em"></div>
+          <div id="refreshProgress" style="display:none"></div>
         </div>
 
-        <label>更新模式</label>
-        <select id="updateMode" style="width:100%;padding:8px;background:#282c34;border:1px solid var(--border);border-radius:6px;color:#e5e5e5;font-size:0.85em;margin-bottom:12px">
-          <option value="incremental">增量同步（默认，复用已下载数据）</option>
-          <option value="missing">只补缺失（保守，不主动重算旧数据）</option>
-          <option value="rebuild">强制重建（会覆盖所选数据集）</option>
-        </select>
-
-        <div style="display:grid;grid-template-columns:90px 1fr 70px;gap:8px;align-items:center;font-size:0.82em">
-          <span>创新高</span>
-          <select id="sourceHighs" style="padding:6px;background:#282c34;border:1px solid var(--border);border-radius:6px;color:#e5e5e5"><option value="sina_kline">新浪K线</option><option value="sina_kline_cache">新浪K线缓存</option></select>
-          <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="freezeHighs">冻结</label>
-          <span>创新低</span>
-          <select id="sourceLows" style="padding:6px;background:#282c34;border:1px solid var(--border);border-radius:6px;color:#e5e5e5"><option value="sina_kline">新浪K线</option><option value="sina_kline_cache">新浪K线缓存</option></select>
-          <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="freezeLows">冻结</label>
-          <span>资金流向</span>
-          <select id="sourceFlow" style="padding:6px;background:#282c34;border:1px solid var(--border);border-radius:6px;color:#e5e5e5"><option value="sina_kline_cache">K线缓存</option></select>
-          <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="freezeFlow">冻结</label>
-          <span>基础资料</span>
-          <select id="sourceBasics" style="padding:6px;background:#282c34;border:1px solid var(--border);border-radius:6px;color:#e5e5e5"><option value="akshare_excel">AkShare+本地行业Excel</option></select>
-          <span></span>
+        <div class="settings-section" id="sec-strategy">
+          <h3>更新策略</h3>
+          <div class="settings-row">
+            <label>选择数据集</label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <label class="cb-label"><input type="checkbox" class="dataset-check" value="highs" checked> 创新高</label>
+              <label class="cb-label"><input type="checkbox" class="dataset-check" value="lows" checked> 创新低</label>
+              <label class="cb-label"><input type="checkbox" class="dataset-check" value="capital_flow" checked> 资金流向</label>
+              <label class="cb-label"><input type="checkbox" class="dataset-check" value="market_cap"> 行业市值</label>
+              <label class="cb-label"><input type="checkbox" class="dataset-check" value="standalone"> 独立HTML</label>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>更新模式</label>
+            <select id="updateMode">
+              <option value="incremental">增量同步（复用已有数据）</option>
+              <option value="missing">只补缺失（最保守）</option>
+              <option value="rebuild">强制重建（覆盖所选数据）</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label></label>
+            <button onclick="saveUpdateConfig()" class="btn-primary">💾 保存策略</button>
+            <span id="updateConfigStatus" style="font-size:0.8em;color:var(--text-dim)"></span>
+          </div>
+          <div id="updateStatePanel" style="margin-top:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:0.82em"></div>
         </div>
-        <button onclick="saveUpdateConfig()" style="margin-top:12px;background:#5c6370;width:100%">💾 保存更新策略</button>
-        <div id="updateConfigStatus" class="hint" style="margin-top:8px"></div>
-        <div id="updateStatePanel" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:0.8em"></div>
-      </div>
 
-      <div style="border-top:1px solid var(--border);margin:24px 0;padding-top:16px">
-        <h3 style="color:#e5e5e5;font-size:1em;margin-bottom:12px">📖 使用说明</h3>
-        <details style="margin-bottom:12px;font-size:0.82em;line-height:1.7;color:var(--text)">
-          <summary style="cursor:pointer;color:#61afef;margin-bottom:8px">点击展开：如何利用行业新高/新低图发现交易机会</summary>
-
-          <p style="margin:8px 0"><strong>🎯 核心原理</strong><br>
-          个股创新高/新低不是孤立事件——当一个行业里大量个股同时创新高，说明<span style="color:#98c379">资金在涌入这个行业</span>；反之大量个股创新低，说明<span style="color:#be5046">资金在流出</span>。热力图帮你一眼看出"钱在往哪走"。</p>
-
-          <p style="margin:8px 0"><strong>🔥 看颜色</strong><br>
-          颜色越红 = 创新高个股比例越高 = 强势行业。<br>
-          颜色越绿 = 创新低个股比例越高 = 弱势行业。<br>
-          快速扫一眼热力图，红色集中的行业就是当前市场的主线。</p>
-
-          <p style="margin:8px 0"><strong>⏱️ 看周期</strong><br>
-          <span style="color:#d19a66">20日新高</span>：短期动量，适合找短线机会。<br>
-          <span style="color:#d19a66">60日/120日新高</span>：中期趋势确认，适合波段持仓。<br>
-          <span style="color:#d19a66">一年/历史新高</span>：长期强势，往往是大牛股密集区。</p>
-
-          <p style="margin:8px 0"><strong>📈 操作信号</strong></p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.95em">
-            <tr style="color:#98c379"><td style="padding:4px 8px">✅ 资金流入</td><td>某行业 20日新高>5% 且 20日新低<5% → 资金共识做多，可重点跟踪该行业</td></tr>
-            <tr style="color:#e5c07b"><td style="padding:4px 8px">⚠️ 行业分化</td><td>同一行业大量新高+大量新低并存 → 行业内轮动，精选龙头</td></tr>
-            <tr style="color:#be5046"><td style="padding:4px 8px">❌ 资金流出</td><td>某行业 20日新低>20% 且 20日新高<2% → 资金撤离，短期回避</td></tr>
-            <tr style="color:#61afef"><td style="padding:4px 8px">🔄 趋势变化</td><td>日环比新低数骤降超30% → 恐慌释放后的修复信号，观察次日确认</td></tr>
-            <tr style="color:#d19a66"><td style="padding:4px 8px">⚡ 极端信号</td><td>近7年新低>5%的行业 → 处于多年底部区域，超跌但趋势极弱，需等右侧确认</td></tr>
-          </table>
-
-          <p style="margin:8px 0"><strong>💡 典型用法</strong><br>
-          1. 先看「全市场合计」行，了解大盘冷暖<br>
-          2. 找到连续多天保持红色的行业（持续性强）<br>
-          3. 点击单元格查看具体个股，挑出持续创新高的标的<br>
-          4. 结合 AI 日报了解系统性的风险提示</p>
-        </details>
-      </div>
-
-      <div style="border-top:1px solid var(--border);margin:24px 0;padding-top:16px">
-        <h3 style="color:#e5e5e5;font-size:1em;margin-bottom:12px">💾 数据管理</h3>
-
-        <label>备份目录</label>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <input type="text" id="backupDirInput" placeholder="~/stock-finance/backups" style="flex:1">
-          <button onclick="selectBackupDir()" id="selectDirBtn" style="background:#5c6370;white-space:nowrap">📁 选择</button>
+        <div class="settings-section" id="sec-ai">
+          <h3>AI 配置</h3>
+          <div class="settings-row">
+            <label>模型</label>
+            <select id="aiProvider" onchange="onProviderChange()">
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label id="apiKeyLabel">API Key</label>
+            <div style="display:flex;gap:8px;flex:1">
+              <input type="text" id="apiKeyInput" placeholder="sk-..." style="flex:1">
+              <button onclick="saveApiKey()" class="btn-primary">💾 保存</button>
+            </div>
+          </div>
+          <div id="apiKeyHint" style="font-size:0.78em;color:var(--text-dim);margin-top:4px"></div>
         </div>
-        <div class="hint">不设置则默认保存到 ~/.stock-finance/backups/</div>
 
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="backupData()" style="background:#5c6370;flex:1">📦 备份</button>
-          <button onclick="restoreData()" style="background:#5c6370;flex:1">📥 还原</button>
-          <button onclick="clearAllData()" style="background:#be5046;flex:1">🗑 清空</button>
+        <div class="settings-section" id="sec-mcp">
+          <h3>MCP 服务器</h3>
+          <div class="settings-row">
+            <label></label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.9em">
+              <input type="checkbox" id="mcpEnabled"> 启用远程 MCP（仅 Claude）
+            </label>
+          </div>
+          <div id="mcpServers" style="margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px">
+            <button onclick="addMcpServerRow()" class="btn-normal">➕ 添加</button>
+            <button onclick="saveMcpSettings()" class="btn-primary">💾 保存 MCP</button>
+          </div>
         </div>
-        <div class="hint" style="margin-top:8px">备份把当前数据存到本地。"清空"后点"更新数据"会重新拉取。</div>
-      </div>
 
-      <div id="refreshProgress" style="display:none;margin-top:8px"></div>
-      <div id="apiStatus" class="status" style="display:none"></div>
-      <div id="refreshStatus" class="status" style="display:none"></div>
-      <div id="dataStatus" class="status" style="display:none"></div>
+        <div class="settings-section" id="sec-data">
+          <h3>数据管理</h3>
+          <div class="settings-row">
+            <label>备份目录</label>
+            <div style="display:flex;gap:8px;flex:1">
+              <input type="text" id="backupDirInput" placeholder="默认 ~/.stock-finance/backups/" style="flex:1">
+              <button onclick="selectBackupDir()" class="btn-normal">📁 选择</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label></label>
+            <div style="display:flex;gap:8px">
+              <button onclick="backupData()" class="btn-normal">📦 备份</button>
+              <button onclick="restoreData()" class="btn-normal">📥 还原</button>
+              <button onclick="clearAllData()" class="btn-danger">🗑 清空</button>
+            </div>
+          </div>
+          <div id="dataStatus" style="display:none;margin-top:8px;padding:8px 12px;border-radius:6px;font-size:0.82em"></div>
+        </div>
+
+        <div class="settings-section" id="sec-guide">
+          <h3>使用说明</h3>
+          <details style="font-size:0.88em;line-height:1.8;color:var(--text)">
+            <summary style="cursor:pointer;color:var(--accent);margin-bottom:10px;font-weight:600">如何利用行业新高/新低图发现交易机会</summary>
+            <p><strong>🎯 核心原理</strong><br>个股创新高/新低不是孤立事件——当一个行业里大量个股同时创新高，说明资金在涌入这个行业；反之大量创新低，说明资金在流出。</p>
+            <p><strong>🔥 看颜色</strong><br>颜色越红=创新高比例越高=强势。快速扫一眼，红色集中的行业就是主线。</p>
+            <p><strong>⏱️ 看周期</strong><br>20日新高：短期动量 · 60/120日：中期趋势 · 一年/历史：长期强势</p>
+            <p><strong>📈 操作信号</strong></p>
+            <table style="width:100%;border-collapse:collapse">
+              <tr style="color:#98c379"><td style="padding:4px 8px">✅ 流入</td><td>新高>5% 且 新低<5% → 资金共识做多</td></tr>
+              <tr style="color:#e5c07b"><td style="padding:4px 8px">⚠️ 分化</td><td>新高+新低同时高企 → 行业内轮动</td></tr>
+              <tr style="color:#be5046"><td style="padding:4px 8px">❌ 流出</td><td>新低>20% 且 新高<2% → 资金撤离</td></tr>
+            </table>
+          </details>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -283,7 +318,7 @@
 <script>
 // ── Tab 切换 ──
 function switchTab(name) {
-  var idx = {heatmap:1,report:2,flow:3,chat:4,settings:5}[name];
+  var idx = {heatmap:1,report:2,flow:3,mcap:4,chat:5,settings:6}[name];
   if (idx === undefined) return;
   document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
   document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
@@ -409,16 +444,13 @@ function getSelectedDatasets() {
 function collectUpdateConfig() {
   return {
     sources: {
-      highs: document.getElementById('sourceHighs').value,
-      lows: document.getElementById('sourceLows').value,
-      capital_flow: document.getElementById('sourceFlow').value,
-      basics: document.getElementById('sourceBasics').value
+      highs: 'sina_kline',
+      lows: 'sina_kline',
+      capital_flow: 'sina_kline_cache',
+      market_cap: 'sina_kline_cache',
+      basics: 'akshare_excel'
     },
-    frozen: {
-      highs: document.getElementById('freezeHighs').checked,
-      lows: document.getElementById('freezeLows').checked,
-      capital_flow: document.getElementById('freezeFlow').checked
-    }
+    frozen: {}
   };
 }
 async function saveUpdateConfig() {
@@ -438,7 +470,7 @@ async function saveUpdateConfig() {
   }
 }
 function datasetLabel(ds) {
-  return {highs:'创新高', lows:'创新低', capital_flow:'资金流向', ai:'AI分析', standalone:'独立HTML'}[ds] || ds;
+  return {highs:'创新高', lows:'创新低', capital_flow:'资金流向', market_cap:'行业市值', ai:'AI分析', standalone:'独立HTML'}[ds] || ds;
 }
 function sourceLabel(src) {
   return {
@@ -454,7 +486,7 @@ function renderUpdateStatePanel(data) {
   var sources = cfg.sources || {};
   var frozen = cfg.frozen || {};
   var states = (data && data.datasets) || {};
-  var rows = ['highs','lows','capital_flow','ai','standalone'];
+  var rows = ['highs','lows','capital_flow','market_cap','ai','standalone'];
   var html = '<div style="background:#282c34;color:#e5e5e5;padding:8px 10px;font-weight:600">更新状态</div>';
   html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:#6b717a;background:#21252b">' +
           '<th style="text-align:left;padding:6px 8px">数据集</th><th>来源</th><th>状态</th><th>最近结果</th></tr></thead><tbody>';
@@ -519,10 +551,30 @@ async function runDataRefresh() {
   } catch(e) { showStatus('refreshStatus', 'warn', '❌ '+e.message); btnReset(); }
 }
 function btnReset() {
-  document.getElementById('refreshBtn').disabled = false;
-  document.getElementById('refreshBtn').textContent = '🔄 更新数据';
-  document.getElementById('flowBtn').disabled = false;
-  document.getElementById('flowBtn').textContent = '💰 更新资金流向';
+  ['refreshBtn','flowBtn','mcapBtn','analysisBtn','intradayBtn'].forEach(function(id) {
+    var b = document.getElementById(id); if (b) b.disabled = false;
+  });
+  var rb = document.getElementById('refreshBtn'); if (rb) rb.textContent = '🔄 批量更新';
+  var fb = document.getElementById('flowBtn'); if (fb) fb.textContent = '💰 资金流向';
+  var mb = document.getElementById('mcapBtn'); if (mb) mb.textContent = '💎 市值';
+  var ab = document.getElementById('analysisBtn'); if (ab) ab.textContent = '🤖 AI分析';
+  var ib = document.getElementById('intradayBtn'); if (ib) ib.textContent = '📡 盘中扫描';
+}
+
+// ── 市值单独更新 ──
+async function runMarketCap() {
+  var btn = document.getElementById('mcapBtn');
+  btn.disabled = true; btn.textContent = '⏳ 更新中...';
+  showStatus('refreshStatus', 'warn', '⏳ 正在更新行业市值...');
+  try {
+    var resp = await fetch('/api/refresh-data', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({days:1, datasets:['market_cap'], mode: document.getElementById('updateMode').value})
+    });
+    var data = await resp.json();
+    if (data.status === 'started') { pollRefreshStatus(); }
+    else { showStatus('refreshStatus', 'warn', '❌ 启动失败'); btnReset(); }
+  } catch(e) { showStatus('refreshStatus', 'warn', '❌ '+e.message); btnReset(); }
 }
 var _pollRetry = 0;
 function pollRefreshStatus() {
@@ -547,11 +599,13 @@ function pollRefreshStatus() {
         var steps = data.steps || [];
         var needHeatmap = false;
         var needFlow = false;
+        var needMcap = false;
         var needReport = false;
         for (var i = 0; i < steps.length; i++) {
           var ds = steps[i].dataset;
           if (ds === 'highs' || ds === 'lows') needHeatmap = true;
           if (ds === 'capital_flow') needFlow = true;
+          if (ds === 'market_cap') needMcap = true;
           if (ds === 'ai') needReport = true;
         }
         if (needHeatmap || steps.length === 0) {
@@ -559,6 +613,10 @@ function pollRefreshStatus() {
         }
         if (needFlow) {
           document.querySelector('#panel-flow iframe').src = '/capital-flow.html?_=' + Date.now();
+        }
+        if (needMcap) {
+          var mcapIframe = document.querySelector('#panel-mcap iframe');
+          if (mcapIframe) mcapIframe.src = '/market-cap.html?_=' + Date.now();
         }
         if (needReport) {
           document.querySelector('#panel-report iframe').src = '/ai-report.html?_=' + Date.now();
@@ -703,7 +761,11 @@ async function restoreData() {
     var resp = await fetch('/api/restore', {method:'POST'});
     var data = await resp.json();
     showStatus('dataStatus', 'ok', '✅ 已还原 ' + data.restored + ' 个文件');
-    document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?_=' + Date.now();
+    var t = Date.now();
+    ['heatmap','flow','mcap'].forEach(function(id) {
+      var iframe = document.querySelector('#panel-'+id+' iframe');
+      if (iframe) iframe.src = iframe.src.split('?')[0] + '?_=' + t;
+    });
   } catch(e) { showStatus('dataStatus', 'warn', '❌ 还原失败: ' + e.message); }
 }
 async function clearAllData() {
@@ -713,15 +775,24 @@ async function clearAllData() {
     var resp = await fetch('/api/clear-data', {method:'POST'});
     var data = await resp.json();
     showStatus('dataStatus', 'ok', '✅ 已清空 ' + data.deleted + ' 个文件');
-    document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?_=' + Date.now();
+    var t2 = Date.now();
+    ['heatmap','flow','mcap'].forEach(function(id) {
+      var iframe = document.querySelector('#panel-'+id+' iframe');
+      if (iframe) iframe.src = iframe.src.split('?')[0] + '?_=' + t2;
+    });
   } catch(e) { showStatus('dataStatus', 'warn', '❌ ' + e.message); }
 }
 
 function showStatus(id, type, msg) {
   var el = document.getElementById(id);
+  if (!el) return;
   el.style.display = 'block';
   el.className = 'status status-' + type;
   el.textContent = msg;
+  el.style.borderRadius = '6px';
+  el.style.padding = '8px 12px';
+  el.style.fontSize = '0.82em';
+  el.style.marginTop = '6px';
 }
 
 // 初始加载时给 iframe 加时间戳，避免 Electron 缓存旧数据
@@ -730,7 +801,19 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?_=' + t;
   document.querySelector('#panel-report iframe').src = '/ai-report.html?_=' + t;
   document.querySelector('#panel-flow iframe').src = '/capital-flow.html?_=' + t;
+  document.querySelector('#panel-mcap iframe').src = '/market-cap.html?_=' + t;
   document.querySelector('#panel-chat iframe').src = '/ai-chat.html?_=' + t;
+  // 设置页侧栏导航
+  document.getElementById('settingsSidebar').addEventListener('click', function(e) {
+    var item = e.target.closest('.settings-nav-item');
+    if (!item) return;
+    var section = item.getAttribute('data-section');
+    this.querySelectorAll('.settings-nav-item').forEach(function(el) { el.classList.remove('active'); });
+    item.classList.add('active');
+    document.querySelectorAll('.settings-section').forEach(function(el) { el.classList.remove('active'); });
+    var sec = document.getElementById('sec-' + section);
+    if (sec) sec.classList.add('active');
+  });
   // 加载 API Key 和更新策略提示
   loadSettings();
   loadUpdateConfig();

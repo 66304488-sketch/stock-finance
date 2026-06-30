@@ -99,7 +99,7 @@ def enrich_with_names(stocks_by_date):
 # =========================================================================
 
 
-def aggregate(daily_stocks, industry_map):
+def aggregate(daily_stocks, industry_map, industry_scheme="sw"):
     print("[4/5] 关联行业并聚合...")
     date_list = sorted(daily_stocks.keys(), reverse=True)
 
@@ -112,6 +112,9 @@ def aggregate(daily_stocks, industry_map):
         industry_total_map[ind] = industry_total_map.get(ind, 0) + 1
 
     main_industries = [ind for ind in SW2021_INDUSTRY_MAP.values() if ind != "综合"]
+    if industry_scheme == "ths":
+        ths_industries = sorted(set(industry_map.values()), key=lambda x: -sum(1 for v in industry_map.values() if v == x))
+        main_industries = [ind for ind in ths_industries if ind != "综合"]
     main_industries.append("其他")
 
     result = []
@@ -183,7 +186,7 @@ def aggregate(daily_stocks, industry_map):
 # =========================================================================
 
 
-def run_type(args, dates, active_codes, industry_map, all_data, alltime_low_before):
+def run_type(args, dates, active_codes, industry_map, all_data, alltime_low_before, industry_scheme="sw"):
     """运行单个类型的数据处理"""
     window_map = {
         "month": 20, "60d": 60, "120d": 120, "1year": 250, "alltime": None,
@@ -194,6 +197,7 @@ def run_type(args, dates, active_codes, industry_map, all_data, alltime_low_befo
     }
     window = window_map[args.type]
     target_dates = set(dates)
+    scheme_suffix = "_ths" if industry_scheme == "ths" else ""
 
     print(f"\n{'='*60}")
     print(f"[3/5] 计算{type_labels[args.type]}... (窗口: {window or 'alltime'})")
@@ -203,10 +207,10 @@ def run_type(args, dates, active_codes, industry_map, all_data, alltime_low_befo
     for ds in sorted(daily_stocks.keys(), reverse=True):
         print(f"  {ds}: {len(daily_stocks[ds])} 只")
 
-    output = aggregate(daily_stocks, industry_map)
+    output = aggregate(daily_stocks, industry_map, industry_scheme)
 
-    data_file = os.path.join(args.output_dir, f"new_lows_data_{args.type}.json")
-    details_file = os.path.join(args.output_dir, f"new_lows_details_{args.type}.json")
+    data_file = os.path.join(args.output_dir, f"new_lows_data_{args.type}{scheme_suffix}.json")
+    details_file = os.path.join(args.output_dir, f"new_lows_details_{args.type}{scheme_suffix}.json")
 
     counts_output = {
         "dates": output["dates"],
@@ -254,11 +258,23 @@ def main():
                         help="输出目录")
     parser.add_argument("--force-refresh", action="store_true",
                         help="强制重建 K 线缓存")
+    parser.add_argument("--industry-scheme", type=str, default="sw", choices=["sw", "ths"],
+                        help="行业分类: sw=申万2021, ths=同花顺")
     args = parser.parse_args()
     dates = [d.strip() for d in args.dates.split(",") if d.strip()] if args.dates else get_trade_dates(n=20)
+    industry_scheme = args.industry_scheme
 
     active_codes = get_active_codes()
-    industry_map = load_industry_map(set(active_codes))
+    if industry_scheme == "ths":
+        ths_path = os.path.join(args.output_dir, "industry_map_ths.json")
+        if not os.path.exists(ths_path):
+            raise FileNotFoundError(f"缺少同花顺行业映射文件: {ths_path}")
+        with open(ths_path, "r", encoding="utf-8") as f:
+            industry_map = json.load(f)
+        active_set = set(active_codes)
+        industry_map = {k: v for k, v in industry_map.items() if k in active_set}
+    else:
+        industry_map = load_industry_map(set(active_codes))
     codes_with_industry = [c for c in active_codes if c in industry_map]
 
     target_date = max(dates)
@@ -270,9 +286,9 @@ def main():
     if args.type == "all":
         for t in ["month", "60d", "120d", "1year", "alltime"]:
             args.type = t
-            run_type(args, dates, active_codes, industry_map, all_data, alltime_low_before)
+            run_type(args, dates, active_codes, industry_map, all_data, alltime_low_before, industry_scheme)
     else:
-        run_type(args, dates, active_codes, industry_map, all_data, alltime_low_before)
+        run_type(args, dates, active_codes, industry_map, all_data, alltime_low_before, industry_scheme)
 
 
 if __name__ == "__main__":

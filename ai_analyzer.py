@@ -276,7 +276,6 @@ def call_llm(metrics):
 
 def main():
     print("AI 市场分析...")
-    ensure_db()
 
     # 加载数据
     highs, lows = load_all()
@@ -306,17 +305,23 @@ def main():
     print(f"  报告已保存: {report_path}")
 
     # 存入 SQLite
-    conn = ensure_db()
-    conn.execute(
-        "INSERT OR REPLACE INTO daily_reports (date, market_tone, summary, full_report, metrics_json, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (date_label, metrics.get("market_tone"), "",
-         ai_report or "AI 分析未生成（请设置 ANTHROPIC_API_KEY 环境变量）",
-         json.dumps(metrics, ensure_ascii=False),
-         datetime.now().isoformat()),
-    )
-    conn.commit()
-    conn.close()
+    conn = None
+    try:
+        conn = ensure_db()
+        conn.execute(
+            "INSERT OR REPLACE INTO daily_reports (date, market_tone, summary, full_report, metrics_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (date_label, metrics.get("market_tone"), "",
+             ai_report or "AI 分析未生成（请设置 ANTHROPIC_API_KEY 环境变量）",
+             json.dumps(metrics, ensure_ascii=False),
+             datetime.now().isoformat()),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"  警告: DB 写入失败: {e}")
+    finally:
+        if conn:
+            conn.close()
 
     # 输出摘要
     print(f"\n  {date_label} | 基调: {metrics.get('market_tone', '?')}")

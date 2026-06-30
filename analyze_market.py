@@ -48,9 +48,12 @@ def sector_rotation(highs, lows):
     print("一、行业轮动 — 资金流向与迁移")
     print("=" * 64)
 
+    if not highs or not lows or not highs.get("month") or not lows.get("month"):
+        print("  (数据缺失，跳过行业轮动分析)")
+        return
     h_inds = get_industry_data(highs["month"])
     l_inds = get_industry_data(lows["month"])
-    date_label = highs["month"]["dates"][0]["label"]
+    date_label = highs["month"]["dates"][0]["label"] if highs["month"].get("dates") else "?"
 
     # 每个行业的新高占比、新低占比
     h_map = {r["industry"]: (r["daily_counts"][0], r["daily_counts"][0] / max(r["total"], 1) * 100)

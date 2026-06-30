@@ -8,21 +8,36 @@
   :root { --bg:#1a1d23; --text:#abb2bf; --accent:#61afef; --border:#333842; }
   * { margin:0; padding:0; box-sizing:border-box; }
   html,body { height:100%; background:var(--bg); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); }
-  .container { max-width:1100px; margin:0 auto; padding:20px; }
+  .container { max-width:1200px; margin:0 auto; padding:20px; }
   .header { text-align:center; margin-bottom:16px; }
   .header h1 { font-size:1.2em; color:#e5e5e5; }
   .header .sub { font-size:0.8em; color:#666; margin-top:4px; }
-  .summary { display:flex; gap:10px; margin-bottom:16px; }
-  .summary .card { flex:1; background:#21252b; border-radius:8px; padding:12px; text-align:center; border:1px solid var(--border); }
-  .card .val { font-size:1.3em; font-weight:700; color:#e5e5e5; }
-  .card .lbl { font-size:0.7em; color:#666; margin-top:2px; }
-  .date-tabs { display:flex; gap:4px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px; }
+
+  /* Summary cards */
+  .summary { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+  .summary .card { flex:1; min-width:120px; background:#21252b; border-radius:8px; padding:10px 12px; text-align:center; border:1px solid var(--border); }
+  .card .val { font-size:1.1em; font-weight:700; color:#e5e5e5; font-family:"SF Mono","Menlo","Consolas",monospace; }
+  .card .lbl { font-size:0.65em; color:#666; margin-top:2px; }
+  .card.trend-up { border-color:#98c37944; }
+  .card.trend-up .val { color:#98c379; }
+  .card.trend-down { border-color:#e06c7544; }
+  .card.trend-down .val { color:#e06c75; }
+
+  /* Date tabs */
+  .date-tabs { display:flex; gap:4px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px; flex-wrap:wrap; }
   .date-tab { padding:5px 10px; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-size:0.75em; white-space:nowrap; background:#21252b; color:var(--text); }
   .date-tab.active { background:var(--accent); color:#1a1d23; border-color:var(--accent); }
+
+  /* Table */
+  .table-scroll { overflow-x:auto; max-height:60vh; overflow-y:auto; }
   table { width:100%; border-collapse:collapse; font-size:0.82em; }
-  th { background:#21252b; padding:8px 6px; text-align:right; border-bottom:2px solid var(--border); font-weight:600; color:#888; font-size:0.78em; position:sticky; top:0; }
+  th { background:#21252b; padding:8px 6px; text-align:right; border-bottom:2px solid var(--border); font-weight:600; color:#888; font-size:0.76em; position:sticky; top:0; white-space:nowrap; }
   th:first-child { text-align:left; }
-  td { padding:6px; text-align:right; border-bottom:1px solid #1e2130; }
+  th.sortable { cursor:pointer; user-select:none; }
+  th.sortable:hover { color:var(--accent); }
+  th.sort-active { color:var(--accent) !important; }
+  th .sort-arrow { font-size:9px; margin-left:2px; color:var(--accent); }
+  td { padding:6px; text-align:right; border-bottom:1px solid #1e2130; white-space:nowrap; }
   td:first-child { text-align:left; }
   tr:hover td { background:#21252b22; }
   .ind-name { color:#e5e5e5; font-weight:600; font-size:0.9em; }
@@ -32,20 +47,45 @@
   .signal-out { color:#e06c75; }
   .signal-warn { color:#d19a66; }
   .signal-fire { color:#e5c07b; }
-  .bar { display:inline-block; height:12px; background:var(--accent); border-radius:2px; vertical-align:middle; margin-right:4px; opacity:0.5; }
+  .bar { display:inline-block; height:10px; background:var(--accent); border-radius:2px; vertical-align:middle; margin-right:4px; opacity:0.5; }
   .total-row td { font-weight:700; border-top:2px solid var(--border); background:#21252b44; }
+  .stock-count { color:#666; font-size:0.85em; }
   .update { text-align:center; font-size:0.7em; color:#555; margin-top:12px; }
   .error { text-align:center; padding:40px; color:#e06c75; }
+
+  .chg-nudge { font-size:0.7em; margin-left:3px; }
+  .chg-up { color:#e06c75; }
+  .chg-down { color:#61afef; }
+
+  /* Chart Modal */
+  .chart-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:#000000aa; z-index:1000; justify-content:center; align-items:center; }
+  .chart-overlay.active { display:flex; }
+  .chart-modal { background:#1a1d23; border-radius:12px; padding:24px; max-width:95vw; max-height:85vh; overflow-y:auto; border:1px solid var(--border); position:relative; }
+  .chart-close { position:absolute; top:8px; right:12px; background:none; border:none; color:#666; font-size:1.5em; cursor:pointer; }
+  .chart-bar-wrap { display:flex; flex-direction:column; align-items:center; width:32px; cursor:pointer; }
+  .chart-bar-wrap:hover .chart-bar { opacity:0.8; }
+  .chart-bar { width:24px; border-radius:3px 3px 0 0; min-height:2px; transition:background 0.2s; }
+  .compare-toggle { padding:4px 10px; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-size:0.75em; background:#282c34; color:var(--text); margin-left:8px; }
+  .compare-toggle.active { background:var(--accent); color:#1a1d23; }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header"><h1>💰 板块资金流向</h1><div class="sub" id="dateSub"></div></div>
+  <div class="header"><h1>💰 板块资金流向 <select id="schemeSelect" onchange="switchScheme(this.value)" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#282c34;color:var(--text);font-size:0.75em;cursor:pointer"><option value="sw">申万2021</option><option value="ths">同花顺</option></select></h1><div class="sub" id="dateSub"></div></div>
   <div class="summary" id="summaryCards"></div>
   <div class="date-tabs" id="dateTabs"></div>
+  <div class="table-scroll">
   <table><thead><tr>
-    <th>行业</th><th>成交额(亿)</th><th>占比</th><th>日环比</th><th>5日趋势</th><th>信号</th>
+    <th class="sortable" data-sort="industry">行业</th>
+    <th class="sortable" data-sort="amt">成交额(亿)</th>
+    <th class="sortable" data-sort="share">占比</th>
+    <th class="sortable" data-sort="chg">日环比</th>
+    <th class="sortable" data-sort="net">净流向(亿)</th>
+    <th class="sortable" data-sort="cum">累积(亿)</th>
+    <th class="sortable" data-sort="signal">信号</th>
+    <th class="sortable" data-sort="stocks">个股数</th>
   </tr></thead><tbody id="tbody"></tbody></table>
+  </div>
   <div class="update" id="updateNote"></div>
 </div>
 
@@ -57,66 +97,188 @@
   </div>
 </div>
 
-<style>
-.chart-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:#000000aa; z-index:1000; justify-content:center; align-items:center; }
-.chart-overlay.active { display:flex; }
-.chart-modal { background:#1a1d23; border-radius:12px; padding:24px; max-width:90vw; max-height:80vh; overflow-y:auto; border:1px solid var(--border); position:relative; }
-.chart-close { position:absolute; top:8px; right:12px; background:none; border:none; color:#666; font-size:1.5em; cursor:pointer; }
-.chart-bar-wrap { display:flex; flex-direction:column; align-items:center; width:32px; cursor:pointer; }
-.chart-bar-wrap:hover .chart-bar { opacity:0.8; }
-.chart-bar { width:24px; border-radius:3px 3px 0 0; min-height:2px; transition:background 0.2s; }
-</style>
-
 <script>
 var flowData = null;
 var activeDate = null;
+var sortState = { key: 'amt', dir: 'desc' };
+var compareInd = null;
+var currentScheme = 'sw';
+
+function switchScheme(s) {
+  currentScheme = s;
+  activeDate = null; sortState = { key: 'amt', dir: 'desc' };
+  load();
+}
+
+// ── 辅助：获取当前选中日期的数据 ──
+
+function getDateIdx() {
+  if (!flowData) return -1;
+  return flowData.dates.findIndex(function(d) { return d.label === activeDate; });
+}
+
+function getDateTurnover(r, dateIdx) {
+  var daily = r.daily_turnover || [];
+  return dateIdx >= 0 && dateIdx < daily.length ? (daily[dateIdx] || 0) : 0;
+}
+
+function getDateStats(r, dateIdx) {
+  var daily = r.daily_turnover || [];
+  var amt = dateIdx >= 0 && dateIdx < daily.length ? (daily[dateIdx] || 0) : 0;
+  var prev = dateIdx > 0 && dateIdx - 1 < daily.length ? (daily[dateIdx - 1] || 0) : 0;
+  var total = 0;
+  // 当日全市场合计
+  getIndustryRows().forEach(function(rr) {
+    total += getDateTurnover(rr, dateIdx);
+  });
+  var share = total > 0 ? (amt / total * 100) : 0;
+  var chg = prev > 0 ? ((amt - prev) / prev * 100) : null;
+  // trend from last 5 up to dateIdx
+  var vals = daily.slice(Math.max(0, dateIdx - 4), dateIdx + 1);
+  var trend = '—';
+  if (vals.length >= 3) {
+    var diffs = [];
+    for (var i = 1; i < vals.length; i++) diffs.push(vals[i] - vals[i-1]);
+    var up = 0, dn = 0;
+    for (var j = 0; j < diffs.length; j++) { if (diffs[j] > 0) up++; else if (diffs[j] < 0) dn++; }
+    trend = new Array(up + 1).join('↗') + new Array(dn + 1).join('↘') || '—';
+  }
+  // signal for this date
+  var sig = '';
+  if (share > 3 && chg !== null && chg > 5) sig = '🔥 持续流入';
+  else if (share > 1.5 && chg !== null && chg > 10) sig = '📈 加速流入';
+  else if (chg !== null && chg < -20) sig = '❄️ 资金撤离';
+  else if (share > 2 && chg !== null && chg < -10) sig = '⚠️ 高位缩量';
+  return { amt: amt, share: share, chg: chg, trend: trend, signal: sig, total: total };
+}
+
+function getIndustryRows() {
+  if (!flowData) return [];
+  return flowData.industries.filter(function(r) { return !r.is_total; });
+}
+
+function getTotalRow() {
+  if (!flowData) return null;
+  return flowData.industries.find(function(r) { return r.is_total; });
+}
 
 async function load() {
   try {
-    var resp = await fetch('/api/capital-flow?_=' + Date.now());
+    var resp = await fetch('/api/capital-flow?scheme=' + currentScheme + '&_=' + Date.now());
     if (!resp.ok) throw new Error('数据未生成');
     flowData = await resp.json();
     if (flowData.dates && flowData.dates.length > 0) {
-      activeDate = flowData.dates[flowData.dates.length - 1].label;
+      activeDate = flowData.dates[0].label;
+      sortState = { key: 'amt', dir: 'desc' };
       render();
     }
   } catch(e) {
-    document.getElementById('tbody').innerHTML = '<tr><td colspan="6"><div class="error">资金流向数据尚未生成<br><small>请运行 fetch_capital_flow.py</small></div></td></tr>';
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="7"><div class="error">资金流向数据尚未生成<br><small>请运行 fetch_capital_flow.py</small></div></td></tr>';
   }
 }
 
+// ── 汇总卡片 ──
+function renderSummary() {
+  var rows = getIndustryRows();
+  var totalRow = getTotalRow();
+  if (!totalRow) return;
+  var dateIdx = getDateIdx();
+  if (dateIdx < 0) return;
+
+  var totalNow = getDateTurnover(totalRow, dateIdx);
+  var totalPrev = dateIdx > 0 ? getDateTurnover(totalRow, dateIdx - 1) : 0;
+  var flowChg = totalPrev > 0 ? ((totalNow - totalPrev) / totalPrev * 100) : null;
+
+  // 行业集中度 (current date, top3)
+  var sorted = rows.slice().sort(function(a, b) {
+    return getDateTurnover(b, dateIdx) - getDateTurnover(a, dateIdx);
+  });
+  var top3Now = sorted.slice(0, 3).reduce(function(s, r) {
+    return s + getDateTurnover(r, dateIdx);
+  }, 0);
+  var top3Share = totalNow > 0 ? (top3Now / totalNow * 100) : 0;
+  var prevTop3Share = 0;
+  if (dateIdx > 0) {
+    var sortedPrev = rows.slice().sort(function(a, b) {
+      return getDateTurnover(b, dateIdx - 1) - getDateTurnover(a, dateIdx - 1);
+    });
+    var top3Prev = sortedPrev.slice(0, 3).reduce(function(s, r) {
+      return s + getDateTurnover(r, dateIdx - 1);
+    }, 0);
+    var totalP = dateIdx > 0 ? getDateTurnover(totalRow, dateIdx - 1) : totalNow;
+    prevTop3Share = totalP > 0 ? (top3Prev / totalP * 100) : 0;
+  }
+
+  var h = '';
+  var chgCls = flowChg !== null ? (flowChg > 0 ? 'trend-up' : (flowChg < 0 ? 'trend-down' : '')) : '';
+  var chgStr = flowChg !== null ? (flowChg > 0 ? '+' : '') + flowChg.toFixed(1) + '%' : '—';
+  h += '<div class="card ' + chgCls + '"><div class="val">' + (totalNow/1e8).toFixed(0) + '亿</div><div class="lbl">全市场成交 ' + chgStr + '</div></div>';
+  h += '<div class="card"><div class="val">' + top3Share.toFixed(0) + '%</div><div class="lbl">Top3 集中度</div></div>';
+
+  var sigCounts = { '流入': 0, '撤离': 0, '缩量': 0, '加速': 0 };
+  rows.forEach(function(r) {
+    var s = getDateStats(r, dateIdx).signal;
+    if (s.indexOf('流入') >= 0) sigCounts['流入']++;
+    else if (s.indexOf('撤离') >= 0) sigCounts['撤离']++;
+    else if (s.indexOf('缩量') >= 0) sigCounts['缩量']++;
+    else if (s.indexOf('加速') >= 0) sigCounts['加速']++;
+  });
+  h += '<div class="card"><div class="val">' + sigCounts['流入'] + ' / ' + sigCounts['撤离'] + '</div><div class="lbl">流入 / 撤离</div></div>';
+  h += '<div class="card"><div class="val">' + rows.length + '</div><div class="lbl">行业总数</div></div>';
+  h += '<div class="card"><div class="val">' + (totalRow.stock_count || '?') + '</div><div class="lbl">个股总数</div></div>';
+
+  document.getElementById('summaryCards').innerHTML = h;
+}
+
+// ── 排序 ──
+function toggleSort(key) {
+  if (sortState.key === key) {
+    sortState = { key: key, dir: sortState.dir === 'desc' ? 'asc' : 'desc' };
+  } else {
+    sortState = { key: key, dir: key === 'industry' ? 'asc' : 'desc' };
+  }
+  render();
+}
+
+function getSortedRows() {
+  var rows = getIndustryRows().slice();
+  var key = sortState.key;
+  var dir = sortState.dir;
+  var dateIdx = getDateIdx();
+  rows.sort(function(a, b) {
+    var va, vb;
+    if (key === 'industry') { va = a.industry; vb = b.industry; return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+    if (key === 'amt') { va = getDateTurnover(a, dateIdx); vb = getDateTurnover(b, dateIdx); }
+    else if (key === 'share') { va = getDateStats(a, dateIdx).share; vb = getDateStats(b, dateIdx).share; }
+    else if (key === 'chg') { va = getDateStats(a, dateIdx).chg; vb = getDateStats(b, dateIdx).chg; if (va === null) va = -9999; if (vb === null) vb = -9999; }
+    else if (key === 'trend') { va = getDateStats(a, dateIdx).trend; vb = getDateStats(b, dateIdx).trend; return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+    else if (key === 'signal') { va = getDateStats(a, dateIdx).signal; vb = getDateStats(b, dateIdx).signal; return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+    else if (key === 'net') { va = (a.daily_net_flow||[])[dateIdx]||0; vb = (b.daily_net_flow||[])[dateIdx]||0; }
+    else if (key === 'cum') { va = (a.cumulative_flow||[])[dateIdx]||0; vb = (b.cumulative_flow||[])[dateIdx]||0; }
+    else if (key === 'stocks') { va = a.stock_count || 0; vb = b.stock_count || 0; }
+    else { return 0; }
+    return dir === 'asc' ? va - vb : vb - va;
+  });
+  return rows;
+}
+
+// ── 渲染 ──
 function render() {
   var latest = flowData.dates[flowData.dates.length - 1];
   document.getElementById('dateSub').textContent = '数据日期: ' + latest.full_label + ' · ' + flowData.dates.length + '个交易日';
+  renderSummary();
+  renderDateTabs();
+  renderTable();
+  renderSortHeaders();
+}
 
-  // 摘要卡片
-  var latestData = getDateData(latest.label);
-  var top3 = flowData.industries.filter(function(r){ return !r.is_total; }).slice(0,3);
-  var h = '';
-  h += '<div class="card"><div class="val">' + (latestData.total/1e8).toFixed(0) + '亿</div><div class="lbl">全市场成交</div></div>';
-  h += '<div class="card"><div class="val">' + top3[0].industry + '</div><div class="lbl">最大 ' + top3[0].share + '%</div></div>';
-  h += '<div class="card"><div class="val">' + top3[1].industry + '</div><div class="lbl">第二 ' + top3[1].share + '%</div></div>';
-  document.getElementById('summaryCards').innerHTML = h;
-
-  // 日期选择器
+function renderDateTabs() {
   var tabs = '';
   flowData.dates.slice().reverse().forEach(function(d) {
     var active = d.label === activeDate ? ' active' : '';
     tabs += '<div class="date-tab' + active + '" onclick="selectDate(\'' + d.label + '\')">' + d.label + '</div>';
   });
   document.getElementById('dateTabs').innerHTML = tabs;
-
-  renderTable();
-}
-
-function getDateData(label) {
-  var total = 0;
-  flowData.industries.forEach(function(r) {
-    if (r.is_total) return;
-    var idx = flowData.dates.findIndex(function(d){ return d.label === label; });
-    if (idx >= 0 && r.daily_turnover) total += (r.daily_turnover[idx] || 0);
-  });
-  return { total: total, label: label };
 }
 
 function selectDate(label) {
@@ -124,95 +286,161 @@ function selectDate(label) {
   render();
 }
 
-function computeTrend(daily, idx) {
-  if (!daily || idx < 4) return '—';
-  var vals = daily.slice(Math.max(0, idx - 4), idx + 1);
-  if (vals.length < 3) return '—';
-  var diffs = [];
-  for (var i = 1; i < vals.length; i++) diffs.push(vals[i] - vals[i - 1]);
-  var up = diffs.filter(function(d){ return d > 0; }).length;
-  var dn = diffs.length - up;
-  return new Array(up + 1).join('↗') + new Array(dn + 1).join('↘') || '—';
+function renderSortHeaders() {
+  var ths = document.querySelectorAll('th.sortable');
+  ths.forEach(function(th) {
+    var k = th.getAttribute('data-sort');
+    th.classList.remove('sort-active');
+    th.querySelector('.sort-arrow') && th.querySelector('.sort-arrow').remove();
+    if (k === sortState.key) {
+      th.classList.add('sort-active');
+      var arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = sortState.dir === 'desc' ? '↓' : '↑';
+      th.appendChild(arrow);
+    }
+  });
 }
 
-function computeSignal(share, chg) {
-  if (share > 3 && chg > 5) return '🔥 持续流入';
-  if (share > 1.5 && chg > 10) return '📈 加速流入';
-  if (chg < -20) return '❄️ 资金撤离';
-  if (share > 2 && chg < -10) return '⚠️ 高位缩量';
-  return '';
+function renderTable() {
+  var sorted = getSortedRows();
+  var totalRow = getTotalRow();
+  var dateIdx = getDateIdx();
+
+  var html = '';
+  sorted.forEach(function(r) {
+    var st = getDateStats(r, dateIdx);
+    var share = st.share;
+    var chgVal = st.chg;
+    var chgHtml = chgVal !== null
+      ? '<span class="' + (chgVal > 0 ? 'turnover-up' : 'turnover-down') + '">' + (chgVal > 0 ? '+' : '') + chgVal.toFixed(1) + '%</span>'
+      : '—';
+    var trend = st.trend;
+    var sig = st.signal;
+    var sigCls = '';
+    if (sig.indexOf('流入') >= 0) sigCls = 'signal-in';
+    else if (sig.indexOf('撤离') >= 0) sigCls = 'signal-out';
+    else if (sig.indexOf('缩量') >= 0) sigCls = 'signal-warn';
+    else if (sig.indexOf('🔥') >= 0 || sig.indexOf('📈') >= 0) sigCls = 'signal-fire';
+
+    var barW = Math.round(share * 2.5);
+    var sc = r.stock_count ? '<span class="stock-count">' + r.stock_count + '</span>' : '—';
+    var nf = (r.daily_net_flow||[])[dateIdx] || 0;
+    var cf = (r.cumulative_flow||[])[dateIdx] || 0;
+    var nfCls = nf > 0 ? 'turnover-up' : (nf < 0 ? 'turnover-down' : '');
+
+    html += '<tr>';
+    html += '<td onclick="showChart(\'' + r.industry + '\')" style="cursor:pointer"><span class="bar" style="width:' + barW + 'px"></span><span class="ind-name">' + r.industry + '</span></td>';
+    html += '<td>' + (st.amt/1e8).toFixed(1) + '</td>';
+    html += '<td>' + share.toFixed(1) + '%</td>';
+    html += '<td>' + chgHtml + '</td>';
+    html += '<td class="' + nfCls + '">' + (nf > 0 ? '+' : '') + (nf/1e8).toFixed(1) + '</td>';
+    html += '<td>' + (cf/1e8).toFixed(1) + '</td>';
+    html += '<td class="' + sigCls + '">' + sig + '</td>';
+    html += '<td>' + sc + '</td>';
+    html += '</tr>';
+  });
+
+  if (totalRow) {
+    var ts = getDateTurnover(totalRow, dateIdx);
+    var tnf = (totalRow.daily_net_flow||[])[dateIdx] || 0;
+    var tcf = (totalRow.cumulative_flow||[])[dateIdx] || 0;
+    html += '<tr class="total-row"><td style="cursor:pointer" onclick="showChart(\'全市场合计\')"><span class="ind-name">全市场合计</span></td>';
+    html += '<td>' + (ts/1e8).toFixed(1) + '</td>';
+    html += '<td>100%</td><td>—</td>';
+    html += '<td>' + (tnf>0?'+':'') + (tnf/1e8).toFixed(1) + '</td>';
+    html += '<td>' + (tcf/1e8).toFixed(1) + '</td>';
+    html += '<td></td>';
+    html += '<td>' + (totalRow.stock_count || '') + '</td>';
+    html += '</tr>';
+  }
+  document.getElementById('tbody').innerHTML = html;
+  document.getElementById('updateNote').textContent = '数据更新于 ' + (flowData.updated_at || '?') + ' · 点击行业名查看走势图 · 点击列头排序';
 }
 
+// ── 表头点击排序 ──
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelector('thead').addEventListener('click', function(e) {
+    var th = e.target.closest('th.sortable');
+    if (!th) return;
+    toggleSort(th.getAttribute('data-sort'));
+  });
+});
+
+// ── 走势图（支持对比模式） ──
 function showChart(ind) {
   var r = flowData.industries.find(function(x){ return x.industry === ind; });
   if (!r || !r.daily_turnover) return;
-  var maxVal = Math.max.apply(null, r.daily_turnover);
+  var daily = r.daily_turnover;
+  var maxVal = Math.max.apply(null, daily.concat(compareInd ? (compareInd.daily_turnover || []) : []));
+
+  var bars = renderOneChart(r, maxVal, ind);
+  var html = '<div style="text-align:center;margin-bottom:6px;color:#e5e5e5;font-size:0.9em">📊 ' + ind + ' 成交额走势（亿）';
+  if (compareInd && compareInd.industry !== ind) {
+    html += ' vs ' + compareInd.industry;
+  }
+  html += '</div>';
+
+  if (compareInd && compareInd.industry !== ind) {
+    html += '<div style="display:flex;justify-content:center;gap:20px;margin-bottom:10px">';
+    html += '<span style="color:#61afef">■ ' + ind + '</span>';
+    html += '<span style="color:#d19a66">■ ' + compareInd.industry + '</span>';
+    html += '</div>';
+  }
+
+  html += '<div style="display:flex;align-items:flex-end;gap:4px;justify-content:center;min-height:260px">' + bars + '</div>';
+  html += '<div style="text-align:center;margin-top:10px">';
+  flowData.industries.filter(function(x) { return !x.is_total && x.industry !== ind; }).slice(0, 15).forEach(function(x) {
+    var isActive = compareInd && compareInd.industry === x.industry;
+    html += '<button class="compare-toggle' + (isActive ? ' active' : '') + '" onclick="event.stopPropagation();toggleCompare(\'' + x.industry + '\')" title="对比 ' + x.industry + '">' + x.industry + '</button> ';
+  });
+  html += '<button class="compare-toggle" onclick="event.stopPropagation();clearCompare()" style="margin-left:8px">✕ 清除对比</button>';
+  html += '</div>';
+
+  document.getElementById('chartBody').innerHTML = html;
+  document.getElementById('chartOverlay').classList.add('active');
+}
+
+function renderOneChart(r, maxVal, highlightInd) {
   var bars = '';
+  var isHighlight = r.industry === highlightInd;
+  var color = isHighlight ? '#61afef' : '#d19a66';
   flowData.dates.forEach(function(d, i) {
     var v = r.daily_turnover[i] || 0;
     var h = maxVal > 0 ? Math.round(v / maxVal * 240) : 0;
     var isActive = d.label === activeDate;
     bars += '<div class="chart-bar-wrap" onclick="selectDate(\'' + d.label + '\');closeChart();" title="' + d.full_label + ': ' + (v/1e8).toFixed(1) + '亿">';
-    bars += '<div style="text-align:center;font-size:0.65em;color:#666;margin-bottom:2px">' + (v/1e8).toFixed(0) + '</div>';
-    bars += '<div class="chart-bar" style="height:' + h + 'px;background:' + (isActive ? '#61afef' : '#3a4a5a') + '"></div>';
-    bars += '<div style="text-align:center;font-size:0.6em;color:#555;margin-top:4px">' + d.label.slice(0,-1) + '</div>';
+    bars += '<div style="text-align:center;font-size:0.6em;color:#666;margin-bottom:2px">' + (v/1e8).toFixed(0) + '</div>';
+    bars += '<div class="chart-bar" style="height:' + h + 'px;background:' + (isActive ? color : '#3a4a5a') + '"></div>';
+    bars += '<div style="text-align:center;font-size:0.55em;color:#555;margin-top:4px">' + d.label.slice(0,-1) + '</div>';
     bars += '</div>';
   });
-  var html = '<div style="text-align:center;margin-bottom:10px;color:#e5e5e5;font-size:0.9em">📊 ' + ind + ' 成交额走势（亿）</div>';
-  html += '<div style="display:flex;align-items:flex-end;gap:4px;justify-content:center;min-height:260px">' + bars + '</div>';
-  document.getElementById('chartBody').innerHTML = html;
-  document.getElementById('chartOverlay').classList.add('active');
+  return bars;
+}
+
+function toggleCompare(ind) {
+  var r = flowData.industries.find(function(x){ return x.industry === ind; });
+  if (!r) return;
+  if (compareInd && compareInd.industry === ind) {
+    clearCompare();
+    return;
+  }
+  compareInd = r;
+  // 重新打开当前图表的对比
+  var currentInd = document.querySelector('.chart-modal .ind-name');
+  showChart(compareInd ? ind : ind);
+}
+
+function clearCompare() {
+  compareInd = null;
+  closeChart();
 }
 
 function closeChart() {
   document.getElementById('chartOverlay').classList.remove('active');
 }
 
-function renderTable() {
-  var rows = '';
-  var dateIdx = flowData.dates.findIndex(function(d){ return d.label === activeDate; });
-
-  flowData.industries.forEach(function(r) {
-    var cls = r.is_total ? ' class="total-row"' : '';
-    var daily = r.daily_turnover || [];
-    var amt = daily[dateIdx] || 0;
-    var totalNow = getDateData(activeDate).total;
-    var share = totalNow > 0 ? (amt / totalNow * 100).toFixed(1) : '0.0';
-
-    var chgVal = null, chgHtml = '—';
-    if (dateIdx > 0) {
-      var prev = daily[dateIdx - 1] || 0;
-      if (prev > 0) {
-        chgVal = ((amt - prev) / prev * 100);
-        var cls2 = chgVal > 0 ? 'turnover-up' : 'turnover-down';
-        chgHtml = '<span class="' + cls2 + '">' + (chgVal > 0 ? '+' : '') + chgVal.toFixed(1) + '%</span>';
-      }
-    }
-
-    var trend = computeTrend(daily, dateIdx);
-    var sig = computeSignal(parseFloat(share), chgVal || 0);
-
-    var sigCls = '';
-    if (sig.indexOf('流入') >= 0) sigCls = 'signal-in';
-    else if (sig.indexOf('撤离') >= 0) sigCls = 'signal-out';
-    else if (sig.indexOf('缩量') >= 0) sigCls = 'signal-warn';
-    else if (sig.indexOf('🔥') >= 0) sigCls = 'signal-fire';
-
-    var barW = Math.round(parseFloat(share) * 2.5);
-    var clickable = r.is_total ? '' : ' onclick="showChart(\'' + r.industry + '\')" style="cursor:pointer"';
-
-    rows += '<tr' + cls + '>';
-    rows += '<td' + clickable + '><span class="bar" style="width:' + barW + 'px"></span><span class="ind-name">' + r.industry + '</span></td>';
-    rows += '<td>' + (amt/1e8).toFixed(1) + '</td>';
-    rows += '<td>' + share + '%</td>';
-    rows += '<td>' + chgHtml + '</td>';
-    rows += '<td>' + trend + '</td>';
-    rows += '<td class="' + sigCls + '">' + sig + '</td>';
-    rows += '</tr>';
-  });
-  document.getElementById('tbody').innerHTML = rows;
-  document.getElementById('updateNote').textContent = '数据更新于 ' + (flowData.updated_at || '?') + ' · 点击行业名查看走势图';
-}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeChart(); });
 
 load();
 </script>

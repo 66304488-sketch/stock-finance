@@ -526,19 +526,21 @@ _refresh_status = {
     "progress": None,
     "steps": [],
 }
-_refresh_lock = None
+_refresh_lock = threading.Lock()
 
 DATASET_LABELS = {
     "highs": "创新高",
     "lows": "创新低",
     "capital_flow": "资金流向",
+    "market_cap": "行业市值",
     "ai": "AI 分析",
     "standalone": "独立 HTML",
 }
 DATASET_FILES = {
     "highs": ["new_highs_data_*.json", "new_highs_details_*.json"],
     "lows": ["new_lows_data_*.json", "new_lows_details_*.json"],
-    "capital_flow": ["capital_flow.json"],
+    "capital_flow": ["capital_flow.json", "capital_flow_ths.json"],
+    "market_cap": ["market_cap.json", "market_cap_ths.json"],
     "ai": ["ai_report_latest.json"],
     "standalone": ["industry-heatmap-standalone.html"],
 }
@@ -547,12 +549,14 @@ DEFAULT_UPDATE_CONFIG = {
         "highs": "sina_kline",
         "lows": "sina_kline",
         "capital_flow": "sina_kline_cache",
+        "market_cap": "sina_kline_cache",
         "basics": "akshare_excel",
     },
     "frozen": {
         "highs": False,
         "lows": False,
         "capital_flow": False,
+        "market_cap": False,
         "ai": False,
         "standalone": False,
     },
@@ -563,13 +567,6 @@ SUPPORTED_SOURCES = {
     "capital_flow": {"sina_kline_cache"},
     "basics": {"akshare_excel"},
 }
-
-
-def _init_refresh_lock():
-    global _refresh_lock
-    if _refresh_lock is None:
-        import threading
-        _refresh_lock = threading.Lock()
 
 
 def _manifest_path():
@@ -629,7 +626,6 @@ def _append_update_history(event):
 
 
 def _set_refresh_status(**kwargs):
-    _init_refresh_lock()
     with _refresh_lock:
         _refresh_status.update(kwargs)
 
@@ -818,58 +814,56 @@ def _merge_back(base_name):
             json.dump(merged_details, f, ensure_ascii=False)
         os.remove(details_backup_fp)
 
+        # 从合并后的 details 重建 daily_counts，保证数据一致
+        for row in merged.get("industries", []):
+            if row.get("is_total"):
+                continue
+            ind = row["industry"]
+            row["daily_counts"] = [len(merged_details.get(ind, {}).get(lbl, [])) for lbl in labels]
+        # 重建全市场合计行
+        total_counts = [0] * len(labels)
+        for row in merged.get("industries", []):
+            if not row.get("is_total"):
+                for i, c in enumerate(row.get("daily_counts", [])):
+                    if i < len(total_counts):
+                        total_counts[i] += c
+        for row in merged.get("industries", []):
+            if row.get("is_total"):
+                row["daily_counts"] = total_counts
+        with open(fp, "w", encoding="utf-8") as f:
+            json.dump(merged, f, ensure_ascii=False)
+
 
 def _run_refresh_step(step_name, script_args, timeout_sec=300):
-    import subprocess, sys, threading
-    _set_refresh_status(current_step=f"{step_name} (启动...)", progress=None)
-    proc = subprocess.Popen(
-        [sys.executable] + script_args,
-        cwd=os.path.dirname(__file__),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    def _read_stdout():
-        try:
-            while True:
-                line = proc.stdout.readline()
-                if not line:
-                    break
-                line = line.strip()
-                if not line:
-                    continue
-                m = re.search(r'(\d+)\s*/\s*(\d+)', line)
-                if m:
-                    cur, tot = int(m.group(1)), int(m.group(2))
-                    pct = min(99, int(cur / max(tot, 1) * 100))
-                    _set_refresh_status(
-                        progress={"current": cur, "total": tot, "pct": pct},
-                        current_step=f"{step_name} ({cur}/{tot}, {pct}%)",
-                    )
-                else:
-                    _set_refresh_status(current_step=f"{step_name}: {line[:80]}")
-        except Exception:
-            pass
-
-    t = threading.Thread(target=_read_stdout, daemon=True)
-    t.start()
+    import subprocess, sys
+    _set_refresh_status(current_step=f"{step_name} (运行中...)", progress=None)
     try:
-        proc.wait(timeout=timeout_sec)
+        r = subprocess.run(
+            [sys.executable] + script_args,
+            cwd=os.path.dirname(__file__),
+            capture_output=True, text=True, timeout=timeout_sec,
+        )
+        # 从 stdout 提取进度信息
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if not line: continue
+            m = re.search(r'(\d+)\s*/\s*(\d+)', line)
+            if m:
+                cur, tot = int(m.group(1)), int(m.group(2))
+                pct = min(99, int(cur / max(tot, 1) * 100))
+                _set_refresh_status(
+                    progress={"current": cur, "total": tot, "pct": pct},
+                    current_step=f"{step_name} ({cur}/{tot}, {pct}%)",
+                )
+        _set_refresh_status(progress=None)
+        if r.returncode != 0:
+            err = r.stderr.strip()[-300:] if r.stderr else f"code={r.returncode}"
+            return False, err
+        return True, ""
     except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
         return False, f"{step_name} 超时 ({timeout_sec}s)"
-    t.join(timeout=2)
-    _set_refresh_status(progress=None)
-    if proc.returncode != 0:
-        stderr_txt = ""
-        try:
-            stderr_txt = proc.stderr.read()[-500:] if proc.stderr else ""
-        except Exception:
-            stderr_txt = f"code={proc.returncode}"
-        return False, stderr_txt or f"退出码 {proc.returncode}"
-    return True, ""
+    except Exception as e:
+        return False, str(e)
 
 
 def _update_dataset_success(manifest, dataset, source, date_args, mode, note=""):
@@ -951,7 +945,6 @@ async def refresh_capital_flow():
 async def refresh_data(req: dict = None):
     """启动可分数据集的数据更新流水线。默认增量更新新高、新低、资金流向。"""
     import threading
-    _init_refresh_lock()
     req = req or {}
     days = max(1, min(int(req.get("days", 1)), 30))
     requested = req.get("datasets") or ["highs", "lows", "capital_flow"]
@@ -984,8 +977,8 @@ async def refresh_data(req: dict = None):
             latest_date = date_args.split(",")[-1]
             types = ["month", "60d", "120d", "1year", "alltime"]
 
-            # 只要新高/新低/资金流向需要更新，就先预热 K 线缓存；冻结的数据集不会触发预热。
-            market_datasets = [d for d in datasets if d in ("highs", "lows", "capital_flow") and not frozen.get(d)]
+            # 新高/新低共用 K 线预热；资金流向脚本会自行按缺失日期决定是否触碰缓存，避免重复 ensure。
+            market_datasets = [d for d in datasets if d in ("highs", "lows") and not frozen.get(d)]
             if market_datasets:
                 _set_refresh_status(current_step="预热 K 线缓存...")
                 active_codes = get_active_codes()
@@ -1005,27 +998,48 @@ async def refresh_data(req: dict = None):
                 backups = _backup_dataset(dataset)
                 try:
                     if dataset == "highs":
-                        args = ["fetch_new_highs.py", "--type", "all", "--dates", date_args]
-                        if force_rebuild:
-                            args.append("--force-refresh")
-                        ok, err = _run_refresh_step(f"{label} (全部类型, 最近{days}天)", args, 900)
-                        if not ok:
-                            raise RuntimeError(err)
-                        for t in types:
-                            _merge_back(f"new_highs_data_{t}.json")
+                        for scheme in ["sw", "ths"]:
+                            scheme_label = "申万" if scheme == "sw" else "同花顺"
+                            args = ["fetch_new_highs.py", "--type", "all", "--dates", date_args,
+                                    "--industry-scheme", scheme]
+                            if force_rebuild:
+                                args.append("--force-refresh")
+                            ok, err = _run_refresh_step(f"{label} ({scheme_label}, 最近{days}天)", args, 900)
+                            if not ok:
+                                raise RuntimeError(err)
+                            sfx = "_ths" if scheme == "ths" else ""
+                            for t in types:
+                                _merge_back(f"new_highs_data_{t}{sfx}.json")
                     elif dataset == "lows":
-                        args = ["fetch_new_lows.py", "--type", "all", "--dates", date_args]
-                        if force_rebuild:
-                            args.append("--force-refresh")
-                        ok, err = _run_refresh_step(f"{label} (全部类型, 最近{days}天)", args, 600)
-                        if not ok:
-                            raise RuntimeError(err)
-                        for t in types:
-                            _merge_back(f"new_lows_data_{t}.json")
+                        for scheme in ["sw", "ths"]:
+                            scheme_label = "申万" if scheme == "sw" else "同花顺"
+                            args = ["fetch_new_lows.py", "--type", "all", "--dates", date_args,
+                                    "--industry-scheme", scheme]
+                            if force_rebuild:
+                                args.append("--force-refresh")
+                            ok, err = _run_refresh_step(f"{label} ({scheme_label}, 最近{days}天)", args, 600)
+                            if not ok:
+                                raise RuntimeError(err)
+                            sfx = "_ths" if scheme == "ths" else ""
+                            for t in types:
+                                _merge_back(f"new_lows_data_{t}{sfx}.json")
                     elif dataset == "capital_flow":
-                        ok, err = _run_refresh_step(label, ["fetch_capital_flow.py"], 300)
-                        if not ok:
-                            raise RuntimeError(err)
+                        for scheme in ["sw", "ths"]:
+                            args = ["fetch_capital_flow.py", "--dates", date_args, "--mode", mode, "--industry-scheme", scheme]
+                            if force_rebuild:
+                                args.append("--force-refresh")
+                            ok, err = _run_refresh_step(f"{label} ({scheme}, 最近{days}天, {mode})", args, 300)
+                            if not ok:
+                                raise RuntimeError(err)
+                    elif dataset == "market_cap":
+                        # 同时更新申万和同花顺
+                        for scheme in ["sw", "ths"]:
+                            args = ["fetch_market_cap.py", "--dates", date_args, "--mode", mode, "--industry-scheme", scheme]
+                            if force_rebuild:
+                                args.append("--force-refresh")
+                            ok, err = _run_refresh_step(f"{label} ({scheme}, 最近{days}天, {mode})", args, 300)
+                            if not ok:
+                                raise RuntimeError(err)
                     elif dataset == "ai":
                         ok, err = _run_refresh_step(label, ["ai_analyzer.py"], 120)
                         if not ok:
@@ -1061,7 +1075,6 @@ async def refresh_data(req: dict = None):
 
 @app.get("/api/refresh-data/status")
 async def refresh_data_status():
-    _init_refresh_lock()
     with _refresh_lock:
         r = dict(_refresh_status)
     return {
@@ -1168,110 +1181,34 @@ async def backup_status():
 
 
 # ======================================================================
-# DuckDB 数据层
-# ======================================================================
-
-# DuckDB 模块已移除，恢复纯 JSON 架构
-
-
-@app.get("/api/db/heatmap/highs")
-async def db_highs(type: str = "month", days: int = 20):
-    try:
-        conn = _db.connect()
-        return _db.get_industry_highs(conn, type, days)
-    except Exception as e:
-        raise HTTPException(500, str(e))
-    finally:
-        conn.close()
-
-
-@app.get("/api/db/heatmap/lows")
-async def db_lows(type: str = "month", days: int = 20):
-    try:
-        conn = _db.connect()
-        result = _db.get_industry_highs(conn, type, days)
-        # lows 用同一结构查询
-        conn.close()
-        conn2 = _db.connect()
-        # 从 new_lows 表查询
-        rows = conn2.execute("""
-            SELECT trade_date, industry, count, ratio, total_stocks, is_total
-            FROM new_lows WHERE type = ? AND trade_date IN (
-                SELECT DISTINCT trade_date FROM new_lows WHERE type = ? ORDER BY trade_date DESC LIMIT ?
-            ) ORDER BY trade_date DESC, count DESC
-        """, [type, type, days]).fetchall()
-        dates = sorted(set(r[0] for r in rows), reverse=True)
-        result_rows = {}
-        for r in rows:
-            dt, ind, cnt, ratio, total, is_t = r
-            if ind not in result_rows:
-                result_rows[ind] = {"industry": ind, "total": total, "ratio": ratio, "daily_counts": [], "is_total": is_t}
-            result_rows[ind]["daily_counts"].append(cnt)
-        industries = list(result_rows.values())
-        for v in industries:
-            v["daily_counts"] = v["daily_counts"][:len(dates)]
-        industries.sort(key=lambda x: -(x["daily_counts"][0] if x["daily_counts"] else 0))
-        conn2.close()
-        return {
-            "dates": [{"label": d.strftime("%m月%d日"), "full_label": str(d)} for d in dates],
-            "industries": industries,
-        }
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@app.get("/api/db/capital-flow")
-async def db_capital_flow(days: int = 20):
-    try:
-        conn = _db.connect()
-        result = _db.get_capital_flow(conn, days)
-        return result
-    except Exception as e:
-        raise HTTPException(500, str(e))
-    finally:
-        conn.close()
-
-
-@app.get("/api/db/summary")
-async def db_summary():
-    """数据库概览"""
-    try:
-        conn = _db.connect()
-        tables = {}
-        for tbl, label in [("new_highs","新高"),("new_lows","新低"),("capital_flow","资金流向"),("industry_classification","行业分类")]:
-            cnt = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
-            dates = conn.execute(f"SELECT MIN(trade_date), MAX(trade_date) FROM {tbl}").fetchone() if "trade_date" in [c[0] for c in conn.execute(f"DESCRIBE {tbl}").fetchall()] else (None, None)
-            tables[label] = {"rows": cnt, "from": str(dates[0]) if dates and dates[0] else None, "to": str(dates[1]) if dates and dates[1] else None}
-        conn.close()
-        return {
-            "db_size_mb": round(os.path.getsize(_db.DB_PATH) / 1024 / 1024, 1),
-            "tables": tables,
-        }
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
 # ======================================================================
 # 资金流向端点
 # ======================================================================
 
 @app.get("/api/capital-flow")
-async def capital_flow():
-    """返回行业资金流向数据（从 DuckDB）"""
+async def capital_flow(scheme: str = "sw"):
+    """返回行业资金流向数据。scheme=sw(申万)/ths(同花顺)"""
     import json as _json
-    try:
-        conn = _db.connect()
-        result = _db.get_capital_flow(conn, 20)
-        return result
-    except Exception:
-        pass
-    finally:
-        try: conn.close()
-        except: pass
-    # fallback
-    path = os.path.join(static_dir, "capital_flow.json")
+    filename = "capital_flow.json" if scheme == "sw" else f"capital_flow_{scheme}.json"
+    path = os.path.join(static_dir, filename)
     if not os.path.exists(path):
-        raise HTTPException(404, "资金流向数据尚未生成")
+        raise HTTPException(404, f"资金流向数据尚未生成: {filename}")
+    with open(path, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+
+# ======================================================================
+# 行业市值端点
+# ======================================================================
+
+@app.get("/api/market-cap")
+async def market_cap(scheme: str = "sw"):
+    """返回行业市值变化数据。scheme=sw(申万)/ths(同花顺)"""
+    import json as _json
+    filename = "market_cap.json" if scheme == "sw" else f"market_cap_{scheme}.json"
+    path = os.path.join(static_dir, filename)
+    if not os.path.exists(path):
+        raise HTTPException(404, f"市值数据尚未生成: {filename}")
     with open(path, "r", encoding="utf-8") as f:
         return _json.load(f)
 
@@ -1379,6 +1316,20 @@ def _build_chat_context() -> str:
 
 
 # ======================================================================
+# 运行时信息
+# ======================================================================
+
+@app.get("/api/runtime-info")
+async def runtime_info():
+    """给桌面端确认当前 8001 端口是否是同一份应用资源。"""
+    root_dir = os.path.dirname(__file__)
+    return {
+        "project_root": os.path.realpath(root_dir),
+        "static_dir": os.path.realpath(os.path.join(root_dir, "static")),
+    }
+
+
+# ======================================================================
 # 前端
 # ======================================================================
 
@@ -1387,12 +1338,18 @@ if os.path.isdir(static_dir):
     # 通配路由：所有未被 API 匹配的路径 → 静态文件
     @app.get("/{filename:path}")
     async def serve_static(filename: str):
-        file_path = os.path.join(static_dir, filename)
+        # 防止路径遍历攻击
+        safe = os.path.normpath(filename)
+        if safe.startswith("..") or os.path.isabs(safe):
+            raise HTTPException(404, "Not found")
+        file_path = os.path.realpath(os.path.join(static_dir, safe))
+        if not file_path.startswith(os.path.realpath(static_dir) + os.sep):
+            raise HTTPException(404, "Not found")
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         # 尝试加 .html 后缀
-        html_path = os.path.join(static_dir, filename + ".html")
-        if os.path.isfile(html_path):
+        html_path = file_path + ".html"
+        if os.path.isfile(html_path) and html_path.startswith(os.path.realpath(static_dir) + os.sep):
             return FileResponse(html_path)
         # 根路径 / 返回 index.html
         if filename in ("", "/", "index"):

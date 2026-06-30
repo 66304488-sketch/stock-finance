@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>行业市值变化</title>
+<style>
+  :root { --bg:#1a1d23; --text:#abb2bf; --accent:#61afef; --border:#333842; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; background:var(--bg); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); }
+  .container { max-width:1200px; margin:0 auto; padding:20px; }
+  .header { text-align:center; margin-bottom:16px; }
+  .header h1 { font-size:1.2em; color:#e5e5e5; }
+  .header .sub { font-size:0.8em; color:#666; margin-top:4px; }
+  .summary { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+  .summary .card { flex:1; min-width:120px; background:#21252b; border-radius:8px; padding:10px 12px; text-align:center; border:1px solid var(--border); }
+  .card .val { font-size:1.1em; font-weight:700; color:#e5e5e5; font-family:"SF Mono","Menlo","Consolas",monospace; }
+  .card .lbl { font-size:0.65em; color:#666; margin-top:2px; }
+  .card.up { border-color:#8aaa7a44; } .card.up .val { color:#8aaa7a; }
+  .card.down { border-color:#c97a8a44; } .card.down .val { color:#c97a8a; }
+  .date-tabs { display:flex; gap:4px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px; flex-wrap:wrap; }
+  .date-tab { padding:5px 10px; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-size:0.75em; white-space:nowrap; background:#21252b; color:var(--text); }
+  .date-tab.active { background:var(--accent); color:#1a1d23; border-color:var(--accent); }
+  .table-scroll { overflow-x:auto; max-height:60vh; overflow-y:auto; }
+  table { width:100%; border-collapse:collapse; font-size:0.82em; }
+  th { background:#21252b; padding:8px 6px; text-align:right; border-bottom:2px solid var(--border); font-weight:600; color:#888; font-size:0.76em; position:sticky; top:0; white-space:nowrap; }
+  th:first-child { text-align:left; }
+  th.sortable { cursor:pointer; user-select:none; }
+  th.sortable:hover { color:var(--accent); }
+  th.sort-active { color:var(--accent) !important; }
+  th .srt { font-size:9px; color:var(--accent); margin-left:2px; }
+  td { padding:6px; text-align:right; border-bottom:1px solid #1e2130; white-space:nowrap; }
+  td:first-child { text-align:left; }
+  tr:hover td { background:#21252b22; }
+  .ind-name { color:#e5e5e5; font-weight:600; font-size:0.9em; cursor:pointer; }
+  .ind-name:hover { color:var(--accent); }
+  .up { color:#c97a8a; }
+  .down { color:#8aaa7a; }
+  .bar { display:inline-block; height:10px; background:var(--accent); border-radius:2px; vertical-align:middle; margin-right:4px; opacity:0.5; }
+  .total-row td { font-weight:700; border-top:2px solid var(--border); background:#21252b44; }
+  .update { text-align:center; font-size:0.7em; color:#555; margin-top:12px; }
+
+  /* Modal */
+  .overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:#000000aa; z-index:1000; justify-content:center; align-items:center; }
+  .overlay.active { display:flex; }
+  .modal { background:#1a1d23; border-radius:12px; padding:20px; max-width:700px; max-height:80vh; overflow-y:auto; border:1px solid var(--border); }
+  .modal-close { float:right; background:none; border:none; color:#666; font-size:1.3em; cursor:pointer; }
+  .modal h3 { color:#e5c07b; margin-bottom:8px; font-size:0.95em; }
+  .stock-row { padding:4px 0; border-bottom:1px solid rgba(51,56,66,0.4); display:flex; justify-content:space-between; font-size:0.82em; }
+  .stock-row .code { color:var(--accent); width:60px; }
+  .stock-row .name { flex:1; text-align:left; color:var(--text-bright); }
+  .stock-row .mcap { width:80px; text-align:right; font-family:"SF Mono","Menlo","Consolas",monospace; }
+  .stock-row .chg { width:65px; text-align:right; }
+  .error { text-align:center; padding:40px; color:#c97a8a; }
+
+  /* Treemap */
+  .view-toggle { display:flex; gap:4px; margin-bottom:8px; }
+  .view-toggle button { padding:5px 12px; border:1px solid var(--border); border-radius:4px; background:#21252b; color:var(--text); cursor:pointer; font-size:0.78em; }
+  .view-toggle button.active { background:var(--accent); color:#1a1d23; border-color:var(--accent); }
+  .treemap-wrap { display:none; position:relative; width:100%; height:65vh; background:#15181d; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .treemap-wrap.active { display:block; }
+  .treemap-wrap .tile { position:absolute; border:1px solid #15181d; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; transition: opacity 0.15s; }
+  .treemap-wrap .tile:hover { opacity:0.85; outline:2px solid #fff; z-index:5; }
+  .treemap-wrap .tile .t-name { font-size:0.8em; font-weight:600; text-align:center; line-height:1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+  .treemap-wrap .tile .t-val { font-size:0.65em; opacity:0.9; text-align:center; }
+  .treemap-wrap .tile .t-chg { font-size:0.7em; font-weight:600; text-align:center; }
+  .scheme-select { padding:4px 8px; border:1px solid var(--border); border-radius:4px; background:#21252b; color:var(--text); font-size:0.75em; margin-left:8px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header"><h1>💎 行业市值变化 <select class="scheme-select" id="schemeSelect" onchange="switchScheme(this.value)"><option value="sw">申万2021</option><option value="ths">同花顺</option></select></h1><div class="sub" id="dateSub"></div></div>
+  <div class="summary" id="summaryCards"></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+    <div class="date-tabs" id="dateTabs" style="margin-bottom:0"></div>
+    <div class="view-toggle" style="display:inline-flex;margin-left:auto">
+      <button class="active" onclick="switchView('table')">📋 列表</button>
+      <button onclick="switchView('treemap')">🗺 树图</button>
+    </div>
+  </div>
+  <div class="treemap-wrap" id="treemapWrap"></div>
+  <div class="table-scroll" id="tableScroll">
+  <table><thead><tr>
+    <th class="sortable" data-sort="industry">行业</th>
+    <th class="sortable" data-sort="mcap">市值(亿)</th>
+    <th class="sortable" data-sort="share">占比</th>
+    <th class="sortable" data-sort="chg">日变化</th>
+    <th class="sortable" data-sort="trend">5日趋势</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+  </div>
+  <div class="update" id="updateNote"></div>
+</div>
+
+<div class="overlay" id="stockOverlay" onclick="closeStockModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeStockModal()">&times;</button>
+    <h3 id="stockModalTitle"></h3>
+    <div id="stockModalBody"></div>
+  </div>
+</div>
+
+<script>
+var data = null;
+var activeDate = null;
+var sortState = { key: 'mcap', dir: 'desc' };
+var dateIdx = -1;
+var currentScheme = 'sw';
+
+function switchScheme(s) {
+  currentScheme = s;
+  activeDate = null; sortState = { key: 'mcap', dir: 'desc' };
+  treemapZoom = null;
+  if (stockPlayTimer) { clearInterval(stockPlayTimer); stockPlayTimer = null; }
+  load();
+}
+
+async function load() {
+  try {
+    var resp = await fetch('/api/market-cap?scheme=' + currentScheme + '&_=' + Date.now());
+    if (!resp.ok) throw new Error('not found');
+    data = await resp.json();
+    if (data.dates && data.dates.length > 0) {
+      activeDate = data.dates[data.dates.length - 1].label;
+      render();
+    }
+  } catch(e) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="5"><div class="error">市值数据尚未生成<br><small>请运行 fetch_market_cap.py</small></div></td></tr>';
+  }
+}
+
+function getIdx() { return data.dates.findIndex(function(d){ return d.label === activeDate; }); }
+function getVal(r) { var d=r.daily_mcap||[]; var i=getIdx(); return i>=0&&i<d.length?(d[i]||0):0; }
+
+function render() {
+  dateIdx = getIdx();
+  var latest = data.dates[data.dates.length-1];
+  document.getElementById('dateSub').textContent = '数据日期: '+latest.full_label+' · '+data.dates.length+'个交易日';
+
+  // Summary
+  var rows = data.industries.filter(function(r){return !r.is_total;});
+  var totalRow = data.industries.find(function(r){return r.is_total;});
+  var totalNow = totalRow ? getVal(totalRow) : 0;
+  var totalPrev = totalRow && dateIdx>0 ? (totalRow.daily_mcap||[])[dateIdx-1]||0 : 0;
+  var totalChg = totalPrev>0 ? ((totalNow-totalPrev)/totalPrev*100) : null;
+  var top3 = rows.slice().sort(function(a,b){return getVal(b)-getVal(a);}).slice(0,3);
+  var top3Share = top3.reduce(function(s,r){ return s + (getVal(r)/Math.max(totalNow,1)*100); }, 0);
+
+  var h='';
+  var chgCls = totalChg!==null ? (totalChg>0?'up':'down') : '';
+  h += '<div class="card '+chgCls+'"><div class="val">'+(totalNow/1e8).toFixed(0)+'亿</div><div class="lbl">全市场总市值 '+(totalChg!==null?(totalChg>0?'+':'')+totalChg.toFixed(2)+'%':'')+'</div></div>';
+  h += '<div class="card"><div class="val">'+top3Share.toFixed(0)+'%</div><div class="lbl">Top3 集中度</div></div>';
+  h += '<div class="card"><div class="val">'+(totalRow&&totalRow.mcap?(totalRow.mcap/1e8).toFixed(0):'?' )+'亿</div><div class="lbl">最新日总市值</div></div>';
+  h += '<div class="card"><div class="val">'+rows.length+'</div><div class="lbl">行业总数</div></div>';
+  document.getElementById('summaryCards').innerHTML = h;
+
+  // Date tabs
+  var tabs='';
+  data.dates.slice().reverse().forEach(function(d){ tabs+='<div class="date-tab'+(d.label===activeDate?' active':'')+'" onclick="selectDate(\''+d.label+'\')">'+d.label+'</div>'; });
+  document.getElementById('dateTabs').innerHTML = tabs;
+
+  renderTable();
+  renderSortHeaders();
+  if (currentView === 'treemap') renderTreemap();
+}
+
+function selectDate(label) { activeDate = label; render(); }
+
+function toggleSort(key) {
+  sortState = sortState.key===key ? {key:key, dir:sortState.dir==='desc'?'asc':'desc'} : {key:key, dir:key==='industry'?'asc':'desc'};
+  render();
+}
+
+function sortedRows() {
+  var rows = data.industries.filter(function(r){return !r.is_total;}).slice();
+  var k=sortState.key, d=sortState.dir;
+  rows.sort(function(a,b){
+    var va,vb;
+    if(k==='industry'){va=a.industry;vb=b.industry;return d==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
+    if(k==='mcap'){va=getVal(a);vb=getVal(b);}
+    else if(k==='share'){var tr=data.industries.find(function(r){return r.is_total;});var tv=tr?getVal(tr):1;va=tv>0?getVal(a)/tv*100:0;vb=tv>0?getVal(b)/tv*100:0;}
+    else if(k==='chg'){va=a.change_pct!==null?a.change_pct:-999;vb=b.change_pct!==null?b.change_pct:-999;}
+    else if(k==='trend'){va=a.trend_5d||'';vb=b.trend_5d||'';return d==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
+    else return 0;
+    return d==='asc'?va-vb:vb-va;
+  });
+  return rows;
+}
+
+function renderSortHeaders() {
+  document.querySelectorAll('th.sortable').forEach(function(th){
+    th.classList.remove('sort-active'); var a=th.querySelector('.srt'); if(a)a.remove();
+    if(th.getAttribute('data-sort')===sortState.key){ th.classList.add('sort-active'); var s=document.createElement('span');s.className='srt';s.textContent=sortState.dir==='desc'?'↓':'↑';th.appendChild(s); }
+  });
+}
+
+function renderTable() {
+  var sorted = sortedRows();
+  var totalRow = data.industries.find(function(r){return r.is_total;});
+  var html='';
+  sorted.forEach(function(r){
+    var v = getVal(r);
+    var share = totalRow ? (getVal(r)/Math.max(getVal(totalRow),1)*100) : 0;
+    var prev = dateIdx>0 ? (r.daily_mcap||[])[dateIdx-1]||0 : 0;
+    var chg = prev>0 ? ((v-prev)/prev*100) : null;
+    var chgHtml = chg!==null ? '<span class="'+(chg>0?'up':'down')+'">'+(chg>0?'+':'')+chg.toFixed(2)+'%</span>' : '—';
+    var barW = Math.round(share*2.5);
+    html += '<tr>';
+    html += '<td onclick="openStockModal(\''+r.industry+'\')"><span class="bar" style="width:'+barW+'px"></span><span class="ind-name">'+r.industry+'</span></td>';
+    html += '<td>'+(v/1e8).toFixed(0)+'</td>';
+    html += '<td>'+share.toFixed(1)+'%</td>';
+    html += '<td>'+chgHtml+'</td>';
+    html += '<td>'+(r.trend_5d||'—')+'</td>';
+    html += '</tr>';
+  });
+  if(totalRow){
+    html += '<tr class="total-row"><td><span class="ind-name">全市场合计</span></td>';
+    html += '<td>'+(getVal(totalRow)/1e8).toFixed(0)+'</td><td>100%</td><td>—</td><td>—</td></tr>';
+  }
+  document.getElementById('tbody').innerHTML = html;
+  document.getElementById('updateNote').textContent = '数据更新于 '+(data.updated_at||'?')+' · 点击行业名查看个股市值 · 点击列头排序';
+}
+
+document.querySelector('thead').addEventListener('click',function(e){ var th=e.target.closest('th.sortable'); if(th)toggleSort(th.getAttribute('data-sort')); });
+
+// ── 个股市值明细弹窗 ──
+function openStockModal(ind) {
+  var row = data.industries.find(function(r){return r.industry===ind;});
+  if(!row) return;
+  var stocks = row.stocks || [];
+  document.getElementById('stockModalTitle').textContent = ind + ' · ' + activeDate + ' · 市值 ' + ((row.mcap||getVal(row))/1e8).toFixed(0) + '亿';
+  var html = '';
+  if(stocks.length===0){ html='<div class="error">暂无个股市值明细（请运行 fetch_market_cap.py 重新生成）</div>'; }
+  else {
+    var totalM = stocks.reduce(function(s,x){return s+(x.mcap||0);},0) || 1;
+    stocks.forEach(function(s,i){
+      var pct = ((s.mcap||0)/totalM*100).toFixed(1);
+      var cls = s.mcap>0?'up':'down';
+      html += '<div class="stock-row">';
+      html += '<span class="code">'+(i+1)+'. '+s.code+'</span>';
+      html += '<span class="name">'+(s.name||s.code)+'</span>';
+      html += '<span class="mcap">'+(s.mcap/1e8).toFixed(1)+'亿</span>';
+      html += '<span class="chg '+cls+'">'+pct+'%</span>';
+      html += '</div>';
+    });
+  }
+  document.getElementById('stockModalBody').innerHTML = html;
+  document.getElementById('stockOverlay').classList.add('active');
+}
+function closeStockModal(){ document.getElementById('stockOverlay').classList.remove('active'); }
+document.addEventListener('keydown',function(e){ if(e.key==='Escape')closeStockModal(); });
+
+var currentView = 'table';
+function switchView(v) {
+  currentView = v;
+  document.querySelectorAll('.view-toggle button').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelector('.view-toggle button[onclick*="'+v+'"]').classList.add('active');
+  document.getElementById('tableScroll').style.display = v==='table' ? '' : 'none';
+  var tw = document.getElementById('treemapWrap');
+  tw.classList.toggle('active', v==='treemap');
+  if (v==='treemap') renderTreemap();
+}
+
+// ── Squarified Treemap ──
+function squarify(items, x, y, w, h) {
+  if (!items.length) return;
+  var total = items.reduce(function(s,i){return s+i.val;},0);
+  if (total<=0||w<=0||h<=0||w*h<100) return;
+  items.sort(function(a,b){return b.val-a.val;});
+  // Simple slice-and-dice: alternate horizontal/vertical cuts
+  function layout(items, x, y, w, h, horiz) {
+    if (!items.length||w<=0||h<=0) return;
+    if (items.length===1) {
+      items[0].x=Math.round(x); items[0].y=Math.round(y);
+      items[0].w=Math.max(4,Math.round(w)); items[0].h=Math.max(4,Math.round(h));
+      return;
+    }
+    var sum=items.reduce(function(s,i){return s+i.val;},0);
+    if (sum<=0) return;
+    // Split into 2 roughly equal groups
+    var half=sum/2, acc=0, split=1;
+    for (var i=0;i<items.length;i++) { acc+=items[i].val; if (acc>=half) { split=i+1; break; } }
+    if (split>=items.length) split=items.length-1;
+    var group1=items.slice(0,split), group2=items.slice(split);
+    var g1sum=group1.reduce(function(s,i){return s+i.val;},0);
+    var ratio=g1sum/sum;
+    if (horiz) {
+      var w1=Math.max(4,Math.round(w*ratio));
+      layout(group1,x,y,w1,h,!horiz);
+      layout(group2,x+w1,y,w-w1,h,!horiz);
+    } else {
+      var h1=Math.max(4,Math.round(h*ratio));
+      layout(group1,x,y,w,h1,!horiz);
+      layout(group2,x,y+h1,w,h-h1,!horiz);
+    }
+  }
+  layout(items,x,y,w,h,w>=h);
+}
+
+var treemapZoom = null;
+var stockPlayTimer = null;
+
+function zoomToIndustry(ind) {
+  treemapZoom = ind;
+  renderTreemap();
+}
+
+function getZoomStocks() {
+  if (!treemapZoom || !data) return [];
+  var row = data.industries.find(function(r){return r.industry===treemapZoom;});
+  if (!row) return [];
+  var sbd = row.stocks_by_date;
+  if (sbd && activeDate) {
+    // stocks_by_date 的 key 就是 date label（如 "6月29日"），直接查找
+    if (sbd[activeDate]) return sbd[activeDate];
+  }
+  return row.stocks || [];
+}
+
+function toggleStockPlay() {
+  if (stockPlayTimer) {
+    clearInterval(stockPlayTimer); stockPlayTimer = null;
+    renderTreemap(); return;
+  }
+  if (!data || !data.dates) return;
+  var i = 0;
+  stockPlayTimer = setInterval(function() {
+    if (i >= data.dates.length) { clearInterval(stockPlayTimer); stockPlayTimer = null; renderTreemap(); return; }
+    activeDate = data.dates[i].label;
+    renderTreemap();
+    i++;
+  }, 600);
+}
+
+function renderTreemap() {
+  var tw=document.getElementById('treemapWrap');
+  if (!tw||!(tw.offsetWidth>0)) return;
+
+  // 个股模式：显示某个行业下的个股市值色块
+  if (treemapZoom) {
+    var stocks = getZoomStocks();
+    if (!stocks.length) { tw.innerHTML = '<div style="color:#666;text-align:center;padding-top:60px">暂无个股市值明细</div>'; return; }
+    var totalM = stocks.reduce(function(s,x){return s+(x.mcap||0);},0) || 1;
+    var items = stocks.map(function(s){
+      return {code: s.code, name: s.name||s.code, val: s.mcap||0, chg: s.change_pct||0};
+    });
+    var maxAbsChg = Math.max.apply(null, items.map(function(i){return Math.abs(i.chg||0);})) || 1;
+    squarify(items, 0, 0, tw.offsetWidth, tw.offsetHeight-46);
+    items.forEach(function(it){ if (it.y!==undefined) it.y += 46; });
+    var html = '<div style="position:absolute;left:6px;top:6px;z-index:10;display:flex;gap:8px;align-items:center">';
+    html += '<span class="tile" style="position:static;padding:4px 10px;background:#21252b;color:var(--accent);border-radius:4px;cursor:pointer;font-size:0.75em;width:auto;height:auto" onclick="treemapZoom=null;if(stockPlayTimer){clearInterval(stockPlayTimer);stockPlayTimer=null;}renderTreemap()">← 返回</span>';
+    html += '<span style="color:#e5c07b;font-size:0.8em">'+treemapZoom+' '+(totalM/1e8).toFixed(0)+'亿 · '+activeDate+'</span>';
+    html += '<span class="tile" style="position:static;padding:4px 8px;background:#21252b;color:var(--text);border-radius:4px;cursor:pointer;font-size:0.7em;width:auto;height:auto" onclick="toggleStockPlay()">'+(stockPlayTimer?'⏸':'▶')+' 播放</span></div>';
+    items.forEach(function(it){
+      if (it.x===undefined||it.y===undefined) return;
+      var absChg = Math.abs(it.chg||0);
+      var t = Math.min(absChg/maxAbsChg, 1);
+      var r,g,b;
+      if ((it.chg||0) >= 0) { r=Math.round(185+30*t); g=Math.round(90+5*t); b=Math.round(85+5*t); }
+      else { r=Math.round(85+15*t); g=Math.round(150+40*t); b=Math.round(100+20*t); }
+      var lum=0.299*r+0.587*g+0.114*b;
+      var textColor=lum>130?'#1a1d23':'#f0f0f0';
+      var fontSize=Math.max(0.42, Math.min(0.75, Math.sqrt(it.w*it.h)/16));
+      var thsUrl = 'https://stockpage.10jqka.com.cn/' + it.code + '/';
+      html+='<div class="tile" style="left:'+it.x+'px;top:'+it.y+'px;width:'+it.w+'px;height:'+it.h+'px;background:rgb('+r+','+g+','+b+');color:'+textColor+'" title="'+it.code+' '+(it.val/1e8).toFixed(1)+'亿 '+(it.chg>0?'+':'')+(it.chg||0).toFixed(1)+'% · 点击打开同花顺" onclick="window.open(\''+thsUrl+'\',\'_blank\')">';
+      if (it.w>28&&it.h>18) {
+        html+='<span class="t-name" style="font-size:'+fontSize+'em">'+(it.name||it.code)+'</span>';
+        if (it.w>40&&it.h>26) html+='<span class="t-val">'+(it.val/1e8).toFixed(1)+'亿</span>';
+        if (it.w>38&&it.h>22) html+='<span class="t-chg">'+(it.chg>0?'+':'')+(it.chg||0).toFixed(1)+'%</span>';
+      }
+      html+='</div>';
+    });
+    tw.innerHTML = html;
+    return;
+  }
+
+  // 行业视图
+  var rows=data.industries.filter(function(r){return !r.is_total;});
+  if (!rows.length) return;
+  var items=rows.map(function(r){ return {ind:r.industry, val:getVal(r), chg:r.change_pct, share:r.share||0, stocks:r.stocks||[]}; });
+  var maxAbsChg=Math.max.apply(null,items.map(function(i){return Math.abs(i.chg||0);}))||1;
+  squarify(items, 0, 0, tw.offsetWidth, tw.offsetHeight);
+  var html='';
+  items.forEach(function(it){
+    if (it.x===undefined||it.y===undefined) return;
+    var absChg=Math.abs(it.chg||0);
+    var t=Math.min(absChg/maxAbsChg,1);
+    var r,g,b;
+    if ((it.chg||0)>=0) { r=Math.round(185+30*t); g=Math.round(90+5*t); b=Math.round(85+5*t); }
+    else { r=Math.round(85+15*t); g=Math.round(150+40*t); b=Math.round(100+20*t); }
+    var lum=0.299*r+0.587*g+0.114*b;
+    var textColor=lum>130?'#1a1d23':'#f0f0f0';
+    var fontSize=Math.max(0.55, Math.min(1.2, Math.sqrt(it.w*it.h)/22));
+    html+='<div class="tile" style="left:'+it.x+'px;top:'+it.y+'px;width:'+it.w+'px;height:'+it.h+'px;background:rgb('+r+','+g+','+b+');color:'+textColor+'" onclick="zoomToIndustry(\''+it.ind+'\')" title="'+it.ind+' '+(it.val/1e8).toFixed(0)+'亿 '+(it.chg>0?'+':'')+(it.chg||0).toFixed(1)+'% · 点击查看个股">';
+    if (it.w>40&&it.h>30) {
+      html+='<span class="t-name" style="font-size:'+fontSize+'em">'+it.ind+'</span>';
+      if (it.w>50&&it.h>40) html+='<span class="t-val">'+(it.val/1e8).toFixed(0)+'亿</span>';
+      if (it.w>45&&it.h>35) html+='<span class="t-chg">'+(it.chg>0?'+':'')+(it.chg||0).toFixed(1)+'%</span>';
+    }
+    html+='</div>';
+  });
+  tw.innerHTML=html;
+}
+window.addEventListener('resize',function(){ if(currentView==='treemap') renderTreemap(); });
+
+load();
+</script>
+</body>
+</html>

@@ -93,7 +93,7 @@ def enrich_names(daily_stocks):
 # =========================================================================
 
 
-def aggregate(daily_stocks, industry_map):
+def aggregate(daily_stocks, industry_map, industry_scheme="sw"):
     """关联行业分类，按 (行业, 日期) 聚合"""
     print("[3/4] 关联行业并聚合...")
 
@@ -112,6 +112,10 @@ def aggregate(daily_stocks, industry_map):
         industry_total_map[ind] = industry_total_map.get(ind, 0) + 1
 
     main_industries = [ind for ind in SW2021_INDUSTRY_MAP.values() if ind != "综合"]
+    if industry_scheme == "ths":
+        # 同花顺行业：从 industry_map 中提取所有唯一行业，按股票数排序
+        ths_industries = sorted(set(industry_map.values()), key=lambda x: -sum(1 for v in industry_map.values() if v == x))
+        main_industries = [ind for ind in ths_industries if ind != "综合"]
     main_industries.append("其他")
 
     result = []
@@ -188,11 +192,12 @@ def aggregate(daily_stocks, industry_map):
 
 
 def _run_single(args, dates, active_codes, industry_map, type_labels,
-                all_data=None, name_map=None, alltime_high_before=None):
+                all_data=None, name_map=None, alltime_high_before=None, industry_scheme="sw"):
     """运行单个类型（被 main 和 --type all 复用）"""
     type_suffix = args.type
-    data_file = os.path.join(args.output_dir, f"new_highs_data_{type_suffix}.json")
-    details_file = os.path.join(args.output_dir, f"new_highs_details_{type_suffix}.json")
+    scheme_suffix = "_ths" if industry_scheme == "ths" else ""
+    data_file = os.path.join(args.output_dir, f"new_highs_data_{type_suffix}{scheme_suffix}.json")
+    details_file = os.path.join(args.output_dir, f"new_highs_details_{type_suffix}{scheme_suffix}.json")
 
     window_map = {
         "month": 20, "60d": 60, "120d": 120, "1year": 250, "alltime": None,
@@ -219,7 +224,7 @@ def _run_single(args, dates, active_codes, industry_map, type_labels,
         daily_stocks = enrich_names(daily_stocks)
 
     # 聚合
-    output = aggregate(daily_stocks, industry_map)
+    output = aggregate(daily_stocks, industry_map, industry_scheme)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -290,8 +295,17 @@ def main():
         action="store_true",
         help="强制重建 K 线缓存",
     )
+    parser.add_argument(
+        "--industry-scheme",
+        type=str,
+        default="sw",
+        choices=["sw", "ths"],
+        help="行业分类: sw=申万2021, ths=同花顺",
+    )
     args = parser.parse_args()
     dates = [d.strip() for d in args.dates.split(",") if d.strip()] if args.dates else get_trade_dates(n=20)
+
+    industry_scheme = args.industry_scheme
 
     type_labels = {
         "month": "创20日新高", "60d": "创60日新高", "120d": "创120日新高",
@@ -299,7 +313,18 @@ def main():
     }
 
     active_codes = get_active_codes()
-    industry_map = load_industry_map(active_codes)
+    if industry_scheme == "ths":
+        # 同花顺行业映射
+        ths_path = os.path.join(args.output_dir, "industry_map_ths.json")
+        if not os.path.exists(ths_path):
+            raise FileNotFoundError(f"缺少同花顺行业映射文件: {ths_path}")
+        with open(ths_path, "r", encoding="utf-8") as f:
+            industry_map = json.load(f)
+        # 过滤掉不在 active_codes 中的代码
+        active_set = set(active_codes)
+        industry_map = {k: v for k, v in industry_map.items() if k in active_set}
+    else:
+        industry_map = load_industry_map(active_codes)
 
     if args.type == "all":
         codes_with_industry = [c for c in active_codes if c in industry_map]
@@ -314,9 +339,9 @@ def main():
             print(f"\n{'='*60}\n处理类型: {type_labels.get(t, t)}\n{'='*60}")
             args.type = t
             _run_single(args, dates, active_codes, industry_map, type_labels,
-                        all_data, name_map, alltime_high_before)
+                        all_data, name_map, alltime_high_before, industry_scheme)
     else:
-        _run_single(args, dates, active_codes, industry_map, type_labels)
+        _run_single(args, dates, active_codes, industry_map, type_labels, industry_scheme=industry_scheme)
 
 
 if __name__ == "__main__":
