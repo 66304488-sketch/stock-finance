@@ -15,6 +15,8 @@ files:
   - resources/**/*
 
 extraResources:
+  - from: setup.sh
+    to: setup.sh
   - from: static/
     to: static/
     filter:
@@ -51,6 +53,8 @@ extraResources:
     to: "scan_intraday.py"
   - from: "build_period_counts.py"
     to: "build_period_counts.py"
+  - from: "fetch_market_cap.py"
+    to: "fetch_market_cap.py"
 
 asar: true
 compression: normal

@@ -11,6 +11,7 @@
 import { ChildProcess, spawn, execSync, execFileSync } from "child_process";
 import * as path from "path";
 import * as http from "http";
+import * as fs from "fs";
 
 interface RunResult {
   success: boolean;
@@ -66,20 +67,31 @@ export class PythonManager {
     // 先检查端口是否已被占用 (可能之前没正常退出)
     const existingReady = await this.checkPort(port);
     if (existingReady) {
-      console.log("Python backend is already running");
-      return { success: true };
+      const sameRoot = await this.checkExistingBackendRoot(port);
+      if (sameRoot) {
+        console.log("Python backend is already running");
+        return { success: true };
+      }
+      return {
+        success: false,
+        error: `端口 ${port} 已被其他行业热力图后端占用。请先退出旧版行业热力图，或在终端运行：lsof -tiTCP:${port} -sTCP:LISTEN | xargs kill`,
+      };
     }
 
-    // 先测试 python 是否能正常导入关键模块
+    // 检查核心依赖（不检查 anthropic/openai/mcp，AI 功能可降级）
     try {
-      execFileSync(this.pythonCmd, ["-c", "import fastapi, uvicorn, akshare, pandas, anthropic, openai, mcp"], {
+      execFileSync(this.pythonCmd, ["-c", "import fastapi, uvicorn, akshare, pandas, requests, httpx, openpyxl, baostock"], {
         cwd: this.projectRoot,
         stdio: "pipe",
         timeout: 10000,
       });
     } catch (e: any) {
       const stderr = e.stderr?.toString() || e.message || "";
-      return { success: false, error: `Python 依赖缺失:\n${stderr.slice(0, 300)}\n\n请运行: pip3 install akshare baostock pywencai httpx uvicorn fastapi pandas openpyxl pillow anthropic openai mcp` };
+      // 检查是否存在 setup.sh 安装脚本
+      var setupPath = path.join(this.projectRoot, "setup.sh");
+      var setupHint = "";
+      try { if (fs.existsSync(setupPath)) setupHint = `\n\n或双击 DMG 中的 setup.sh 一键安装依赖`; } catch(_) {}
+      return { success: false, error: `Python 核心依赖缺失:\n${stderr.slice(0, 300)}\n\n请在终端运行:\npip3 install fastapi uvicorn akshare pandas requests httpx openpyxl baostock\n\nAI 功能（日报/问答）还需要:\npip3 install anthropic openai${setupHint}` };
     }
 
     this.serverProcess = spawn(this.pythonCmd, ["server.py"], {
@@ -127,6 +139,28 @@ export class PythonManager {
     return new Promise((resolve) => {
       const req = http.get(`http://localhost:${port}/app.html`, { timeout: 3000 }, (res) => {
         resolve(res.statusCode === 200);
+      });
+      req.on("error", () => resolve(false));
+      req.on("timeout", () => { req.destroy(); resolve(false); });
+    });
+  }
+
+  /** 检查端口上的现有服务是否来自同一份应用资源 */
+  private checkExistingBackendRoot(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const req = http.get(`http://localhost:${port}/api/runtime-info`, { timeout: 3000 }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end", () => {
+          try {
+            const info = JSON.parse(data);
+            const existingRoot = fs.realpathSync(info.project_root || "");
+            const currentRoot = fs.realpathSync(this.projectRoot);
+            resolve(existingRoot === currentRoot);
+          } catch {
+            resolve(false);
+          }
+        });
       });
       req.on("error", () => resolve(false));
       req.on("timeout", () => { req.destroy(); resolve(false); });

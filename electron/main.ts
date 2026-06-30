@@ -200,21 +200,23 @@ async function runDataPipeline(): Promise<void> {
 
   pipelineRunning = true;
   notify("数据更新", "启动后台刷新...");
-  const started = await postRefresh();
-  if (!started) {
-    notify("错误", "无法启动数据刷新，请检查后端服务");
-    return;
-  }
-
-  const status = await pollRefreshStatus(1200000);
-  pipelineRunning = false;
-  if (status.success) {
-    notify("数据更新", "✅ 数据更新完成");
-    mainWindow?.webContents.reload();
-  } else {
-    const err = status.error || "未知错误";
-    notify("更新失败", err);
-    dialog.showErrorBox("数据更新失败", err);
+  try {
+    const started = await postRefresh();
+    if (!started) {
+      notify("错误", "无法启动数据刷新，请检查后端服务");
+      return;
+    }
+    const status = await pollRefreshStatus(1200000);
+    if (status.success) {
+      notify("数据更新", "✅ 数据更新完成");
+      mainWindow?.webContents.reload();
+    } else {
+      const err = status.error || "未知错误";
+      notify("更新失败", err);
+      dialog.showErrorBox("数据更新失败", err);
+    }
+  } finally {
+    pipelineRunning = false;
   }
 }
 
@@ -248,7 +250,7 @@ app.whenReady().then(async () => {
   const startResult = await pythonManager.start(PYTHON_PORT);
   if (!startResult.success) {
     const msg = startResult.error || (app.isPackaged
-      ? "Python 后端启动失败。请确认已安装 Python3 及依赖库：\npip3 install akshare baostock pywencai httpx uvicorn fastapi pandas openpyxl pillow"
+      ? "Python 后端启动失败。请确认已安装 Python3，然后运行：\npip3 install fastapi uvicorn akshare pandas requests httpx openpyxl baostock\n\n或双击 DMG 中的 setup.sh 一键安装"
       : "无法启动 Python 后端服务，请检查 Python 环境");
     dialog.showErrorBox("启动失败", msg);
     app.quit();
