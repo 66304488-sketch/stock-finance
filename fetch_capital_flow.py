@@ -87,13 +87,17 @@ def calc_trend(vals):
 
 
 def calc_signal(share, chg):
-    if share > 3 and (chg is not None and chg > 5):
-        return "🔥 持续流入"
-    if share > 1.5 and (chg is not None and chg > 10):
+    # 加速流入（高阈值优先）
+    if share > 1.5 and chg is not None and chg > 10:
         return "📈 加速流入"
+    # 持续流入
+    if share > 3 and chg is not None and chg > 5:
+        return "🔥 持续流入"
+    # 资金撤离
     if chg is not None and chg < -20:
         return "❄️ 资金撤离"
-    if share > 2 and (chg is not None and chg < -10):
+    # 高位缩量
+    if share > 2 and chg is not None and chg < -10:
         return "⚠️ 高位缩量"
     return ""
 
@@ -118,7 +122,7 @@ def load_ind_map(scheme="sw"):
 def aggregate_dates(target_dates, scheme="sw", force_refresh=False):
     print("[1/4] 加载行业分类...")
     ind_map = load_ind_map(scheme)
-    codes = [c for c in ind_map if c in ind_map]
+    codes = [c for c in get_active_codes() if c in ind_map]
     print(f"  {len(codes)} 只")
     print(f"  目标日期: {len(target_dates)}天 ({target_dates[0]} ~ {target_dates[-1]})")
 

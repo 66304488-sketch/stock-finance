@@ -225,7 +225,6 @@ def main():
     active_codes = get_active_codes()
     print(f"共 {len(active_codes)} 只")
 
-    global industry_map
     industry_map = load_industry_map(active_codes)
 
     cache = KlineCache()

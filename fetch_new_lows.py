@@ -51,7 +51,11 @@ def find_new_lows(all_data, target_dates, window_days, alltime_low_before=None):
             running_min = np.minimum.accumulate(closes)
             is_new_low = np.zeros(len(closes), dtype=bool)
             for j in range(1, len(closes)):
-                prev_min = running_min[j - 1]
+                # 融入 alltime_low_before 边界
+                if ab is not None:
+                    prev_min = min(ab, running_min[j - 1])
+                else:
+                    prev_min = running_min[j - 1]
                 if ab is not None:
                     prev_min = min(ab, prev_min)
                 if closes[j] < prev_min:
@@ -270,9 +274,14 @@ def main():
         if not os.path.exists(ths_path):
             raise FileNotFoundError(f"缺少同花顺行业映射文件: {ths_path}")
         with open(ths_path, "r", encoding="utf-8") as f:
-            industry_map = json.load(f)
+            ths_map = json.load(f)
+        sw_map = load_industry_map(set(active_codes))
         active_set = set(active_codes)
-        industry_map = {k: v for k, v in industry_map.items() if k in active_set}
+        industry_map = {}
+        for c in active_codes:
+            if c in ths_map: industry_map[c] = ths_map[c]
+            elif c in sw_map: industry_map[c] = sw_map[c]
+            else: industry_map[c] = "其他"
     else:
         industry_map = load_industry_map(set(active_codes))
     codes_with_industry = [c for c in active_codes if c in industry_map]

@@ -188,7 +188,7 @@ def fetch_spot(codes, target_date_str):
                     close_p = float(fields[3]) if fields[3] else 0.0
                     high_p = float(fields[4]) if fields[4] else 0.0
                     low_p = float(fields[5]) if fields[5] else 0.0
-                    volume = float(fields[8]) if fields[8] else 0.0  # 新浪实时行情成交量已是股
+                    volume = float(fields[8]) * 100 if fields[8] else 0.0  # 手 -> 股
                     change_pct = round((close_p - prev_close) / prev_close * 100, 2) if prev_close > 0 else 0.0
                     if code and close_p > 0:
                         spot_map[code] = {
@@ -273,8 +273,10 @@ class KlineCache:
                     low_before[code] = float(before["close"].min())
                 else:
                     window = df.copy()
-                    # 短历史股票：没有"窗口之前"的数据，不设边界
-                    # 否则 alltime 新高/新低永远无法被检测到
+                    # 短历史股票：将窗口内的极值设为 alltime 边界
+                    # 这样 alltime 新高/新低可以在窗口内被正确检测
+                    high_before[code] = float(window["close"].max())
+                    low_before[code] = float(window["close"].min())
                 cached_data[code] = window.reset_index(drop=True)
 
         self._cache["codes"] = set(cached_data.keys())
@@ -331,7 +333,10 @@ class KlineCache:
                     high_before[code] = max(high_before.get(code, old_high), old_high)
                     low_before[code] = min(low_before.get(code, old_low), old_low)
                 cached_data[code] = df
-                # 新下载的短历史股票：不设窗口外边界，让窗口内数据独立判断 alltime 新高/新低
+                # 新下载的短历史股票：将窗口内极值设为边界
+                if code not in high_before:
+                    high_before[code] = float(df["close"].max())
+                    low_before[code] = float(df["close"].min())
 
         skipped_stale = [c for c in stale if c not in spot_updated]
         if skipped_stale:

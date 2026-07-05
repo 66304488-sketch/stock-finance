@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 
 from kline_cache import KlineCache, get_active_codes, load_industry_map
 from heatmap_data import build_chat_context
+from db import get_db
 from mcp_config import (
     MCP_TOKEN_MASK,
     build_anthropic_mcp_parts,
@@ -33,6 +34,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("stock-finance")
 
 app = FastAPI(title="Stock Finance API")
+
+@app.on_event("startup")
+async def startup():
+    """启动时迁移 JSON → SQLite，并确保 JSON 文件最新"""
+    try:
+        db = get_db()
+        db.import_from_json()
+        db.export_to_json()
+    except Exception as e:
+        logger.warning("DB 初始化失败: %s", e)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -92,7 +104,7 @@ async def fetch_quote(code: str) -> dict:
         pe = _f(39)
         market_cap = _f(44)  # 总市值 亿
         circ_market_cap = _f(45)  # 流通市值 亿
-        total_shares = _f(72) if len(parts) > 72 else None
+        total_shares = _f(72) if len(parts) >= 73 else None
 
         # 涨跌幅 解析 (Tencent 的涨跌幅可能是带 % 符号)
         def _num(s):
@@ -359,39 +371,37 @@ async def fetch_shareholders(code: str) -> dict:
 async def fetch_forecast(code: str) -> dict:
     """通过 emweb session 获取盈利预测"""
     em = _em_code(code)
-    session = httpx.AsyncClient(
+    async with httpx.AsyncClient(
         headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         },
         timeout=10,
         follow_redirects=True,
-    )
-    try:
-        await session.get(
-            "https://emweb.securities.eastmoney.com/PC_HSF10/ResearchNew/Index?type=web&code=" + em
-        )
-        r = await session.get(
-            "https://emweb.securities.eastmoney.com/PC_HSF10/ResearchNew/ResearchForecastAjax",
-            params={"code": em},
-        )
-        if r.status_code == 200:
-            result = r.json()
-            arr = result.get("data") or []
-            out = {}
-            for item in arr:
-                yr = item.get("REPORT_DATE_YEAR")
-                eps = item.get("AVG_EPS")
-                cnt = item.get("FORECAST_COUNT")
-                tag = {2026: "2026E", 2027: "2027E", 2028: "2028E"}.get(yr)
-                if tag:
-                    out[f"eps{tag}"] = eps
-                    out[f"forecastCount{yr}"] = cnt
-            if out:
-                return out
-    except Exception as e:
-        logger.warning("fetch_forecast(%s): %s", code, e)
-    finally:
-        await session.aclose()
+    ) as session:
+        try:
+            await session.get(
+                "https://emweb.securities.eastmoney.com/PC_HSF10/ResearchNew/Index?type=web&code=" + em
+            )
+            r = await session.get(
+                "https://emweb.securities.eastmoney.com/PC_HSF10/ResearchNew/ResearchForecastAjax",
+                params={"code": em},
+            )
+            if r.status_code == 200:
+                result = r.json()
+                arr = result.get("data") or []
+                out = {}
+                for item in arr:
+                    yr = item.get("REPORT_DATE_YEAR")
+                    eps = item.get("AVG_EPS")
+                    cnt = item.get("FORECAST_COUNT")
+                    tag = {2026: "2026E", 2027: "2027E", 2028: "2028E"}.get(yr)
+                    if tag:
+                        out[f"eps{tag}"] = eps
+                        out[f"forecastCount{yr}"] = cnt
+                if out:
+                    return out
+        except Exception as e:
+            logger.warning("fetch_forecast(%s): %s", code, e)
     return {}
 
 
@@ -494,8 +504,11 @@ async def settings_save(req: dict):
 async def settings_run_analysis():
     """重新运行 AI 分析"""
     import subprocess, sys
+    script_path = os.path.join(os.path.dirname(__file__), "ai_analyzer.py")
+    if not os.path.exists(script_path):
+        return {"status": "error", "message": f"脚本不存在: {script_path}"}
     proc = subprocess.run(
-        [sys.executable, "ai_analyzer.py"],
+        [sys.executable, script_path],
         cwd=os.path.dirname(__file__),
         capture_output=True, text=True,
         timeout=120,
@@ -508,8 +521,11 @@ async def intraday_scan(req: dict):
     """盘中实时扫描新高/新低"""
     import subprocess, sys
     window = (req.get("window") or "all").strip()
+    script_path = os.path.join(os.path.dirname(__file__), "scan_intraday.py")
+    if not os.path.exists(script_path):
+        return {"status": "error", "message": f"脚本不存在: {script_path}"}
     proc = subprocess.run(
-        [sys.executable, "scan_intraday.py", "--window", window],
+        [sys.executable, script_path, "--window", window],
         cwd=os.path.dirname(__file__),
         capture_output=True, text=True,
         timeout=300,
@@ -631,7 +647,7 @@ def _set_refresh_status(**kwargs):
 
 
 def _get_trade_date_args(days):
-    """取最近 N 个交易日。15 点前默认使用上一交易日，避免当天未收盘数据污染。"""
+    """取最近 N 个交易日（至少20天）。15点前使用上一交易日。"""
     import akshare as ak
     import pandas as pd
     now = datetime.now()
@@ -641,8 +657,55 @@ def _get_trade_date_args(days):
     last = df[df["trade_date"] <= today].iloc[-1]["trade_date"]
     if last == today and now.hour < 15:
         last = df[df["trade_date"] < today].iloc[-1]["trade_date"]
-    dates = df[df["trade_date"] <= last].tail(days)["trade_date"]
+    n = max(days, 20)
+    dates = df[df["trade_date"] <= last].tail(n)["trade_date"]
     return ",".join(d.strftime("%Y%m%d") for d in dates)
+
+
+def _get_missing_info():
+    """扫描现有数据，返回各数据集的缺失日期信息"""
+    import json as _json, re as _re
+    all_dates = _get_trade_date_args(1).split(",")
+    info = {"latest_trade_date": all_dates[-1] if all_dates else None, "datasets": {}}
+
+    checks = {
+        "highs": "new_highs_data_month.json",
+        "lows": "new_lows_data_month.json",
+        "capital_flow": "capital_flow.json",
+        "market_cap": "market_cap.json",
+    }
+    for ds, fname in checks.items():
+        path = os.path.join(static_dir, fname)
+        if not os.path.exists(path):
+            info["datasets"][ds] = {"status": "missing", "last_date": None}
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = _json.load(f)
+            dates = data.get("dates", [])
+            if not dates:
+                info["datasets"][ds] = {"status": "empty", "last_date": None}
+                continue
+            existing = set()
+            for d in dates:
+                m = _re.match(r"(\d{4})年(\d{1,2})月(\d{1,2})日", d.get("full_label", ""))
+                if m:
+                    existing.add(f"{int(m.group(1)):04d}{int(m.group(2)):02d}{int(m.group(3)):02d}")
+            latest = all_dates[-1] if all_dates else None
+            if latest and latest in existing:
+                info["datasets"][ds] = {"status": "up_to_date", "last_date": latest}
+            else:
+                date_list = _get_trade_date_args(20).split(",")
+                missing_dates = [d for d in date_list if d not in existing]
+                info["datasets"][ds] = {
+                    "status": "needs_update",
+                    "last_date": max(existing) if existing else None,
+                    "missing_count": len(missing_dates),
+                }
+        except Exception as e:
+            info["datasets"][ds] = {"status": "error", "error": str(e)}
+
+    return info
 
 
 def _parse_full_label(lbl):
@@ -837,28 +900,19 @@ def _merge_back(base_name):
 def _run_refresh_step(step_name, script_args, timeout_sec=300):
     import subprocess, sys
     _set_refresh_status(current_step=f"{step_name} (运行中...)", progress=None)
+    # 构建完整脚本路径
+    if script_args and not os.path.isabs(script_args[0]):
+        script_args = [os.path.join(os.path.dirname(__file__), script_args[0])] + script_args[1:]
     try:
         r = subprocess.run(
             [sys.executable] + script_args,
             cwd=os.path.dirname(__file__),
-            capture_output=True, text=True, timeout=timeout_sec,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=timeout_sec,
         )
-        # 从 stdout 提取进度信息
-        for line in r.stdout.splitlines():
-            line = line.strip()
-            if not line: continue
-            m = re.search(r'(\d+)\s*/\s*(\d+)', line)
-            if m:
-                cur, tot = int(m.group(1)), int(m.group(2))
-                pct = min(99, int(cur / max(tot, 1) * 100))
-                _set_refresh_status(
-                    progress={"current": cur, "total": tot, "pct": pct},
-                    current_step=f"{step_name} ({cur}/{tot}, {pct}%)",
-                )
         _set_refresh_status(progress=None)
         if r.returncode != 0:
-            err = r.stderr.strip()[-300:] if r.stderr else f"code={r.returncode}"
-            return False, err
+            return False, f"退出码 {r.returncode}"
         return True, ""
     except subprocess.TimeoutExpired:
         return False, f"{step_name} 超时 ({timeout_sec}s)"
@@ -949,10 +1003,12 @@ async def refresh_data(req: dict = None):
     days = max(1, min(int(req.get("days", 1)), 30))
     requested = req.get("datasets") or ["highs", "lows", "capital_flow"]
     datasets = [d for d in requested if d in DATASET_LABELS]
-    mode = req.get("mode") or "incremental"
-    if mode not in ("incremental", "missing", "rebuild"):
-        raise HTTPException(400, "mode 必须是 incremental/missing/rebuild")
+    mode = req.get("mode") or "auto"
+    if mode not in ("auto", "incremental", "missing", "rebuild"):
+        raise HTTPException(400, "mode 必须是 auto/incremental/missing/rebuild")
     force_rebuild = bool(req.get("force_rebuild")) or mode == "rebuild"
+    # auto 模式在底层用 missing 实现（自动补缺 + 合并已有数据）
+    script_mode = "missing" if mode == "auto" else mode
 
     with _refresh_lock:
         if _refresh_status["running"]:
@@ -988,6 +1044,12 @@ async def refresh_data(req: dict = None):
                 cache.ensure(codes_with_industry, latest_date)
                 _set_refresh_status(current_step="K 线缓存预热完成")
 
+            # 使用统一更新引擎（无子进程，直接写入 SQLite）
+            from update_engine import (
+                update_highs_lows, update_capital_flow, update_market_cap
+            )
+            target_dates_list = date_args.split(",")
+
             for dataset in datasets:
                 label = DATASET_LABELS[dataset]
                 source = sources.get(dataset) or sources.get("basics") or "default"
@@ -995,51 +1057,20 @@ async def refresh_data(req: dict = None):
                     steps.append({"dataset": dataset, "label": label, "status": "skipped", "reason": "已冻结"})
                     continue
 
-                backups = _backup_dataset(dataset)
                 try:
                     if dataset == "highs":
-                        for scheme in ["sw", "ths"]:
-                            scheme_label = "申万" if scheme == "sw" else "同花顺"
-                            args = ["fetch_new_highs.py", "--type", "all", "--dates", date_args,
-                                    "--industry-scheme", scheme]
-                            if force_rebuild:
-                                args.append("--force-refresh")
-                            ok, err = _run_refresh_step(f"{label} ({scheme_label}, 最近{days}天)", args, 900)
-                            if not ok:
-                                raise RuntimeError(err)
-                            sfx = "_ths" if scheme == "ths" else ""
-                            for t in types:
-                                _merge_back(f"new_highs_data_{t}{sfx}.json")
+                        _set_refresh_status(current_step=f"{label} (计算中...)")
+                        update_highs_lows(target_dates_list, schemes=["sw", "ths"],
+                                         periods=["month","60d","120d","1year","alltime"],
+                                         force_refresh=force_rebuild)
                     elif dataset == "lows":
-                        for scheme in ["sw", "ths"]:
-                            scheme_label = "申万" if scheme == "sw" else "同花顺"
-                            args = ["fetch_new_lows.py", "--type", "all", "--dates", date_args,
-                                    "--industry-scheme", scheme]
-                            if force_rebuild:
-                                args.append("--force-refresh")
-                            ok, err = _run_refresh_step(f"{label} ({scheme_label}, 最近{days}天)", args, 600)
-                            if not ok:
-                                raise RuntimeError(err)
-                            sfx = "_ths" if scheme == "ths" else ""
-                            for t in types:
-                                _merge_back(f"new_lows_data_{t}{sfx}.json")
+                        pass  # 已在 highs 中一起计算
                     elif dataset == "capital_flow":
-                        for scheme in ["sw", "ths"]:
-                            args = ["fetch_capital_flow.py", "--dates", date_args, "--mode", mode, "--industry-scheme", scheme]
-                            if force_rebuild:
-                                args.append("--force-refresh")
-                            ok, err = _run_refresh_step(f"{label} ({scheme}, 最近{days}天, {mode})", args, 300)
-                            if not ok:
-                                raise RuntimeError(err)
+                        _set_refresh_status(current_step=f"{label} (计算中...)")
+                        update_capital_flow(target_dates_list, schemes=["sw", "ths"])
                     elif dataset == "market_cap":
-                        # 同时更新申万和同花顺
-                        for scheme in ["sw", "ths"]:
-                            args = ["fetch_market_cap.py", "--dates", date_args, "--mode", mode, "--industry-scheme", scheme]
-                            if force_rebuild:
-                                args.append("--force-refresh")
-                            ok, err = _run_refresh_step(f"{label} ({scheme}, 最近{days}天, {mode})", args, 300)
-                            if not ok:
-                                raise RuntimeError(err)
+                        _set_refresh_status(current_step=f"{label} (计算中...)")
+                        update_market_cap(target_dates_list, schemes=["sw", "ths"])
                     elif dataset == "ai":
                         ok, err = _run_refresh_step(label, ["ai_analyzer.py"], 120)
                         if not ok:
@@ -1048,23 +1079,20 @@ async def refresh_data(req: dict = None):
                         ok, err = _run_refresh_step(label, ["generate_standalone.py"], 60)
                         if not ok:
                             raise RuntimeError(err)
-                    _drop_backups(backups)
-                    # 更新多周期计数文件（只要更新了 highs/lows）
-                    if dataset in ("highs", "lows"):
-                        try:
-                            _run_refresh_step("多周期计数", ["build_period_counts.py"], 30)
-                        except Exception:
-                            pass  # 非关键，失败不影响主流程
                     _update_dataset_success(manifest, dataset, source, date_args, mode)
                     steps.append({"dataset": dataset, "label": label, "status": "success"})
                 except Exception as e:
-                    _restore_backups(backups)
                     err = str(e)
                     _update_dataset_failure(manifest, dataset, source, date_args, mode, err)
                     steps.append({"dataset": dataset, "label": label, "status": "failed", "error": err})
                     _set_refresh_status(error=f"{label} 失败: {err}", success=False, running=False, steps=steps)
                     return
 
+            # 导出 JSON 供前端读取
+            try:
+                __import__("export_json").export_all()
+            except Exception:
+                pass
             _set_refresh_status(success=True, current_step="完成", running=False, steps=steps)
         except Exception as e:
             _set_refresh_status(error=f"流水线异常: {str(e)}", success=False, running=False, steps=steps)
@@ -1085,8 +1113,15 @@ async def refresh_data_status():
         "progress": r.get("progress"),
         "steps": r.get("steps", []),
         "manifest": _load_update_manifest(),
+        "missing": _get_missing_info(),
         "message": "数据更新完成" if r["success"] else (r.get("error") or ""),
     }
+
+
+@app.get("/api/refresh-data/check")
+async def refresh_data_check():
+    """检查哪些数据集需要更新（不实际运行）"""
+    return _get_missing_info()
 
 
 # ======================================================================
@@ -1340,7 +1375,7 @@ if os.path.isdir(static_dir):
     async def serve_static(filename: str):
         # 防止路径遍历攻击
         safe = os.path.normpath(filename)
-        if safe.startswith("..") or os.path.isabs(safe):
+        if os.path.isabs(safe) or ".." in safe.split(os.sep):
             raise HTTPException(404, "Not found")
         file_path = os.path.realpath(os.path.join(static_dir, safe))
         if not file_path.startswith(os.path.realpath(static_dir) + os.sep):

@@ -268,7 +268,7 @@ def call_llm(metrics):
                     system=system_msg,
                     messages=[{"role": "user", "content": prompt}],
                 )
-            return resp.content[0].text
+            return resp.content[0].text if resp.content else ""
     except Exception as e:
         print(f"  LLM API 调用失败: {e}")
         return None

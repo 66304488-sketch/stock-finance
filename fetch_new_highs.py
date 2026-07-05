@@ -319,10 +319,14 @@ def main():
         if not os.path.exists(ths_path):
             raise FileNotFoundError(f"缺少同花顺行业映射文件: {ths_path}")
         with open(ths_path, "r", encoding="utf-8") as f:
-            industry_map = json.load(f)
-        # 过滤掉不在 active_codes 中的代码
+            ths_map = json.load(f)
+        sw_map = load_industry_map(active_codes)
         active_set = set(active_codes)
-        industry_map = {k: v for k, v in industry_map.items() if k in active_set}
+        industry_map = {}
+        for c in active_codes:
+            if c in ths_map: industry_map[c] = ths_map[c]
+            elif c in sw_map: industry_map[c] = sw_map[c]
+            else: industry_map[c] = "其他"
     else:
         industry_map = load_industry_map(active_codes)
 
