@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ETF热点候选与确认</title>
+<style>
+  :root {
+    --bg:#0c1017; --panel:#131922; --panel-2:#171f2a; --line:#273141;
+    --text:#d7dee9; --muted:#7f8b9e; --dim:#556174; --red:#ef6b73;
+    --green:#58c59a; --blue:#66a8ff; --amber:#e4b65c; --violet:#a98af7;
+  }
+  * { box-sizing:border-box; }
+  html,body { min-height:100%; margin:0; background:var(--bg); color:var(--text); }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(circle at 15% -10%,#17305066 0,transparent 34%),
+      radial-gradient(circle at 95% 0,#27204644 0,transparent 28%),var(--bg);
+  }
+  button { font:inherit; }
+  .shell { width:min(1440px,100%); margin:0 auto; padding:24px 26px 32px; }
+  .masthead { display:flex; align-items:flex-end; justify-content:space-between; gap:22px; margin-bottom:18px; }
+  .eyebrow { color:var(--blue); font:700 10px/1.2 "SF Mono",Menlo,monospace; letter-spacing:.16em; }
+  h1 { margin:5px 0 0; color:#f3f6fb; font-size:23px; letter-spacing:-.02em; }
+  .headline-note { max-width:580px; color:var(--muted); font-size:12px; line-height:1.65; text-align:right; }
+
+  .legacy-banner {
+    display:none; margin-bottom:12px; padding:10px 13px; border:1px solid #8f6a2f;
+    border-radius:9px; background:#2b2112; color:#f2c879; font-size:12px; line-height:1.55;
+  }
+  .legacy-banner.show { display:block; }
+  .status-grid { display:grid; grid-template-columns:1.12fr 1fr 1fr 1fr; gap:10px; }
+  .status-card {
+    min-height:94px; padding:13px 14px; border:1px solid var(--line); border-radius:10px;
+    background:linear-gradient(145deg,#171e29,#111720); box-shadow:0 12px 32px #00000016;
+  }
+  .status-label { color:var(--dim); font-size:10px; font-weight:700; letter-spacing:.08em; }
+  .status-value { margin-top:8px; color:#f0f4fa; font-size:17px; font-weight:720; }
+  .status-detail { margin-top:5px; color:var(--muted); font-size:11px; line-height:1.45; }
+  .fresh { color:var(--green); } .recent { color:var(--amber); } .stale { color:var(--red); }
+  .decision {
+    display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px;
+    margin-top:10px; padding:14px 16px; border:1px solid #36516e; border-radius:10px;
+    background:linear-gradient(90deg,#14283a,#151d29);
+  }
+  .decision.no-signal { border-color:#6c5930; background:linear-gradient(90deg,#292312,#191d22); }
+  .decision.caution { border-color:#794851; background:linear-gradient(90deg,#2e181d,#1a1b22); }
+  .decision-kicker { color:var(--blue); font-size:10px; font-weight:800; letter-spacing:.12em; }
+  .decision.no-signal .decision-kicker { color:var(--amber); }
+  .decision.caution .decision-kicker { color:var(--red); }
+  .decision-main { color:#eef3fa; font-size:14px; font-weight:650; line-height:1.55; }
+  .decision-side { color:var(--muted); font-size:10px; text-align:right; white-space:nowrap; }
+
+  .section-head { display:flex; align-items:end; justify-content:space-between; gap:16px; margin:22px 0 10px; }
+  .section-title { color:#eef2f8; font-size:14px; font-weight:700; }
+  .section-sub { margin-top:4px; color:var(--dim); font-size:10px; line-height:1.5; }
+  .candidate-group + .candidate-group { margin-top:14px; }
+  .group-title {
+    display:flex; align-items:center; gap:8px; margin:0 0 7px; color:var(--muted);
+    font-size:11px; font-weight:700; letter-spacing:.05em;
+  }
+  .group-dot { width:7px; height:7px; border-radius:50%; background:var(--dim); }
+  .group-dot.confirmed { background:var(--green); box-shadow:0 0 10px #58c59a88; }
+  .group-dot.emerging { background:var(--blue); box-shadow:0 0 10px #66a8ff77; }
+  .group-dot.watch { background:var(--violet); }
+  .group-dot.avoid { background:var(--red); }
+  .candidate-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(292px,1fr)); gap:10px; }
+  .candidate-card {
+    position:relative; min-width:0; overflow:hidden; padding:15px; border:1px solid var(--line);
+    border-radius:10px; background:linear-gradient(150deg,#18212c,#111720);
+  }
+  .candidate-card::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--dim); }
+  .candidate-card.confirmed::before { background:var(--green); }
+  .candidate-card.emerging::before { background:var(--blue); }
+  .candidate-card.watch::before { background:var(--violet); }
+  .candidate-card.avoid::before { background:var(--red); }
+  .card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .etf-name { color:#f1f4f8; font-size:15px; font-weight:720; }
+  .etf-code { margin-left:5px; color:var(--amber); font:500 11px/1.2 "SF Mono",Menlo,monospace; }
+  .etf-link { color:inherit; text-decoration:none; }
+  .etf-link:hover { color:var(--blue); text-decoration:underline; }
+  .industry-line { margin-top:4px; color:var(--muted); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stage {
+    display:inline-flex; align-items:center; height:21px; padding:0 8px; border:1px solid var(--line);
+    border-radius:10px; color:var(--muted); background:#0c1118; font-size:10px; font-weight:700; white-space:nowrap;
+  }
+  .stage.confirmed { color:var(--green); border-color:#58c59a66; background:#173328; }
+  .stage.emerging { color:var(--blue); border-color:#66a8ff55; background:#162a40; }
+  .stage.watch { color:var(--violet); border-color:#a98af755; background:#251f3a; }
+  .stage.avoid { color:var(--red); border-color:#ef6b7355; background:#361c22; }
+  .hero-metrics { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:14px 0 11px; }
+  .hero-metric { padding:9px 10px; border:1px solid #25303f; border-radius:8px; background:#0e141d; }
+  .metric-label { color:var(--dim); font-size:9px; letter-spacing:.04em; }
+  .metric-value { margin-top:4px; color:#eff3f8; font:700 19px/1.15 "SF Mono",Menlo,monospace; }
+  .metric-value.calibrating { color:var(--amber); font-family:inherit; font-size:14px; line-height:22px; }
+  .metric-value.score { color:var(--blue); }
+  .metric-note { margin-top:3px; color:var(--dim); font-size:9px; }
+  .signal-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
+  .signal-box { min-width:0; padding:6px; border-radius:6px; background:#0f151e; text-align:center; }
+  .signal-name { color:var(--dim); font-size:8px; }
+  .signal-number { margin-top:3px; color:#cbd3df; font:600 11px/1.2 "SF Mono",Menlo,monospace; }
+  .card-facts { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:9px; }
+  .fact { min-width:0; padding-top:7px; border-top:1px solid #242e3c; }
+  .fact-label { color:var(--dim); font-size:8px; }
+  .fact-value { margin-top:3px; color:#b9c3d1; font-size:10px; line-height:1.4; overflow-wrap:anywhere; }
+  .evidence { display:flex; flex-wrap:wrap; gap:4px; margin-top:9px; }
+  .evidence span { padding:2px 6px; border:1px solid #2b394a; border-radius:8px; color:#8797aa; background:#111923; font-size:9px; }
+  .invalidation { margin-top:9px; padding:8px 9px; border-radius:7px; background:#24191d; color:#c9878e; font-size:9px; line-height:1.5; }
+  .empty {
+    display:none; padding:28px 18px; border:1px dashed #394452; border-radius:10px;
+    background:#111720aa; text-align:center;
+  }
+  .empty.show { display:block; }
+  .empty strong { display:block; color:#dde3ec; font-size:14px; }
+  .empty span { display:block; margin-top:7px; color:var(--muted); font-size:11px; line-height:1.6; }
+
+  .filters { display:flex; flex-wrap:wrap; gap:5px; }
+  .filter {
+    cursor:pointer; padding:5px 9px; border:1px solid var(--line); border-radius:8px;
+    background:#111720; color:var(--muted); font-size:10px;
+  }
+  .filter:hover { color:#d9e2ef; border-color:#46576d; }
+  .filter.active { color:#dce9fb; border-color:#456d9e; background:#17263a; }
+  .filter b { margin-left:3px; color:inherit; }
+  .table-wrap { overflow:auto; max-height:56vh; border:1px solid var(--line); border-radius:10px; background:#10161f; }
+  table { width:100%; min-width:1280px; border-collapse:collapse; font-size:10px; }
+  th {
+    position:sticky; z-index:2; top:0; padding:9px 8px; border-bottom:1px solid #344052;
+    background:#171e28; color:#6f7c8f; font-size:9px; font-weight:700; text-align:right; white-space:nowrap;
+  }
+  th:first-child,td:first-child,th:nth-child(11),td:nth-child(11),th:last-child,td:last-child { text-align:left; }
+  th.sortable { cursor:pointer; user-select:none; }
+  th.sortable:hover,th.active { color:var(--blue); }
+  td { padding:8px; border-bottom:1px solid #1d2632; color:#aab5c3; text-align:right; vertical-align:top; white-space:nowrap; }
+  tr.data-row:hover td { background:#151d28; }
+  .table-stage-row td {
+    position:sticky; z-index:1; top:28px; padding:6px 8px; background:#101822;
+    color:#69778a; font-size:9px; font-weight:700; text-align:left !important; letter-spacing:.06em;
+  }
+  .cell-main { color:#d9e0e9; font-weight:650; }
+  .cell-sub { margin-top:3px; color:#5f6d80; font-size:9px; }
+  .probability { color:var(--green); font-family:"SF Mono",Menlo,monospace; font-weight:700; }
+  .probability.pending { color:var(--amber); font-family:inherit; }
+  .score-cell { color:var(--blue); font-family:"SF Mono",Menlo,monospace; font-weight:700; }
+  .positive { color:var(--red); } .negative { color:var(--green); }
+  .quality-pair { line-height:1.45; }
+  .wrap { max-width:210px; white-space:normal; line-height:1.45; overflow-wrap:anywhere; }
+  .footnote { margin-top:12px; color:#566276; font-size:10px; line-height:1.75; }
+  .error { padding:40px 16px; color:var(--red); text-align:center; line-height:1.7; }
+
+  @media (max-width:900px) {
+    .shell { padding:18px 14px 26px; }
+    .masthead { display:block; }
+    .headline-note { margin-top:8px; text-align:left; }
+    .status-grid { grid-template-columns:1fr 1fr; }
+    .decision { grid-template-columns:1fr; }
+    .decision-side { text-align:left; }
+  }
+  @media (max-width:560px) {
+    .status-grid { grid-template-columns:1fr; }
+    .candidate-grid { grid-template-columns:1fr; }
+    .section-head { display:block; }
+    .filters { margin-top:9px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">SELECTIVE SIGNAL · 5D</div>
+      <h1>ETF热点候选与确认</h1>
+    </div>
+    <div class="headline-note">预测不是每日必答题。只有资金需求、扩散、相对强弱与可交易性共同达标时，才进入可行动候选。</div>
+  </header>
+
+  <div class="legacy-banner" id="legacyBanner">
+    <strong>旧模型 · 仅观察</strong>　当前数据仍是行业启动分 V2，未提供经过校准的 ETF 级命中概率。页面仅作信号观察，不应视为交易候选。
+  </div>
+
+  <section class="status-grid" aria-label="预测状态">
+    <div class="status-card">
+      <div class="status-label">数据日期 / 新鲜度</div>
+      <div class="status-value" id="dateValue">加载中</div>
+      <div class="status-detail" id="dateDetail">—</div>
+    </div>
+    <div class="status-card">
+      <div class="status-label">市场环境</div>
+      <div class="status-value" id="regimeValue">—</div>
+      <div class="status-detail" id="regimeDetail">—</div>
+    </div>
+    <div class="status-card">
+      <div class="status-label">概率校准</div>
+      <div class="status-value" id="calibrationValue">—</div>
+      <div class="status-detail" id="calibrationDetail">—</div>
+    </div>
+    <div class="status-card">
+      <div class="status-label">整体数据可信度</div>
+      <div class="status-value" id="qualityValue">—</div>
+      <div class="status-detail" id="qualityDetail">载体匹配度在每只 ETF 中单独展示</div>
+    </div>
+  </section>
+
+  <section class="decision" id="decisionBanner">
+    <div class="decision-kicker">今日决策</div>
+    <div class="decision-main" id="decisionMessage">正在读取模型结论…</div>
+    <div class="decision-side" id="decisionSide">允许无信号</div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div>
+        <div class="section-title" id="candidateTitle">ETF级候选</div>
+        <div class="section-sub">按确认、萌芽、观察、回避分组；数量由有效信号决定，不固定 Top10。</div>
+      </div>
+    </div>
+    <div id="candidateGroups"></div>
+    <div class="empty" id="candidateEmpty">
+      <strong>今日没有通过门槛的 ETF 热点</strong>
+      <span id="emptyReason">保持空仓观察也是有效决策；等待风险环境与资金扩散重新共振。</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div>
+        <div class="section-title" id="tableTitle">ETF信号全表</div>
+        <div class="section-sub">每只 ETF 仅一行；行业分类作为解释证据，不再把同一 ETF 重复推荐。</div>
+      </div>
+      <div class="filters" id="filters"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th class="sortable" data-sort="etf">ETF</th>
+          <th class="sortable" data-sort="stage">阶段</th>
+          <th class="sortable" data-sort="probability">5日命中概率</th>
+          <th class="sortable active" data-sort="score">机会分 ↓</th>
+          <th class="sortable" data-sort="relative_strength">相对强弱</th>
+          <th>ETF份额变化</th>
+          <th class="sortable" data-sort="diffusion">扩散</th>
+          <th class="sortable" data-sort="risk">风险</th>
+          <th>数据可信度</th>
+          <th>载体匹配度</th>
+          <th>关联行业</th>
+          <th>失效条件</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="footnote" id="footnote">
+      机会分用于排序，不等于收益率或命中概率；5日命中概率只有在样本外校准完成后才显示。数据可信度衡量输入完整性，载体匹配度衡量行业信号能否由该 ETF 准确承载，两者不可混用。
+    </div>
+  </section>
+</main>
+
+<script>
+var DATA = null;
+var VIEW = null;
+var activeStage = 'all';
+var sortState = {key:'score', dir:'desc'};
+var STAGE_ORDER = ['confirmed','emerging','watch','avoid','insufficient'];
+var STAGES = {
+  confirmed:{label:'确认', note:'多维证据已确认'},
+  emerging:{label:'萌芽', note:'早期改善，等待确认'},
+  watch:{label:'观察', note:'证据不足或赔率一般'},
+  avoid:{label:'回避', note:'风险或拥挤度过高'},
+  insufficient:{label:'数据不足', note:'不参与决策'}
+};
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+function finite(value) {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
+  var n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function clamp(value, lo, hi) { return Math.max(lo, Math.min(hi, value)); }
+function firstValue(obj, keys) {
+  if (!obj || typeof obj !== 'object') return null;
+  for (var i=0;i<keys.length;i++) {
+    var value = obj[keys[i]];
+    if (value !== null && value !== undefined && value !== '') return value;
+  }
+  return null;
+}
+function textValue(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(' · ');
+  if (value && typeof value === 'object') {
+    return firstValue(value,['label','message','reason','detail','description','status']) || '';
+  }
+  return value == null ? '' : String(value);
+}
+function fmtNumber(value, digits) {
+  var n = finite(value);
+  return n === null ? '—' : n.toFixed(digits == null ? 0 : digits);
+}
+function fmtPct(value, signed) {
+  var n = finite(value);
+  if (n === null) return '—';
+  return (signed && n > 0 ? '+' : '') + n.toFixed(1) + '%';
+}
+function pctClass(value) {
+  var n = finite(value);
+  return n === null ? '' : (n > 0 ? 'positive' : (n < 0 ? 'negative' : ''));
+}
+function normaliseDate(value) {
+  var s = String(value || '').replace(/[^\d]/g,'');
+  if (s.length !== 8) return String(value || '—');
+  return s.slice(0,4) + '-' + s.slice(4,6) + '-' + s.slice(6,8);
+}
+function freshness(value) {
+  var s = normaliseDate(value);
+  var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!match) return {label:'日期未知', cls:'stale', days:null};
+  var then = new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+  var now = new Date();
+  var today = new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  var days = Math.max(0,Math.floor((today-then)/86400000));
+  if (days <= 1) return {label:'数据新鲜', cls:'fresh', days:days};
+  if (days <= 3) return {label:'近期数据', cls:'recent', days:days};
+  return {label:'数据已滞后', cls:'stale', days:days};
+}
+function etfObject(row) {
+  var etf = row && row.etf;
+  if (etf && typeof etf === 'object') return etf;
+  return {
+    code:firstValue(row || {},['etf_code','code']) || '',
+    name:(typeof etf === 'string' ? etf : firstValue(row || {},['etf_name','name'])) || ''
+  };
+}
+function etfKey(row, index) {
+  var etf = etfObject(row || {});
+  return String(etf.code || '').replace(/[^\d]/g,'') || String(etf.name || '') || 'row-' + index;
+}
+function etfLink(etf, content) {
+  var code = String((etf || {}).code || '').replace(/[^\d]/g,'');
+  if (!code) return content || '—';
+  return '<a class="etf-link" href="https://stockpage.10jqka.com.cn/' + code
+    + '/" target="_blank" rel="noopener noreferrer" title="在同花顺打开">'
+    + (content || escapeHtml(code)) + '</a>';
+}
+function normaliseStage(stage) {
+  var value = String(stage || '').toLowerCase();
+  var map = {
+    'confirmed':'confirmed','确认':'confirmed','启动':'confirmed','扩散':'confirmed',
+    'emerging':'emerging','萌芽':'emerging','潜伏':'emerging',
+    'watch':'watch','观察':'watch',
+    'avoid':'avoid','回避':'avoid','过热':'avoid',
+    'insufficient':'insufficient','数据不足':'insufficient'
+  };
+  return map[value] || 'watch';
+}
+function stageBadge(stage) {
+  var key = normaliseStage(stage);
+  return '<span class="stage ' + key + '">' + STAGES[key].label + '</span>';
+}
+function scoreOf(row) {
+  return finite(row && (row.opportunity_score !== undefined ? row.opportunity_score : row.score));
+}
+function scoreRank(row) {
+  var score = scoreOf(row);
+  return score === null ? -Infinity : score;
+}
+function metricObject(row, key) {
+  var value = ((row || {}).signals || {})[key];
+  return value && typeof value === 'object' ? value : null;
+}
+function metricNumber(row, key) {
+  var value = ((row || {}).signals || {})[key];
+  if (value && typeof value === 'object') {
+    return finite(firstValue(value,['score','value','percentile','strength']));
+  }
+  return finite(value);
+}
+function metricLabel(row, key) {
+  var value = ((row || {}).signals || {})[key];
+  if (value && typeof value === 'object') {
+    return textValue(firstValue(value,['label','status','detail','reason']));
+  }
+  return finite(value) === null ? textValue(value) : '';
+}
+function probabilityInfo(row, legacy) {
+  var prediction = (row || {}).prediction;
+  var p = prediction && typeof prediction === 'object' ? finite(prediction.probability) : null;
+  if (legacy || p === null || p < 0) {
+    return {
+      value:null, text:'校准中',
+      note:legacy ? '旧模型无概率' : textValue(firstValue(prediction || {},['reason','method','status']))
+    };
+  }
+  var scale = String(firstValue(prediction || {},['scale','unit']) || '').toLowerCase();
+  var pct = scale === 'ratio' || scale === 'proportion' ? p * 100 : p;
+  if (pct > 100) return {value:null, text:'校准中', note:'概率字段异常'};
+  return {
+    value:pct, text:pct.toFixed(0) + '%',
+    note:textValue(firstValue(prediction || {},['method','reason','status']))
+  };
+}
+function objectScore(value) {
+  if (value && typeof value === 'object') return finite(firstValue(value,['score','value','percentile']));
+  return finite(value);
+}
+function qualityInfo(value) {
+  var score = objectScore(value);
+  var label = textValue(value);
+  if (!label && value && typeof value === 'object') {
+    label = {high:'高',medium:'中',low:'低'}[String(value.state || '').toLowerCase()] || '';
+  }
+  if (!label && score !== null) label = score >= 80 ? '高' : (score >= 60 ? '中' : '低');
+  return {score:score, label:label || '—'};
+}
+function riskInfo(row) {
+  var risk = (row || {}).risk;
+  var score = objectScore(risk);
+  var label = textValue(risk);
+  var reasons = risk && typeof risk === 'object' ? listValues(risk.reasons) : [];
+  if (!label && risk && typeof risk === 'object') {
+    label = {
+      low:'低风险',watch:'风险观察',high:'高风险',danger:'危险'
+    }[String(risk.state || '').toLowerCase()] || '';
+  }
+  if (!label && score !== null) label = score >= 70 ? '高风险' : (score >= 40 ? '中风险' : '低风险');
+  return {score:score, label:label || '—', reasons:reasons};
+}
+function carrierInfo(row) {
+  var value = (row || {}).carrier_match;
+  var score = objectScore(value);
+  var label = textValue(value);
+  var detail = '';
+  if (value && typeof value === 'object') {
+    label = firstValue(value,['label','level_label','status','type']) || label;
+    detail = firstValue(value,['reason','detail','matched_industry','proxy_for']) || '';
+    if (!label && value.primary_level) {
+      label = {
+        sw3:'三级匹配',sw2:'二级回退',sw1:'一级回退',override:'手工匹配'
+      }[String(value.primary_level)] || String(value.primary_level);
+    }
+    if (!detail && finite(value.related_count) !== null) {
+      detail = '聚合 ' + finite(value.related_count).toFixed(0) + ' 个关联行业';
+    }
+  }
+  return {score:score, label:label || '—', detail:String(detail || '')};
+}
+function relatedIndustries(row) {
+  var values = row && row.related_industries;
+  if (Array.isArray(values)) values = values.slice();
+  else values = values ? [values] : [];
+  if (row && row.industry) values.unshift(row.industry);
+  var seen = {};
+  return values.map(function(v) {
+    return typeof v === 'object' ? firstValue(v,['name','industry','label']) : v;
+  }).filter(function(v) {
+    var key = String(v || '');
+    if (!key || seen[key]) return false;
+    seen[key] = true; return true;
+  });
+}
+function listValues(value) {
+  if (value === null || value === undefined || value === '') return [];
+  if (Array.isArray(value)) return value.reduce(function(all,v) { return all.concat(listValues(v)); },[]);
+  if (value && typeof value === 'object') {
+    var text = firstValue(value,['message','reason','label','detail','description']);
+    return text ? [String(text)] : [];
+  }
+  return [String(value)];
+}
+function demandShareChange(row) {
+  var demand = metricObject(row,'demand') || {};
+  var etf = etfObject(row);
+  var value = firstValue(demand,[
+    'etf_share_change_5d_pct','share_change_5d_pct','share_change_pct',
+    'etf_share_change','share_change'
+  ]);
+  if (value === null) value = firstValue(row || {},[
+    'share_change_pct','etf_share_change_5d_pct','share_change_5d_pct'
+  ]);
+  if (value === null) value = firstValue(etf,['share_change_5d_pct','share_change_pct']);
+  var number = finite(value);
+  if (number !== null) return {text:fmtPct(number,true), value:number};
+  var label = textValue(firstValue(demand,['share_change_label','detail','reason']));
+  return {text:label || '—', value:null};
+}
+function relativeStrengthDetail(row) {
+  var metric = metricObject(row,'relative_strength') || {};
+  var details = (row || {}).relative_strength;
+  if (details && typeof details === 'object') metric = Object.assign({},details,metric);
+  var value = firstValue(metric,[
+    'relative_5d','excess_return_5d','excess_return_5d_pct','relative_return_5d_pct','rs_5d'
+  ]);
+  if (finite(value) !== null) return fmtPct(finite(value),true) + ' 超额';
+  var score = metricNumber(row,'relative_strength');
+  return metricLabel(row,'relative_strength') || (score === null ? '—' : '强度评分 ' + score.toFixed(0));
+}
+function diffusionDetail(row) {
+  var metric = metricObject(row,'diffusion') || {};
+  var value = firstValue(metric,['breadth','breadth_pct','participation_pct','coverage_pct']);
+  if (finite(value) !== null) return fmtPct(finite(value),false) + ' 成分扩散';
+  var score = metricNumber(row,'diffusion');
+  return metricLabel(row,'diffusion') || (score === null ? '—' : '扩散评分 ' + score.toFixed(0));
+}
+function rowIdentity(row) {
+  var etf = etfObject(row);
+  var name = escapeHtml(etf.name || '未命名ETF');
+  var code = escapeHtml(etf.code || '');
+  return etfLink(etf,name + (code ? '<span class="etf-code">' + code + '</span>' : ''));
+}
+
+function adaptLegacy(raw) {
+  var sourceRows = (raw.industries || []).slice();
+  var byCode = {};
+  sourceRows.forEach(function(old,index) {
+    if (!old || !old.etf || !old.etf.code) return;
+    var key = etfKey(old,index);
+    var stage = normaliseStage(old.stage);
+    var legacy = {
+      opportunity_score:finite(old.score),
+      stage:stage,
+      etf:old.etf,
+      industry:old.industry,
+      related_industries:[old.industry],
+      signals:{
+        regime:null,
+        demand:finite((old.signals || {}).capital),
+        diffusion:finite((old.signals || {}).breadth),
+        relative_strength:finite((old.signals || {}).confirmation),
+        tradability:finite((old.signals || {}).quality)
+      },
+      risk:{label:(old.penalty_reasons || []).length ? '存在扣分' : '—'},
+      prediction:{probability:null,status:'legacy_unavailable'},
+      data_quality:{score:finite(old.confidence),label:old.confidence_label || ''},
+      carrier_match:legacyCarrier(old.etf),
+      evidence:(old.tags || []).slice(),
+      invalidation:(old.penalty_reasons || []).slice(),
+      _legacy:true
+    };
+    if (!byCode[key] || scoreRank(legacy) > scoreRank(byCode[key])) {
+      if (byCode[key]) legacy.related_industries = legacy.related_industries.concat(byCode[key].related_industries || []);
+      byCode[key] = legacy;
+    } else {
+      byCode[key].related_industries.push(old.industry);
+    }
+  });
+  var rows = Object.keys(byCode).map(function(k) { return byCode[k]; });
+  var topCodes = {};
+  (raw.top || []).forEach(function(r,i) { topCodes[etfKey(r,i)] = true; });
+  var top = rows.filter(function(r,i) { return topCodes[etfKey(r,i)]; });
+  return {
+    legacy:true, raw:raw, modelVersion:'V2 旧模型', date:raw.date, etfDate:raw.etf_date || raw.date,
+    decisionStatus:'observation_only',
+    actionableMessage:'旧模型只提供行业启动观察，尚无可验证的 ETF 级命中概率。',
+    regime:{label:'旧模型未提供'},
+    calibration:{status:'legacy_unavailable',message:'未校准'},
+    dataQuality:{label:'旧口径'},
+    rows:rows, top:top
+  };
+}
+function legacyCarrier(etf) {
+  var level = (etf || {}).match_level || 'sw3';
+  if (level === 'override') return {label:'手工匹配',detail:(etf || {}).matched_industry || ''};
+  if (level === 'sw2') return {label:'二级回退',detail:(etf || {}).matched_industry || ''};
+  if (level === 'sw1') return {label:'一级回退',detail:(etf || {}).matched_industry || ''};
+  return {label:'三级匹配',detail:(etf || {}).matched_industry || ''};
+}
+function mergeUniqueRows(rows) {
+  var byKey = {};
+  (rows || []).forEach(function(row,index) {
+    if (!row || typeof row !== 'object') return;
+    var key = etfKey(row,index);
+    if (!byKey[key]) {
+      var copy = Object.assign({},row);
+      copy.related_industries = relatedIndustries(row);
+      byKey[key] = copy;
+      return;
+    }
+    var existing = byKey[key];
+    existing.related_industries = relatedIndustries(existing).concat(relatedIndustries(row));
+    existing.related_industries = relatedIndustries(existing);
+    if (scoreRank(row) > scoreRank(existing)) {
+      var industries = existing.related_industries.slice();
+      byKey[key] = Object.assign({},row,{related_industries:industries});
+    }
+  });
+  return Object.keys(byKey).map(function(key) { return byKey[key]; });
+}
+function normaliseV3(raw) {
+  var rows = mergeUniqueRows(raw.etfs || []);
+  var lookup = {};
+  rows.forEach(function(row,index) { lookup[etfKey(row,index)] = row; });
+  var top = [];
+  (raw.top || []).forEach(function(item,index) {
+    var row = null;
+    if (item && typeof item === 'object') {
+      var key = etfKey(item,index);
+      row = lookup[key] ? Object.assign({},lookup[key],item) : item;
+    } else {
+      row = lookup[String(item || '').replace(/[^\d]/g,'')];
+    }
+    if (row) top.push(row);
+  });
+  top = mergeUniqueRows(top);
+  return {
+    legacy:false, raw:raw, modelVersion:raw.model_version || 'ETF Hotspot V3',
+    date:raw.date, etfDate:raw.etf_date || raw.date,
+    decisionStatus:raw.decision_status || 'unknown',
+    actionableMessage:raw.actionable_message || '',
+    regime:raw.regime || {},
+    calibration:raw.calibration || {},
+    dataQuality:raw.data_quality || {},
+    rows:rows, top:top
+  };
+}
+function normalise(raw) {
+  var version = String((raw || {}).model_version || '').toLowerCase();
+  var isV3 = version.indexOf('v3') >= 0 || Array.isArray((raw || {}).etfs)
+    || Object.prototype.hasOwnProperty.call(raw || {},'decision_status');
+  return isV3 ? normaliseV3(raw || {}) : adaptLegacy(raw || {});
+}
+
+function statusText(value, fallback) {
+  var text = textValue(value);
+  return text || fallback || '—';
+}
+function regimeLabel(value) {
+  var key = String(value || '').toLowerCase();
+  return {
+    supportive:'风险环境支持',heated:'市场偏热',cautious:'谨慎选择',
+    risk_off:'风险关闭',overheated:'市场过热',unknown:'环境未判定',
+    fresh:'数据新鲜',stale:'数据陈旧',missing:'数据缺失'
+  }[key] || String(value || '');
+}
+function renderStatus() {
+  var f = freshness(VIEW.etfDate || VIEW.date);
+  document.getElementById('dateValue').innerHTML =
+    '<span class="' + f.cls + '">' + escapeHtml(f.label) + '</span>';
+  document.getElementById('dateDetail').textContent =
+    '信号 ' + normaliseDate(VIEW.date) + ' · ETF行情 ' + normaliseDate(VIEW.etfDate)
+    + (f.days === null ? '' : ' · 距今 ' + f.days + ' 天');
+
+  var regime = VIEW.regime || {};
+  var regimeState = firstValue(regime,['label','regime','state','name','status']);
+  document.getElementById('regimeValue').textContent = regimeLabel(regimeState) || '未判定';
+  document.getElementById('regimeDetail').textContent =
+    statusText(firstValue(regime,['message','reason','detail','description']),'市场环境用于决定是否允许承担风险');
+
+  var calibration = VIEW.calibration || {};
+  var calStatus = String(firstValue(calibration,['status','state']) || '').toLowerCase();
+  var ready = calStatus === 'ready' || calStatus === 'calibrated' || calStatus === 'ok'
+    || calibration.is_calibrated === true;
+  document.getElementById('calibrationValue').textContent = ready ? '已校准' : '校准中';
+  document.getElementById('calibrationValue').className = 'status-value ' + (ready ? 'fresh' : 'recent');
+  var sampleSize = finite(firstValue(calibration,['sample_size','n','observations']));
+  var calDetail = firstValue(calibration,['message','detail','reason']);
+  document.getElementById('calibrationDetail').textContent =
+    statusText(calDetail,(sampleSize === null ? '概率不足时不显示伪百分比' : '样本 ' + sampleSize.toFixed(0) + ' 条'));
+
+  var quality = qualityInfo(VIEW.dataQuality);
+  document.getElementById('qualityValue').textContent =
+    quality.label + (quality.score === null ? '' : ' · ' + quality.score.toFixed(0));
+  var qualityDetail = VIEW.dataQuality && typeof VIEW.dataQuality === 'object'
+    ? firstValue(VIEW.dataQuality,['message','detail','reason','coverage_label']) : null;
+  document.getElementById('qualityDetail').textContent =
+    statusText(qualityDetail,'输入完整性；载体匹配度在每只 ETF 中单独展示');
+
+  document.getElementById('legacyBanner').classList.toggle('show',VIEW.legacy);
+  var decision = document.getElementById('decisionBanner');
+  var status = String(VIEW.decisionStatus || '').toLowerCase();
+  var noSignal = [
+    'no_signal','no_high_quality_signal','none','wait','abstain',
+    'observation_only','insufficient','insufficient_data'
+  ].indexOf(status) >= 0;
+  var caution = ['avoid','risk_off','blocked'].indexOf(status) >= 0;
+  decision.className = 'decision' + (noSignal ? ' no-signal' : (caution ? ' caution' : ''));
+  document.getElementById('decisionMessage').textContent =
+    VIEW.actionableMessage || (noSignal ? '今日没有满足门槛的候选，继续观察。' : '模型未提供明确行动信息。');
+  document.getElementById('decisionSide').textContent =
+    (VIEW.legacy ? '旧模型 · 仅观察' : statusText(VIEW.modelVersion,'V3')) + ' · 允许无信号';
+}
+function signalBox(row,key,label) {
+  var value = metricNumber(row,key);
+  var detail = metricLabel(row,key);
+  return '<div class="signal-box"><div class="signal-name">' + label + '</div><div class="signal-number"'
+    + (detail ? ' title="' + escapeHtml(detail) + '"' : '') + '>' + fmtNumber(value,0) + '</div></div>';
+}
+function candidateCard(row) {
+  var stage = normaliseStage(row.stage);
+  var probability = probabilityInfo(row,VIEW.legacy);
+  var risk = riskInfo(row);
+  var demand = demandShareChange(row);
+  var carrier = carrierInfo(row);
+  var quality = qualityInfo(row.data_quality);
+  var evidence = listValues(row.evidence);
+  var invalidation = listValues(row.invalidation);
+  var industries = relatedIndustries(row);
+  var h = '<article class="candidate-card ' + stage + '"><div class="card-top"><div>';
+  h += '<div class="etf-name">' + rowIdentity(row) + '</div>';
+  h += '<div class="industry-line" title="' + escapeHtml(industries.join(' · ')) + '">'
+    + escapeHtml(industries.length ? industries.join(' · ') : '未提供关联行业') + '</div></div>';
+  h += stageBadge(stage) + '</div><div class="hero-metrics">';
+  h += '<div class="hero-metric"><div class="metric-label">未来5日命中概率</div><div class="metric-value'
+    + (probability.value === null ? ' calibrating' : '') + '">' + escapeHtml(probability.text) + '</div>'
+    + '<div class="metric-note">' + escapeHtml(probability.note || (probability.value === null ? '暂不输出概率' : '样本外校准')) + '</div></div>';
+  h += '<div class="hero-metric"><div class="metric-label">机会分 · 仅排序</div><div class="metric-value score">'
+    + fmtNumber(scoreOf(row),1) + '</div><div class="metric-note">不等于预测收益率</div></div></div>';
+  h += '<div class="signal-grid">' + signalBox(row,'relative_strength','相对强弱')
+    + signalBox(row,'demand','资金需求') + signalBox(row,'diffusion','扩散')
+    + signalBox(row,'tradability','可交易') + '</div>';
+  h += '<div class="card-facts">';
+  h += '<div class="fact"><div class="fact-label">相对强弱</div><div class="fact-value">' + escapeHtml(relativeStrengthDetail(row)) + '</div></div>';
+  h += '<div class="fact"><div class="fact-label">ETF份额变化</div><div class="fact-value ' + pctClass(demand.value) + '">' + escapeHtml(demand.text) + '</div></div>';
+  h += '<div class="fact"><div class="fact-label">扩散状态</div><div class="fact-value">' + escapeHtml(diffusionDetail(row)) + '</div></div>';
+  h += '<div class="fact"><div class="fact-label">风险</div><div class="fact-value">' + escapeHtml(risk.label)
+    + (risk.score === null ? '' : ' · ' + risk.score.toFixed(0))
+    + (risk.reasons.length ? '<br>' + escapeHtml(risk.reasons.slice(0,2).join('；')) : '') + '</div></div>';
+  h += '<div class="fact"><div class="fact-label">数据可信度</div><div class="fact-value">' + escapeHtml(quality.label) + (quality.score === null ? '' : ' · ' + quality.score.toFixed(0)) + '</div></div>';
+  h += '<div class="fact"><div class="fact-label">代理映射 / 载体匹配</div><div class="fact-value">' + escapeHtml(carrier.label)
+    + (carrier.score === null ? '' : ' · ' + carrier.score.toFixed(0)) + (carrier.detail ? '<br>' + escapeHtml(carrier.detail) : '') + '</div></div></div>';
+  if (evidence.length) h += '<div class="evidence">' + evidence.map(function(v){return '<span>' + escapeHtml(v) + '</span>';}).join('') + '</div>';
+  h += '<div class="invalidation"><strong>失效条件：</strong> '
+    + escapeHtml(invalidation.length ? invalidation.join('；') : '—') + '</div></article>';
+  return h;
+}
+function renderCandidates() {
+  var target = document.getElementById('candidateGroups');
+  var empty = document.getElementById('candidateEmpty');
+  var rows = VIEW.top || [];
+  if (!rows.length) {
+    target.innerHTML = '';
+    empty.classList.add('show');
+    document.getElementById('emptyReason').textContent =
+      VIEW.actionableMessage || '保持空仓观察也是有效决策；等待风险环境与资金扩散重新共振。';
+    document.getElementById('candidateTitle').textContent = 'ETF级候选 · 0';
+    return;
+  }
+  empty.classList.remove('show');
+  var grouped = {};
+  rows.forEach(function(row) {
+    var stage = normaliseStage(row.stage);
+    (grouped[stage] || (grouped[stage]=[])).push(row);
+  });
+  var h = '';
+  STAGE_ORDER.forEach(function(stage) {
+    var group = grouped[stage] || [];
+    if (!group.length) return;
+    h += '<div class="candidate-group"><div class="group-title"><span class="group-dot ' + stage + '"></span>'
+      + STAGES[stage].label + ' · ' + group.length + '<span>／ ' + STAGES[stage].note + '</span></div>';
+    h += '<div class="candidate-grid">' + group.map(candidateCard).join('') + '</div></div>';
+  });
+  target.innerHTML = h;
+  document.getElementById('candidateTitle').textContent = 'ETF级候选 · ' + rows.length;
+}
+function sortValue(row,key) {
+  if (key === 'etf') {
+    var etf = etfObject(row); return String(etf.name || etf.code || '');
+  }
+  if (key === 'stage') return STAGE_ORDER.indexOf(normaliseStage(row.stage));
+  if (key === 'score') return scoreOf(row);
+  if (key === 'probability') return probabilityInfo(row,VIEW.legacy).value;
+  if (key === 'risk') return riskInfo(row).score;
+  return metricNumber(row,key);
+}
+function sortedRows(rows) {
+  var key = sortState.key, dir = sortState.dir;
+  return rows.slice().sort(function(a,b) {
+    var av = sortValue(a,key), bv = sortValue(b,key);
+    if (typeof av === 'string' || typeof bv === 'string') {
+      return dir === 'asc' ? String(av || '').localeCompare(String(bv || ''),'zh-CN')
+        : String(bv || '').localeCompare(String(av || ''),'zh-CN');
+    }
+    if (av === null || av === undefined) return 1;
+    if (bv === null || bv === undefined) return -1;
+    return dir === 'asc' ? av-bv : bv-av;
+  });
+}
+function renderFilters() {
+  var counts = {all:VIEW.rows.length};
+  STAGE_ORDER.forEach(function(s){counts[s]=0;});
+  VIEW.rows.forEach(function(row){counts[normaliseStage(row.stage)]++;});
+  var keys = ['all'].concat(STAGE_ORDER);
+  document.getElementById('filters').innerHTML = keys.map(function(key) {
+    var label = key === 'all' ? '全部' : STAGES[key].label;
+    return '<button class="filter' + (activeStage===key?' active':'') + '" data-stage="' + key + '">'
+      + label + '<b>' + counts[key] + '</b></button>';
+  }).join('');
+}
+function tableRow(row) {
+  var probability = probabilityInfo(row,VIEW.legacy);
+  var rs = metricNumber(row,'relative_strength');
+  var diffusion = metricNumber(row,'diffusion');
+  var risk = riskInfo(row);
+  var quality = qualityInfo(row.data_quality);
+  var carrier = carrierInfo(row);
+  var demand = demandShareChange(row);
+  var industries = relatedIndustries(row);
+  var invalidation = listValues(row.invalidation);
+  var h = '<tr class="data-row"><td><div class="cell-main">' + rowIdentity(row) + '</div></td>';
+  h += '<td>' + stageBadge(row.stage) + '</td>';
+  h += '<td class="probability' + (probability.value===null?' pending':'') + '">' + escapeHtml(probability.text)
+    + (probability.note ? '<div class="cell-sub">' + escapeHtml(probability.note) + '</div>' : '') + '</td>';
+  h += '<td class="score-cell">' + fmtNumber(scoreOf(row),1) + '</td>';
+  h += '<td>' + fmtNumber(rs,0) + '<div class="cell-sub">' + escapeHtml(relativeStrengthDetail(row)) + '</div></td>';
+  h += '<td class="' + pctClass(demand.value) + '">' + escapeHtml(demand.text) + '</td>';
+  h += '<td>' + fmtNumber(diffusion,0) + '<div class="cell-sub">' + escapeHtml(diffusionDetail(row)) + '</div></td>';
+  h += '<td>' + escapeHtml(risk.label) + (risk.score===null?'':' · '+risk.score.toFixed(0)) + '</td>';
+  h += '<td class="quality-pair">' + escapeHtml(quality.label) + (quality.score===null?'':' · '+quality.score.toFixed(0)) + '</td>';
+  h += '<td class="quality-pair">' + escapeHtml(carrier.label) + (carrier.score===null?'':' · '+carrier.score.toFixed(0))
+    + (carrier.detail?'<div class="cell-sub">'+escapeHtml(carrier.detail)+'</div>':'') + '</td>';
+  h += '<td class="wrap">' + escapeHtml(industries.length ? industries.join(' · ') : '—') + '</td>';
+  h += '<td class="wrap">' + escapeHtml(invalidation.length ? invalidation.join('；') : '—') + '</td></tr>';
+  return h;
+}
+function renderTable() {
+  var source = activeStage === 'all' ? VIEW.rows : VIEW.rows.filter(function(row) {
+    return normaliseStage(row.stage) === activeStage;
+  });
+  var grouped = {};
+  source.forEach(function(row) {
+    var stage = normaliseStage(row.stage);
+    (grouped[stage] || (grouped[stage]=[])).push(row);
+  });
+  var h = '';
+  STAGE_ORDER.forEach(function(stage) {
+    var rows = grouped[stage] || [];
+    if (!rows.length) return;
+    h += '<tr class="table-stage-row"><td colspan="12">' + STAGES[stage].label + ' · ' + rows.length
+      + '　' + STAGES[stage].note + '</td></tr>';
+    h += sortedRows(rows).map(tableRow).join('');
+  });
+  if (!h) h = '<tr><td colspan="12"><div class="error">该分组暂无 ETF</div></td></tr>';
+  document.getElementById('tbody').innerHTML = h;
+  document.getElementById('tableTitle').textContent = 'ETF信号全表 · ' + VIEW.rows.length + ' 只唯一ETF';
+}
+function renderSortHeaders() {
+  document.querySelectorAll('th.sortable').forEach(function(th) {
+    var active = th.getAttribute('data-sort') === sortState.key;
+    th.classList.toggle('active',active);
+    var base = th.textContent.replace(/\s[↑↓]$/,'');
+    th.textContent = base + (active ? (sortState.dir==='desc'?' ↓':' ↑') : '');
+  });
+}
+function render() {
+  VIEW = normalise(DATA);
+  renderStatus();
+  renderCandidates();
+  renderFilters();
+  renderTable();
+  renderSortHeaders();
+  var updated = firstValue(DATA || {},['updated_at','generated_at','as_of']);
+  if (updated) document.getElementById('footnote').innerHTML += '<br>模型数据更新于 ' + escapeHtml(updated) + '。';
+}
+async function load() {
+  try {
+    var response = await fetch('/etf_recommend_sw3.json?_=' + Date.now(),{cache:'no-store'});
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    DATA = await response.json();
+    render();
+  } catch (error) {
+    document.getElementById('dateValue').textContent = '加载失败';
+    document.getElementById('dateDetail').textContent = '未取得 ETF 热点数据';
+    document.getElementById('decisionMessage').textContent = 'ETF热点数据加载失败，请先完成数据更新后重试。';
+    document.getElementById('candidateGroups').innerHTML = '';
+    document.getElementById('candidateEmpty').classList.add('show');
+    document.getElementById('emptyReason').textContent = '请在数据更新中勾选「ETF 推荐」，或运行 etf_recommend.py。';
+    document.getElementById('tbody').innerHTML =
+      '<tr><td colspan="12"><div class="error">ETF热点数据尚未生成或格式无效<br><small>'
+      + escapeHtml(error && error.message ? error.message : '未知错误') + '</small></div></td></tr>';
+  }
+}
+document.addEventListener('click',function(event) {
+  var filter = event.target.closest('.filter');
+  if (filter) {
+    activeStage = filter.getAttribute('data-stage') || 'all';
+    renderFilters(); renderTable(); return;
+  }
+  var th = event.target.closest('th.sortable');
+  if (th) {
+    var key = th.getAttribute('data-sort');
+    sortState = sortState.key === key
+      ? {key:key,dir:sortState.dir==='desc'?'asc':'desc'}
+      : {key:key,dir:(key==='etf'||key==='stage')?'asc':'desc'};
+    renderTable(); renderSortHeaders();
+  }
+});
+load();
+</script>
+<script src="/page-guide.js" defer></script>
+</body>
+</html>

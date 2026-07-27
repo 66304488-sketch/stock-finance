@@ -8,7 +8,7 @@
  * 4. 退出时清理
  */
 
-import { ChildProcess, spawn, execSync, execFileSync } from "child_process";
+import { ChildProcess, spawn, execFileSync } from "child_process";
 import * as path from "path";
 import * as http from "http";
 import * as fs from "fs";
@@ -20,14 +20,33 @@ interface RunResult {
   exitCode: number | null;
 }
 
+interface PythonPaths {
+  resourceStaticDir: string;
+  dataDir: string;
+  userDataDir: string;
+}
+
 export class PythonManager {
   private serverProcess: ChildProcess | null = null;
   private projectRoot: string;
+  private paths: PythonPaths;
   private pythonCmd: string;
 
-  constructor(projectRoot: string) {
+  constructor(projectRoot: string, paths: PythonPaths) {
     this.projectRoot = projectRoot;
+    this.paths = paths;
     this.pythonCmd = this.findPython();
+  }
+
+  private getPythonEnv(): NodeJS.ProcessEnv {
+    return {
+      ...process.env,
+      PYTHONUNBUFFERED: "1",
+      PYTHONDONTWRITEBYTECODE: "1",
+      STOCK_FINANCE_RESOURCE_DIR: this.paths.resourceStaticDir,
+      STOCK_FINANCE_DATA_DIR: this.paths.dataDir,
+      STOCK_FINANCE_USER_DATA_DIR: this.paths.userDataDir,
+    };
   }
 
   /** 查找可用的 Python（优先用 pip 安装了依赖的） */
@@ -39,25 +58,30 @@ export class PythonManager {
       "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3",
       "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
       "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+      "python3",
+      "python",
     ];
-    // 先试具体路径，再试 PATH 中的
-    for (const cmd of candidates) {
+    const dependencyCheck = "import fastapi, uvicorn, akshare, pandas, requests, httpx, openpyxl, baostock; from akshare.stock.stock_share_changes_cninfo import py_mini_racer";
+    let firstExecutable: string | null = null;
+    for (const cmd of Array.from(new Set(candidates))) {
       try {
         execFileSync(cmd, ["--version"], { stdio: "pipe" });
-        return cmd;
+        firstExecutable ||= cmd;
       } catch {
         continue;
       }
-    }
-    for (const cmd of ["python3", "python"]) {
       try {
-        execSync(`${cmd} --version`, { stdio: "pipe" });
+        execFileSync(cmd, ["-c", dependencyCheck], {
+          cwd: this.projectRoot,
+          stdio: "pipe",
+          timeout: 10000,
+        });
         return cmd;
       } catch {
         continue;
       }
     }
-    return "python3";
+    return firstExecutable || "python3";
   }
 
   /** 启动 FastAPI 服务器，返回 {success, error} */
@@ -80,25 +104,30 @@ export class PythonManager {
 
     // 检查核心依赖（不检查 anthropic/openai/mcp，AI 功能可降级）
     try {
-      execFileSync(this.pythonCmd, ["-c", "import fastapi, uvicorn, akshare, pandas, requests, httpx, openpyxl, baostock"], {
+      execFileSync(this.pythonCmd, ["-c", "import fastapi, uvicorn, akshare, pandas, requests, httpx, openpyxl, baostock; from akshare.stock.stock_share_changes_cninfo import py_mini_racer"], {
         cwd: this.projectRoot,
         stdio: "pipe",
         timeout: 10000,
       });
     } catch (e: any) {
       const stderr = e.stderr?.toString() || e.message || "";
-      // 检查是否存在 setup.sh 安装脚本
-      var setupPath = path.join(this.projectRoot, "setup.sh");
+      // 检查是否存在面向用户的依赖安装脚本
+      var setupPath = path.join(this.projectRoot, "安装运行依赖.command");
       var setupHint = "";
-      try { if (fs.existsSync(setupPath)) setupHint = `\n\n或双击 DMG 中的 setup.sh 一键安装依赖`; } catch(_) {}
-      return { success: false, error: `Python 核心依赖缺失:\n${stderr.slice(0, 300)}\n\n请在终端运行:\npip3 install fastapi uvicorn akshare pandas requests httpx openpyxl baostock\n\nAI 功能（日报/问答）还需要:\npip3 install anthropic openai${setupHint}` };
+      try { if (fs.existsSync(setupPath)) setupHint = `\n\n或双击“安装运行依赖.command”一键安装依赖`; } catch(_) {}
+      return { success: false, error: `Python 核心依赖缺失:\n${stderr.slice(0, 300)}\n\n请在终端运行:\n${this.pythonCmd} -m pip install fastapi uvicorn akshare mini-racer pandas requests httpx openpyxl baostock\n\nAI 功能（日报/问答）还需要:\n${this.pythonCmd} -m pip install anthropic openai${setupHint}` };
     }
 
     this.serverProcess = spawn(this.pythonCmd, ["server.py"], {
       cwd: this.projectRoot,
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      env: this.getPythonEnv(),
     });
+
+    // The packaged GUI has no terminal consuming stdout. Always drain this
+    // pipe; otherwise frequent intraday logs eventually fill the OS buffer
+    // and block the Python event loop, making every HTTP request hang.
+    this.serverProcess.stdout?.on("data", () => {});
 
     // 收集 stderr 用于调试
     let startupStderr = "";
@@ -155,8 +184,10 @@ export class PythonManager {
           try {
             const info = JSON.parse(data);
             const existingRoot = fs.realpathSync(info.project_root || "");
+            const existingDataDir = fs.realpathSync(info.data_dir || "");
             const currentRoot = fs.realpathSync(this.projectRoot);
-            resolve(existingRoot === currentRoot);
+            const currentDataDir = fs.realpathSync(this.paths.dataDir);
+            resolve(existingRoot === currentRoot && existingDataDir === currentDataDir);
           } catch {
             resolve(false);
           }
@@ -196,7 +227,7 @@ export class PythonManager {
       const child = spawn(this.pythonCmd, [script, ...args], {
         cwd: this.projectRoot,
         stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        env: this.getPythonEnv(),
       });
 
       let stdout = "";

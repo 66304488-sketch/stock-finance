@@ -40,12 +40,13 @@ def parse_args():
     return p.parse_args()
 
 
-def fetch_shares(codes):
-    """从腾讯行情批量获取总股本（field[72]）"""
-    shares = {}
+def fetch_share_snapshot(codes):
+    """腾讯当前股本快照：field72=流通股，field73=总股本。"""
+    total_shares = {}
+    circulating_shares = {}
     batch_size = 200  # 腾讯API限制
-    total = len(codes)
-    for start in range(0, total, batch_size):
+    total_count = len(codes)
+    for start in range(0, total_count, batch_size):
         batch = codes[start:start + batch_size]
         tencodes = [f"{'sh' if c.startswith('6') else 'sz'}{c}" for c in batch]
         url = "https://qt.gtimg.cn/q=" + ",".join(tencodes)
@@ -57,39 +58,80 @@ def fetch_shares(codes):
                     continue
                 try:
                     fields = line.split('"')[1].split("~") if '"' in line else []
-                    if len(fields) < 73:
+                    if len(fields) < 74:
                         continue
                     tc = line.split("=")[0].split("_")[-1] if "_" in line else ""
                     code = tc[2:] if tc.startswith(("sh","sz")) else tc
-                    total_shares = float(fields[72]) if len(fields) > 72 and fields[72] else 0
-                    if code and total_shares > 0:
-                        shares[code] = int(total_shares)
+                    circulating = float(fields[72]) if fields[72] else 0
+                    current_total = (
+                        float(fields[73]) if fields[73] else 0)
+                    if code and current_total > 0:
+                        total_shares[code] = int(current_total)
+                    if code and circulating > 0:
+                        circulating_shares[code] = int(circulating)
                 except (ValueError, IndexError):
                     continue
             if (start + len(batch)) % 1000 < len(batch):
-                print(f"  股本获取: {min(start+len(batch), total)}/{total}")
+                print(
+                    f"  股本获取: "
+                    f"{min(start + len(batch), total_count)}/{total_count}"
+                )
         except Exception as e:
             print(f"  batch err: {e}")
-    return shares
+    return {
+        "version": 3,
+        "updated_at": pd.Timestamp.now().isoformat(),
+        "source": {
+            "provider": "Tencent qt",
+            "total_shares_field": 73,
+            "circulating_shares_field": 72,
+        },
+        "total_shares": total_shares,
+        "circulating_shares": circulating_shares,
+    }
+
+
+def fetch_shares(codes):
+    """兼容旧调用：只返回当前总股本。"""
+    return fetch_share_snapshot(codes)["total_shares"]
 
 
 def load_shares(codes):
     if os.path.exists(SHARES_FILE):
         try:
-            existing = json.load(open(SHARES_FILE, "r", encoding="utf-8"))
-            missing = [c for c in codes if c not in existing]
-            if missing:
-                print(f"[shares] 补齐 {len(missing)} 只股本...")
-                new_shares = fetch_shares(missing)
-                existing.update(new_shares)
-                json.dump(existing, open(SHARES_FILE, "w", encoding="utf-8"))
-            return existing
+            payload = json.load(open(SHARES_FILE, "r", encoding="utf-8"))
+            if payload.get("version") == 3:
+                existing_total = payload.get("total_shares") or {}
+                existing_circulating = (
+                    payload.get("circulating_shares") or {})
+                missing = [c for c in codes if c not in existing_total]
+                if missing:
+                    print(f"[shares] 补齐 {len(missing)} 只股本...")
+                    refreshed = fetch_share_snapshot(missing)
+                    existing_total.update(refreshed["total_shares"])
+                    existing_circulating.update(
+                        refreshed["circulating_shares"])
+                    payload["total_shares"] = existing_total
+                    payload["circulating_shares"] = existing_circulating
+                    payload["updated_at"] = refreshed["updated_at"]
+                    json.dump(
+                        payload,
+                        open(SHARES_FILE, "w", encoding="utf-8"),
+                        ensure_ascii=False,
+                    )
+                return existing_total
+            # Legacy plain/v2 cache came from field72 and is invalid for total
+            # market cap; fall through to a complete field73 refresh.
         except Exception:
             pass
     print(f"[shares] 首次获取 {len(codes)} 只股本...")
-    shares = fetch_shares(codes)
-    json.dump(shares, open(SHARES_FILE, "w", encoding="utf-8"))
-    return shares
+    payload = fetch_share_snapshot(codes)
+    json.dump(
+        payload,
+        open(SHARES_FILE, "w", encoding="utf-8"),
+        ensure_ascii=False,
+    )
+    return payload["total_shares"]
 
 
 def date_info(date_str):

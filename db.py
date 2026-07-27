@@ -6,7 +6,9 @@ SQLite 数据库 —— 替代 44 个 JSON 文件。
 import json, os, sqlite3, time
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "static", "data.db")
+from runtime_paths import DATA_DIR, data_path
+
+DB_PATH = data_path("data.db")
 
 
 class StockDB:
@@ -73,12 +75,78 @@ class StockDB:
                 mcap REAL,
                 PRIMARY KEY (date, direction, period, scheme, industry, code)
             );
+            CREATE TABLE IF NOT EXISTS daily_market_temperature (
+                date TEXT PRIMARY KEY,  -- YYYYMMDD
+                stocks INTEGER,
+                up INTEGER, down INTEGER, flat INTEGER,
+                limit_up INTEGER, limit_down INTEGER,
+                big_up INTEGER, big_down INTEGER,
+                amount REAL,
+                highs_total INTEGER, lows_total INTEGER,
+                net_flow REAL,
+                mcap_change_pct REAL,
+                temperature REAL
+            );
+            CREATE TABLE IF NOT EXISTS daily_index_quote (
+                date TEXT NOT NULL,     -- YYYYMMDD
+                symbol TEXT NOT NULL,   -- sh000001/sz399006/...
+                close REAL NOT NULL,
+                PRIMARY KEY (date, symbol)
+            );
+            CREATE TABLE IF NOT EXISTS daily_crowding (
+                date TEXT PRIMARY KEY,  -- YYYYMMDD
+                total_amount REAL,
+                cr5 REAL, cr10 REAL, hhi REAL,
+                top10_stock_share REAL, top50_stock_share REAL
+            );
+            CREATE TABLE IF NOT EXISTS daily_industry_crowding (
+                date TEXT NOT NULL,
+                industry TEXT NOT NULL,
+                amount REAL,
+                share REAL,
+                PRIMARY KEY (date, industry)
+            );
             CREATE TABLE IF NOT EXISTS meta (
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
         """)
         self.conn.commit()
+        self._repair_capital_flow_scale_anomalies()
+
+    def _repair_capital_flow_scale_anomalies(self):
+        """Repair capital-flow dates produced by the old spot-volume x100 bug."""
+        schemes = [row[0] for row in self.conn.execute(
+            "SELECT DISTINCT scheme FROM daily_capital_flow"
+        ).fetchall()]
+        repaired = []
+        for scheme in schemes:
+            totals = self.conn.execute(
+                "SELECT date, turnover FROM daily_capital_flow "
+                "WHERE scheme=? AND is_total=1 AND turnover>0 ORDER BY date",
+                [scheme],
+            ).fetchall()
+            values = sorted(float(turnover) for _, turnover in totals)
+            if len(values) < 3:
+                continue
+            baseline = values[len(values) // 2]
+            bad_dates = [
+                date for date, turnover in totals
+                if float(turnover) > baseline * 20
+                and 0.1 <= (float(turnover) / 100) / baseline <= 10
+            ]
+            if not bad_dates:
+                continue
+            placeholders = ",".join("?" for _ in bad_dates)
+            with self.conn:
+                self.conn.execute(
+                    "UPDATE daily_capital_flow SET turnover=turnover/100, net_flow=net_flow/100 "
+                    f"WHERE scheme=? AND date IN ({placeholders})",
+                    [scheme] + bad_dates,
+                )
+            repaired.extend(f"{scheme}:{date}" for date in bad_dates)
+        if repaired:
+            print(f"[db] 已修复资金流放大日期: {', '.join(repaired)}")
 
     # ==================== 写入 ====================
 
@@ -92,6 +160,252 @@ class StockDB:
                 records,
             )
         self._set_meta(f"{direction}_updated", datetime.now().isoformat())
+
+    def replace_heatmap_slice(self, records, detail_records, direction, period, scheme, dates):
+        """Atomically replace counts and details for one calculated heatmap slice."""
+        table = "daily_new_highs" if direction == "highs" else "daily_new_lows"
+        dates = list(dict.fromkeys(dates or []))
+        if not dates:
+            return
+        placeholders = ",".join("?" for _ in dates)
+        with self.conn:
+            self.conn.execute(
+                f"DELETE FROM {table} WHERE period=? AND scheme=? AND date IN ({placeholders})",
+                [period, scheme] + dates,
+            )
+            self.conn.execute(
+                f"DELETE FROM stock_details WHERE direction=? AND period=? AND scheme=? "
+                f"AND date IN ({placeholders})",
+                [direction, period, scheme] + dates,
+            )
+            if records:
+                self.conn.executemany(
+                    f"INSERT INTO {table} (date,period,scheme,industry,count,total_stocks,is_total) "
+                    f"VALUES (:date,:period,:scheme,:industry,:count,:total_stocks,:is_total)",
+                    records,
+                )
+            if detail_records:
+                self.conn.executemany(
+                    "INSERT INTO stock_details "
+                    "(date,direction,period,scheme,industry,code,name,price,change_pct,mcap) "
+                    "VALUES (:date,:direction,:period,:scheme,:industry,:code,:name,:price,:change_pct,:mcap)",
+                    detail_records,
+                )
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)",
+                (f"{direction}_updated", datetime.now().isoformat()),
+            )
+
+    def replace_heatmap_batch(self, slices):
+        """Replace multiple heatmap slices in one transaction."""
+        with self.conn:
+            for item in slices:
+                direction = item["direction"]
+                period = item["period"]
+                scheme = item["scheme"]
+                dates = list(dict.fromkeys(item.get("dates") or []))
+                if not dates:
+                    continue
+                table = "daily_new_highs" if direction == "highs" else "daily_new_lows"
+                placeholders = ",".join("?" for _ in dates)
+                self.conn.execute(
+                    f"DELETE FROM {table} WHERE period=? AND scheme=? AND date IN ({placeholders})",
+                    [period, scheme] + dates,
+                )
+                self.conn.execute(
+                    f"DELETE FROM stock_details WHERE direction=? AND period=? AND scheme=? "
+                    f"AND date IN ({placeholders})",
+                    [direction, period, scheme] + dates,
+                )
+                if item.get("records"):
+                    self.conn.executemany(
+                        f"INSERT INTO {table} (date,period,scheme,industry,count,total_stocks,is_total) "
+                        f"VALUES (:date,:period,:scheme,:industry,:count,:total_stocks,:is_total)",
+                        item["records"],
+                    )
+                if item.get("detail_records"):
+                    self.conn.executemany(
+                        "INSERT INTO stock_details "
+                        "(date,direction,period,scheme,industry,code,name,price,change_pct,mcap) "
+                        "VALUES (:date,:direction,:period,:scheme,:industry,:code,:name,:price,:change_pct,:mcap)",
+                        item["detail_records"],
+                    )
+            for direction in {item["direction"] for item in slices}:
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)",
+                    (f"{direction}_updated", datetime.now().isoformat()),
+                )
+
+    def replace_capital_flow_batch(self, records, dates_by_scheme):
+        with self.conn:
+            for scheme, dates in dates_by_scheme.items():
+                dates = list(dict.fromkeys(dates))
+                if dates:
+                    placeholders = ",".join("?" for _ in dates)
+                    self.conn.execute(
+                        f"DELETE FROM daily_capital_flow WHERE scheme=? AND date IN ({placeholders})",
+                        [scheme] + dates,
+                    )
+            self.conn.executemany(
+                "INSERT INTO daily_capital_flow (date,scheme,industry,turnover,net_flow,stock_count,is_total) "
+                "VALUES (:date,:scheme,:industry,:turnover,:net_flow,:stock_count,:is_total)",
+                records,
+            )
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)",
+                ("capital_flow_updated", datetime.now().isoformat()),
+            )
+
+    def replace_market_temperature(self, records):
+        """全量重建市场温度表(kline cache 是唯一数据源,重算幂等)。"""
+        with self.conn:
+            self.conn.execute("DELETE FROM daily_market_temperature")
+            self.conn.executemany(
+                "INSERT INTO daily_market_temperature "
+                "(date,stocks,up,down,flat,limit_up,limit_down,big_up,big_down,"
+                "amount,highs_total,lows_total,net_flow,mcap_change_pct,temperature) "
+                "VALUES (:date,:stocks,:up,:down,:flat,:limit_up,:limit_down,:big_up,:big_down,"
+                ":amount,:highs_total,:lows_total,:net_flow,:mcap_change_pct,:temperature)",
+                records,
+            )
+        self._set_meta("market_temperature_updated", datetime.now().isoformat())
+
+    def get_market_temperature(self, n_dates=250):
+        """按日期升序返回最近 N 天温度数据。"""
+        rows = self.conn.execute(
+            "SELECT * FROM daily_market_temperature ORDER BY date DESC LIMIT ?",
+            [n_dates],
+        ).fetchall()
+        cols = ["date", "stocks", "up", "down", "flat", "limit_up", "limit_down",
+                "big_up", "big_down", "amount", "highs_total", "lows_total",
+                "net_flow", "mcap_change_pct", "temperature"]
+        result = [dict(zip(cols, row)) for row in reversed(rows)]
+        return {
+            "dates": [{"label": self._format_label(r["date"]),
+                       "full_label": self._format_full(r["date"])} for r in result],
+            "rows": result,
+            "updated_at": self._get_meta("market_temperature_updated"),
+        }
+
+    def replace_crowding(self, market_records, industry_records):
+        """全量重建拥挤度表(kline cache 是唯一数据源,重算幂等)。"""
+        for record in industry_records:
+            record["amount"] = round(record["amount"])
+        with self.conn:
+            self.conn.execute("DELETE FROM daily_crowding")
+            self.conn.executemany(
+                "INSERT INTO daily_crowding "
+                "(date,total_amount,cr5,cr10,hhi,top10_stock_share,top50_stock_share) "
+                "VALUES (:date,:total_amount,:cr5,:cr10,:hhi,:top10_stock_share,:top50_stock_share)",
+                market_records,
+            )
+            self.conn.execute("DELETE FROM daily_industry_crowding")
+            self.conn.executemany(
+                "INSERT INTO daily_industry_crowding (date,industry,amount,share) "
+                "VALUES (:date,:industry,:amount,:share)",
+                industry_records,
+            )
+        self._set_meta("crowding_updated", datetime.now().isoformat())
+
+    def get_crowding(self, n_dates=250):
+        """拥挤度数据:市场集中度序列 + 各行业占比序列/最新分位数。"""
+        dates = [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT date FROM daily_crowding ORDER BY date DESC LIMIT ?",
+            [n_dates]).fetchall()][::-1]
+        if not dates:
+            return {"dates": [], "market": [], "industries": []}
+        placeholders = ",".join("?" * len(dates))
+        market = [
+            {"date": d, "total_amount": ta, "cr5": cr5, "cr10": cr10, "hhi": hhi,
+             "top10_stock_share": t10, "top50_stock_share": t50}
+            for d, ta, cr5, cr10, hhi, t10, t50 in self.conn.execute(
+                f"SELECT date,total_amount,cr5,cr10,hhi,top10_stock_share,top50_stock_share "
+                f"FROM daily_crowding WHERE date IN ({placeholders}) ORDER BY date", dates).fetchall()
+        ]
+        ind_map = {}
+        for industry, date, amount, share in self.conn.execute(
+                f"SELECT industry, date, amount, share FROM daily_industry_crowding "
+                f"WHERE date IN ({placeholders})", dates).fetchall():
+            entry = ind_map.setdefault(industry, {"industry": industry,
+                                                  "daily_shares": [None] * len(dates),
+                                                  "daily_amounts": [0] * len(dates)})
+            idx = dates.index(date)
+            entry["daily_shares"][idx] = round(share * 100, 3)
+            entry["daily_amounts"][idx] = round(amount)
+        industries = []
+        for entry in ind_map.values():
+            shares = [s for s in entry["daily_shares"] if s is not None]
+            if not shares:
+                continue
+            latest = shares[-1]
+            entry["share"] = latest
+            entry["amount"] = next((a for s, a in zip(reversed(entry["daily_shares"]),
+                                                      reversed(entry["daily_amounts"])) if s is not None), 0)
+            entry["pctile"] = round(sum(1 for s in shares if s <= latest) / len(shares) * 100, 1)
+            tail5 = [s for s in entry["daily_shares"][-5:] if s is not None]
+            entry["avg5"] = round(sum(tail5) / len(tail5), 3) if tail5 else latest
+            industries.append(entry)
+        industries.sort(key=lambda x: -x["pctile"])
+        return {
+            "dates": [{"label": self._format_label(d), "full_label": self._format_full(d)} for d in dates],
+            "market": market,
+            "industries": industries,
+            "updated_at": self._get_meta("crowding_updated"),
+        }
+
+    def replace_index_quotes(self, records):
+        """全量重建指数日线表(数据源自带全历史,重算幂等)。"""
+        with self.conn:
+            self.conn.execute("DELETE FROM daily_index_quote")
+            self.conn.executemany(
+                "INSERT INTO daily_index_quote (date,symbol,close) VALUES (:date,:symbol,:close)",
+                records,
+            )
+
+    def get_index_quotes(self, n_dates=250):
+        """按符号分组返回最近 N 天指数收盘,{symbol: [{date, close}]} 按日期升序。"""
+        symbols = [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT symbol FROM daily_index_quote").fetchall()]
+        result = {}
+        for symbol in symbols:
+            rows = self.conn.execute(
+                "SELECT date, close FROM daily_index_quote WHERE symbol=? "
+                "ORDER BY date DESC LIMIT ?", [symbol, n_dates]).fetchall()
+            result[symbol] = [{"date": d, "close": c} for d, c in reversed(rows)]
+        return result
+
+    def replace_market_cap_batch(self, records, detail_records, dates_by_scheme):
+        with self.conn:
+            for scheme, dates in dates_by_scheme.items():
+                dates = list(dict.fromkeys(dates))
+                if not dates:
+                    continue
+                placeholders = ",".join("?" for _ in dates)
+                self.conn.execute(
+                    f"DELETE FROM daily_market_cap WHERE scheme=? AND date IN ({placeholders})",
+                    [scheme] + dates,
+                )
+                self.conn.execute(
+                    "DELETE FROM stock_details WHERE direction='market_cap' AND period='daily' "
+                    f"AND scheme=? AND date IN ({placeholders})",
+                    [scheme] + dates,
+                )
+            self.conn.executemany(
+                "INSERT INTO daily_market_cap (date,scheme,industry,mcap,stock_count,is_total) "
+                "VALUES (:date,:scheme,:industry,:mcap,:stock_count,:is_total)",
+                records,
+            )
+            if detail_records:
+                self.conn.executemany(
+                    "INSERT INTO stock_details "
+                    "(date,direction,period,scheme,industry,code,name,price,change_pct,mcap) "
+                    "VALUES (:date,:direction,:period,:scheme,:industry,:code,:name,:price,:change_pct,:mcap)",
+                    detail_records,
+                )
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)",
+                ("market_cap_updated", datetime.now().isoformat()),
+            )
 
     def insert_capital_flow(self, records):
         """records = [{date, scheme, industry, turnover, net_flow, stock_count, is_total}]"""
@@ -128,7 +442,7 @@ class StockDB:
     def get_heatmap_data(self, direction="highs", period="month", scheme="sw", n_dates=20):
         """返回与旧 JSON 兼容的热力图数据"""
         table = "daily_new_highs" if direction == "highs" else "daily_new_lows"
-        dates = self._get_recent_dates(table, n_dates, scheme=scheme)
+        dates = self._get_recent_dates(table, n_dates, scheme=scheme, period=period)
         if not dates:
             return {"dates": [], "industries": [], "updated_at": None}
 
@@ -152,7 +466,7 @@ class StockDB:
         industries = list(industries_map.values())
         for r in industries:
             if not r.get("is_total") and r.get("total", 0) > 0 and r.get("daily_counts"):
-                r["ratio"] = round(r["daily_counts"][0] / r["total"] * 100, 1)
+                r["ratio"] = round(r["daily_counts"][-1] / r["total"] * 100, 1)
             elif not r.get("is_total"):
                 r["ratio"] = 0.0
 
@@ -246,7 +560,8 @@ class StockDB:
 
     def get_missing_dates(self, direction="highs", period="month", scheme="sw", dates=None):
         """检查哪些日期缺失"""
-        table = "daily_new_highs" if direction in ("highs", "lows") else \
+        table = "daily_new_highs" if direction == "highs" else \
+                "daily_new_lows" if direction == "lows" else \
                 "daily_capital_flow" if direction == "capital_flow" else "daily_market_cap"
         if direction in ("highs", "lows"):
             existing = set(r[0] for r in self.conn.execute(
@@ -262,7 +577,7 @@ class StockDB:
 
     def import_from_json(self, static_dir=None):
         """一次性导入所有 JSON 数据到 SQLite。已存在则跳过。"""
-        static_dir = static_dir or os.path.join(os.path.dirname(__file__), "static")
+        static_dir = static_dir or DATA_DIR
         if self._get_meta("imported"):
             print("[db] 已导入过，跳过")
             return
@@ -279,7 +594,6 @@ class StockDB:
                         continue
                     data = json.load(open(path, encoding="utf-8"))
                     records = []
-                    labels = [d["label"] for d in data.get("dates", [])]
                     date_keys = []
                     for d in data.get("dates", []):
                         m = __import__("re").match(r"(\d{4})年(\d{1,2})月(\d{1,2})日", d.get("full_label", ""))
@@ -352,12 +666,17 @@ class StockDB:
 
     # ==================== 辅助 ====================
 
-    def _get_recent_dates(self, table, n, scheme=None):
+    def _get_recent_dates(self, table, n, scheme=None, period=None):
         q = f"SELECT DISTINCT date FROM {table} "
-        params = []
+        params, clauses = [], []
         if scheme:
-            q += "WHERE scheme=? "
+            clauses.append("scheme=?")
             params.append(scheme)
+        if period:
+            clauses.append("period=?")
+            params.append(period)
+        if clauses:
+            q += "WHERE " + " AND ".join(clauses) + " "
         q += "ORDER BY date DESC LIMIT ?"
         params.append(n)
         return [r[0] for r in self.conn.execute(q, params).fetchall()][::-1]  # 升序
@@ -381,164 +700,20 @@ class StockDB:
     def close(self):
         self.conn.close()
 
+    def backup_to(self, destination):
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        target = sqlite3.connect(destination)
+        try:
+            self.conn.backup(target)
+        finally:
+            target.close()
+
     # ==================== 导出：SQLite → JSON ====================
 
     def export_to_json(self, static_dir=None):
         """将 SQLite 数据导出为 JSON 文件（兼容前端直接读取）"""
-        static_dir = static_dir or os.path.join(os.path.dirname(__file__), "static")
-        os.makedirs(static_dir, exist_ok=True)
-        import re
-
-        # 导出新高/新低
-        for direction, prefix in [("highs", "new_highs"), ("lows", "new_lows")]:
-            table = "daily_new_highs" if direction == "highs" else "daily_new_lows"
-            for period in ["month", "60d", "120d", "1year", "alltime"]:
-                for scheme, suffix in [("sw", ""), ("ths", "_ths")]:
-                    dates = [r[0] for r in self.conn.execute(
-                        f"SELECT DISTINCT date FROM {table} WHERE period=? AND scheme=? ORDER BY date DESC LIMIT 20",
-                        [period, scheme]
-                    ).fetchall()][::-1]
-                    if not dates:
-                        continue
-                    rows = self.conn.execute(
-                        f"SELECT industry, date, count, total_stocks, is_total FROM {table} "
-                        f"WHERE period=? AND scheme=? AND date IN ({','.join('?'*len(dates))}) "
-                        f"ORDER BY is_total, count DESC",
-                        [period, scheme] + dates,
-                    ).fetchall()
-
-                    ind_map = {}
-                    for ind, date, count, total, is_t in rows:
-                        if ind not in ind_map:
-                            ind_map[ind] = {"industry": ind, "total": total or 0,
-                                            "daily_counts": [0]*len(dates), "is_total": bool(is_t)}
-                        idx = dates.index(date)
-                        ind_map[ind]["daily_counts"][idx] = count or 0
-
-                    industries = list(ind_map.values())
-                    for r in industries:
-                        if not r.get("is_total") and r.get("total", 0) > 0 and r.get("daily_counts"):
-                            r["ratio"] = round(r["daily_counts"][0] / r["total"] * 100, 1)
-                        elif not r.get("is_total"):
-                            r["ratio"] = 0.0
-
-                    # 日期从近到远
-                    for r in industries:
-                        r["daily_counts"] = list(reversed(r["daily_counts"]))
-                    dates_rev = list(reversed(dates))
-                    out = {
-                        "dates": [{"label": StockDB._format_label(d),
-                                   "full_label": StockDB._format_full(d)} for d in dates_rev],
-                        "updated_at": datetime.now().isoformat(),
-                        "type": period,
-                        "industries": industries,
-                    }
-                    with open(os.path.join(static_dir, f"{prefix}_data_{period}{suffix}.json"), "w", encoding="utf-8") as f:
-                        json.dump(out, f, ensure_ascii=False, indent=2)
-
-        # 导出资金流向
-        for scheme, suffix in [("sw", ""), ("ths", "_ths")]:
-            dates = [r[0] for r in self.conn.execute(
-                "SELECT DISTINCT date FROM daily_capital_flow WHERE scheme=? ORDER BY date DESC LIMIT 20",
-                [scheme]).fetchall()][::-1]
-            if not dates:
-                continue
-            rows = self.conn.execute(
-                f"SELECT industry, date, turnover, net_flow, stock_count, is_total FROM daily_capital_flow "
-                f"WHERE scheme=? AND date IN ({','.join('?'*len(dates))}) ORDER BY is_total, turnover DESC",
-                [scheme] + dates,
-            ).fetchall()
-
-            ind_map = {}
-            for ind, date, to, nf, sc, is_t in rows:
-                if ind not in ind_map:
-                    ind_map[ind] = {"industry": ind, "daily_turnover": [0]*len(dates),
-                                    "daily_net_flow": [0]*len(dates), "cumulative_flow": [0]*len(dates),
-                                    "daily_stock_counts": [0]*len(dates), "is_total": bool(is_t)}
-                idx = dates.index(date)
-                ind_map[ind]["daily_turnover"][idx] = round(to)
-                ind_map[ind]["daily_net_flow"][idx] = round(nf)
-                ind_map[ind]["daily_stock_counts"][idx] = sc or 0
-
-            industries = list(ind_map.values())
-            for r in industries:
-                cum = 0
-                for i in range(len(dates)):
-                    cum += r["daily_net_flow"][i]
-                    r["cumulative_flow"][i] = round(cum)
-                r["turnover"] = r["daily_turnover"][-1]
-                r["stock_count"] = r["daily_stock_counts"][-1]
-            total = sum(x["turnover"] for x in industries if not x.get("is_total"))
-            for r in industries:
-                if not r["is_total"] and total > 0:
-                    r["share"] = round(r["turnover"] / total * 100, 1)
-
-            # 日期从近到远
-            for r in industries:
-                for k in ["daily_turnover", "daily_net_flow", "cumulative_flow", "daily_stock_counts"]:
-                    if k in r:
-                        r[k] = list(reversed(r[k]))
-            dates_rev = list(reversed(dates))
-            out = {
-                "dates": [{"label": StockDB._format_label(d),
-                           "full_label": StockDB._format_full(d)} for d in dates_rev],
-                "updated_at": datetime.now().isoformat(),
-                "total_turnover": sum(r["turnover"] for r in industries if r.get("is_total")) or
-                                  sum(r["turnover"] for r in industries if not r.get("is_total")),
-                "industries": industries,
-            }
-            with open(os.path.join(static_dir, f"capital_flow{suffix}.json"), "w", encoding="utf-8") as f:
-                json.dump(out, f, ensure_ascii=False, indent=2)
-
-        # 导出市值
-        for scheme, suffix in [("sw", ""), ("ths", "_ths")]:
-            dates = [r[0] for r in self.conn.execute(
-                "SELECT DISTINCT date FROM daily_market_cap WHERE scheme=? ORDER BY date DESC LIMIT 20",
-                [scheme]).fetchall()][::-1]
-            if not dates:
-                continue
-            rows = self.conn.execute(
-                f"SELECT industry, date, mcap, stock_count, is_total FROM daily_market_cap "
-                f"WHERE scheme=? AND date IN ({','.join('?'*len(dates))}) ORDER BY is_total, mcap DESC",
-                [scheme] + dates,
-            ).fetchall()
-
-            ind_map = {}
-            for ind, date, mc, sc, is_t in rows:
-                if ind not in ind_map:
-                    ind_map[ind] = {"industry": ind, "daily_mcap": [0]*len(dates),
-                                    "is_total": bool(is_t)}
-                idx = dates.index(date)
-                ind_map[ind]["daily_mcap"][idx] = round(mc)
-
-            industries = list(ind_map.values())
-            for r in industries:
-                r["daily_mcap"] = list(reversed(r["daily_mcap"]))
-            dates_rev = list(reversed(dates))
-            for r in industries:
-                r["mcap"] = r["daily_mcap"][-1]
-                r["change_pct"] = None
-                r["trend_5d"] = "—"
-                r["stocks"] = []
-                r["stocks_by_date"] = {}
-            total = sum(x["mcap"] for x in industries if not x.get("is_total"))
-            for r in industries:
-                if not r["is_total"] and total > 0:
-                    r["share"] = round(r["mcap"] / total * 100, 1)
-
-            out = {
-                "dates": [{"label": StockDB._format_label(d),
-                           "full_label": StockDB._format_full(d)} for d in dates_rev],
-                "updated_at": datetime.now().isoformat(),
-                "total_mcap": sum(r["mcap"] for r in industries if r.get("is_total")) or
-                              sum(r["mcap"] for r in industries if not r.get("is_total")),
-                "industries": industries,
-            }
-            with open(os.path.join(static_dir, f"market_cap{suffix}.json"), "w", encoding="utf-8") as f:
-                json.dump(out, f, ensure_ascii=False, indent=2)
-
-    def close(self):
-        self.conn.close()
+        from export_json import export_all
+        return export_all(static_dir or DATA_DIR)
 
 
 # ==================== 单例 ====================
@@ -554,3 +729,14 @@ def get_db():
     if _db is None:
         _db = StockDB()
     return _db
+
+
+def reset_db():
+    """Close and forget the process-wide connection before replacing data.db."""
+    global _db
+    if _db is not None:
+        try:
+            _db.close()
+        except Exception:
+            pass
+    _db = None

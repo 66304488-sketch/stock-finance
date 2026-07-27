@@ -4,11 +4,27 @@ copyright: Copyright © 2026
 
 mac:
   category: public.app-category.finance
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   target:
     - dmg
     - zip
   icon: resources/icon.icns
   artifactName: "${name}-${version}-mac.${ext}"
+
+dmg:
+  contents:
+    - x: 140
+      y: 190
+    - x: 420
+      y: 190
+      type: link
+      path: /Applications
+    - x: 280
+      y: 360
+      type: file
+      path: "安装运行依赖.command"
 
 files:
   - dist/electron/**/*
@@ -17,6 +33,8 @@ files:
 extraResources:
   - from: setup.sh
     to: setup.sh
+  - from: "安装运行依赖.command"
+    to: "安装运行依赖.command"
   - from: static/
     to: static/
     filter:
@@ -25,8 +43,18 @@ extraResources:
       - "!kline_cache.pkl"
       - "!*.backup"
       - "!industry-heatmap-standalone.html"
+      - "!data.db*"
+      - "!*.tmp"
   - from: "server.py"
     to: "server.py"
+  - from: "runtime_paths.py"
+    to: "runtime_paths.py"
+  - from: "db.py"
+    to: "db.py"
+  - from: "update_engine.py"
+    to: "update_engine.py"
+  - from: "export_json.py"
+    to: "export_json.py"
   - from: "kline_cache.py"
     to: "kline_cache.py"
   - from: "fetch_new_highs.py"
@@ -51,10 +79,36 @@ extraResources:
     to: "merge_daily_data.py"
   - from: "scan_intraday.py"
     to: "scan_intraday.py"
+  - from: "heatmap_opportunity.py"
+    to: "heatmap_opportunity.py"
+  - from: "market_temperature.py"
+    to: "market_temperature.py"
+  - from: "crowding.py"
+    to: "crowding.py"
+  - from: "turnover_momentum.py"
+    to: "turnover_momentum.py"
+  - from: "market_cap_structure.py"
+    to: "market_cap_structure.py"
+  - from: "share_history_cninfo.py"
+    to: "share_history_cninfo.py"
+  - from: "crowding_external.py"
+    to: "crowding_external.py"
   - from: "build_period_counts.py"
     to: "build_period_counts.py"
   - from: "fetch_market_cap.py"
     to: "fetch_market_cap.py"
+  - from: "etf_recommend.py"
+    to: "etf_recommend.py"
+  - from: "build_etf_map.py"
+    to: "build_etf_map.py"
+  - from: "momentum_etf.py"
+    to: "momentum_etf.py"
+  - from: "etf_backtest.py"
+    to: "etf_backtest.py"
+  - from: "index_constituents.py"
+    to: "index_constituents.py"
+  - from: "index_futures.py"
+    to: "index_futures.py"
 
 asar: true
 compression: normal

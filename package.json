@@ -8,18 +8,17 @@
   "scripts": {
     "dev": "tsc -p tsconfig.electron.json && electron .",
     "build": "tsc -p tsconfig.electron.json && electron-builder",
-    "build:mac": "tsc -p tsconfig.electron.json && electron-builder --mac",
+    "build:mac": "tsc -p tsconfig.electron.json && electron-builder --mac --arm64",
     "postinstall": "tsc -p tsconfig.electron.json || true"
   },
   "dependencies": {
-    "node-cron": "^3.0.3",
-    "xlsx": "^0.18.5"
+    "node-cron": "^4.2.1"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
-    "@types/node-cron": "^3.0.11",
-    "electron": "^33.4.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^40.10.6",
+    "electron-builder": "^26.15.3",
+    "jsdom": "^29.1.1",
     "typescript": "^5.7.0"
   }
 }

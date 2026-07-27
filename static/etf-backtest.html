@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ETF 热点预测验证</title>
+<style>
+  :root {
+    --bg:#171a20; --panel:#20242c; --panel2:#262b34; --border:#343b47;
+    --text:#b8c0cc; --muted:#747e8d; --white:#edf1f7; --blue:#61afef;
+    --red:#e06c75; --green:#98c379; --yellow:#e5c07b;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+  .container { max-width:1320px; margin:auto; padding:20px; }
+  .header { position:relative; text-align:center; margin-bottom:14px; }
+  h1 { margin:0; color:var(--white); font-size:1.22rem; }
+  .subtitle { color:var(--muted); font-size:.76rem; line-height:1.7; margin-top:5px; }
+  button { font:inherit; }
+  .refresh { position:absolute; right:0; top:0; border:0; border-radius:7px; padding:7px 12px;
+    background:var(--blue); color:#141820; font-size:.74rem; font-weight:700; cursor:pointer; }
+  .refresh:disabled { opacity:.5; cursor:wait; }
+  .tabs { display:flex; justify-content:center; gap:7px; margin:14px 0; flex-wrap:wrap; }
+  .tab { border:1px solid var(--border); background:var(--panel); color:var(--text);
+    border-radius:7px; padding:7px 17px; font-size:.78rem; cursor:pointer; }
+  .tab.active { background:var(--blue); border-color:var(--blue); color:#151922; font-weight:700; }
+  .tab.disabled { color:var(--yellow); border-style:dashed; }
+  .notice { display:flex; gap:12px; align-items:flex-start; border:1px solid #e5c07b55;
+    border-radius:9px; background:#e5c07b10; padding:11px 13px; margin-bottom:13px;
+    color:#c9b887; font-size:.75rem; line-height:1.65; }
+  .notice strong { color:var(--yellow); white-space:nowrap; }
+  .cards { display:grid; grid-template-columns:repeat(7,minmax(105px,1fr)); gap:8px; margin-bottom:14px; }
+  .card { min-width:0; background:var(--panel); border:1px solid var(--border);
+    border-radius:9px; padding:10px 8px; text-align:center; }
+  .card .value { color:var(--white); font:700 1.03rem "SF Mono",Menlo,monospace; }
+  .card .label { color:var(--muted); font-size:.64rem; line-height:1.35; margin-top:4px; }
+  .positive .value { color:var(--red); } .negative .value { color:var(--blue); }
+  .section { background:var(--panel); border:1px solid var(--border); border-radius:9px;
+    margin-bottom:14px; overflow:hidden; }
+  .section-head { display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:9px 12px; background:var(--panel2); color:var(--white); font-size:.79rem; font-weight:700; }
+  .section-note { color:var(--muted); font-size:.67rem; font-weight:400; }
+  .compare { display:grid; grid-template-columns:1.25fr repeat(5,1fr); font-size:.73rem; }
+  .compare > div { padding:8px 10px; border-top:1px solid #303640; text-align:right; }
+  .compare > div:nth-child(6n+1) { text-align:left; color:var(--white); }
+  .compare .head { color:var(--muted)!important; background:#1c2027; font-size:.66rem; font-weight:600; }
+  .calibration { display:grid; grid-template-columns:1.15fr 1fr; gap:0; }
+  .cal-status { padding:13px; font-size:.75rem; line-height:1.7; }
+  .cal-status strong { color:var(--white); }
+  .cal-status.ready strong { color:var(--green); }
+  .cal-status.insufficient strong { color:var(--yellow); }
+  .cal-grid { display:grid; grid-template-columns:repeat(4,1fr); border-left:1px solid var(--border); }
+  .cal-metric { text-align:center; padding:11px 6px; border-left:1px solid #303640; }
+  .cal-metric:first-child { border-left:0; }
+  .cal-metric b { display:block; color:var(--white); font:700 .9rem "SF Mono",Menlo,monospace; }
+  .cal-metric span { color:var(--muted); font-size:.61rem; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.72rem; }
+  th { padding:7px 6px; text-align:right; color:var(--muted); background:#1c2027;
+    font-size:.65rem; white-space:nowrap; }
+  th:first-child,th:nth-child(2),td:first-child,td:nth-child(2) { text-align:left; }
+  td { border-top:1px solid #2b3039; padding:6px; text-align:right; white-space:nowrap;
+    font-variant-numeric:tabular-nums; }
+  tbody tr:hover { background:#282e3744; }
+  .date-row td { background:var(--panel2); color:var(--white); font-weight:700; text-align:left!important; }
+  .code { display:block; color:#d19a66; font:600 .66rem "SF Mono",Menlo,monospace; margin-top:2px; }
+  .score { color:var(--yellow); font-family:"SF Mono",Menlo,monospace; }
+  .up { color:var(--red); } .down { color:var(--blue); } .na { color:#505967; }
+  .tag { display:inline-block; padding:1px 6px; border-radius:8px; color:var(--green);
+    border:1px solid #98c37944; background:#98c37911; font-size:.62rem; }
+  .tag.avoid { color:var(--red); border-color:#e06c7544; background:#e06c7511; }
+  .hit { color:var(--green); font-weight:700; } .miss { color:var(--muted); }
+  .empty { padding:38px 18px; text-align:center; color:var(--muted); line-height:1.8; }
+  .disabled-box { padding:28px; text-align:center; line-height:1.8; }
+  .disabled-box .icon { font-size:2rem; }
+  .disabled-box h2 { color:var(--yellow); font-size:1rem; margin:8px 0; }
+  .disabled-box p { max-width:720px; margin:6px auto; color:var(--text); font-size:.76rem; }
+  .method { color:var(--muted); font-size:.69rem; line-height:1.85; margin-top:10px; }
+  .method strong { color:#9ba5b4; }
+  @media (max-width:900px) {
+    .cards { grid-template-columns:repeat(3,1fr); }
+    .calibration { grid-template-columns:1fr; }
+    .cal-grid { border-left:0; border-top:1px solid var(--border); }
+    .refresh { position:static; margin-top:8px; }
+  }
+  @media (max-width:560px) {
+    .container { padding:12px; } .cards { grid-template-columns:repeat(2,1fr); }
+    .compare { grid-template-columns:1.25fr repeat(2,1fr); }
+    .compare .wide { display:none; }
+  }
+</style>
+</head>
+<body>
+<main class="container">
+  <header class="header">
+    <h1>ETF 热点预测验证</h1>
+    <div class="subtitle" id="dateSub">严格 T+1 · 扣 20bps 往返成本 · 相对沪深300 ETF · 按预测日聚类</div>
+    <button class="refresh" id="refreshBtn" onclick="refreshData()">重新回测</button>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="回测模块">
+    <button class="tab active" id="tabIndustry" onclick="switchModule('industry')" role="tab">V3 热点候选</button>
+    <button class="tab" id="tabMomentum" onclick="switchModule('momentum')" role="tab">动量 ETF</button>
+    <button class="tab disabled" id="tabIntraday" onclick="switchModule('intraday')" role="tab">14:50 回测 · 已停用</button>
+  </nav>
+
+  <div id="notice"></div>
+  <section class="cards" id="summaryCards"></section>
+  <div id="content"></div>
+  <div class="method" id="method"></div>
+</main>
+
+<script>
+var DATA = null;
+var module_ = 'industry';
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+function fmtDate(value) {
+  var d = String(value || '').replace(/-/g, '');
+  return d.length >= 8 ? d.slice(4,6) + '月' + d.slice(6,8) + '日' : '—';
+}
+function number(value, digits) {
+  if (value === null || value === undefined || !isFinite(Number(value))) return '—';
+  return Number(value).toFixed(digits == null ? 1 : digits);
+}
+function pct(value, digits) {
+  if (value === null || value === undefined || !isFinite(Number(value))) return '<span class="na">—</span>';
+  var n = Number(value), cls = n > 0 ? 'up' : (n < 0 ? 'down' : '');
+  return '<span class="' + cls + '">' + (n > 0 ? '+' : '') + n.toFixed(digits == null ? 2 : digits) + '%</span>';
+}
+function stageLabel(value) {
+  return {
+    confirmed:'确认', emerging:'萌芽', watch:'观察', avoid:'回避',
+    insufficient:'数据不足'
+  }[String(value || '').toLowerCase()] || String(value || '—');
+}
+function card(value, label, signed) {
+  var cls = '';
+  if (signed && value !== null && value !== undefined) cls = Number(value) > 0 ? 'positive' : (Number(value) < 0 ? 'negative' : '');
+  return '<div class="card ' + cls + '"><div class="value">' +
+    (value === null || value === undefined ? '—' : escapeHtml(value)) +
+    '</div><div class="label">' + escapeHtml(label) + '</div></div>';
+}
+
+async function load() {
+  try {
+    var response = await fetch('/etf_backtest.json?_=' + Date.now());
+    if (!response.ok) throw new Error('数据未生成');
+    DATA = await response.json();
+    render();
+  } catch (error) {
+    document.getElementById('content').innerHTML =
+      '<div class="section empty">回测数据尚未生成<br><small>点击右上角“重新回测”（约 1–2 分钟）</small></div>';
+  }
+}
+
+function switchModule(next) {
+  module_ = next;
+  ['Industry','Momentum','Intraday'].forEach(function(name) {
+    var key = name.toLowerCase();
+    document.getElementById('tab' + name).classList.toggle('active', key === next);
+  });
+  render();
+}
+
+function evaluation(moduleData, horizon) {
+  return ((moduleData || {}).evaluation || {})[horizon] || {};
+}
+
+function renderSummary(moduleData) {
+  var summary = moduleData.summary || {};
+  var e5 = evaluation(moduleData, 't5');
+  var h5 = summary.t5 || {};
+  var cards = '';
+  cards += card(e5.eligible_dates == null ? h5.n : e5.eligible_dates, '独立可评估日期');
+  cards += card(e5.precision_at_k == null ? null : number(e5.precision_at_k,1) + '%',
+    'Precision@' + (e5.k || 3));
+  cards += card(e5.avg_net_return == null ? null : (e5.avg_net_return > 0 ? '+' : '') + number(e5.avg_net_return,2) + '%',
+    'T+5 平均净收益', true);
+  cards += card(e5.avg_excess_return == null ? null : (e5.avg_excess_return > 0 ? '+' : '') + number(e5.avg_excess_return,2) + '%',
+    'T+5 平均超额', true);
+  cards += card(e5.rank_ic == null ? null : number(e5.rank_ic,3), 'T+5 Rank IC', true);
+  cards += card(e5.coverage == null ? null : number(e5.coverage,1) + '%', '可评估日期覆盖');
+  cards += card(summary.avg_max_dd == null ? null : number(summary.avg_max_dd,2) + '%', '观察窗平均最大回撤', true);
+  document.getElementById('summaryCards').innerHTML = cards;
+}
+
+function compareRow(name, e5, e10) {
+  return '<div>' + escapeHtml(name) + '</div>' +
+    '<div>' + number(e5.precision_at_k,1) + '%</div>' +
+    '<div>' + pct(e5.avg_excess_return) + '</div>' +
+    '<div class="wide">' + number(e5.rank_ic,3) + '</div>' +
+    '<div class="wide">' + number(e10.precision_at_k,1) + '%</div>' +
+    '<div>' + pct(e10.avg_excess_return) + '</div>';
+}
+
+function renderComparison(moduleData) {
+  if (module_ !== 'industry') return '';
+  var baseline = (((DATA.baselines || {}).relative_strength_5d) || {});
+  var e5 = evaluation(moduleData,'t5'), e10 = evaluation(moduleData,'t10');
+  var b5 = evaluation(baseline,'t5'), b10 = evaluation(baseline,'t10');
+  return '<section class="section"><div class="section-head"><span>与简单基线同口径比较</span>' +
+    '<span class="section-note">同一完整 ETF 结果横截面 · 同成本 · 同基准</span></div>' +
+    '<div class="compare">' +
+    '<div class="head">方法</div><div class="head">T+5 P@K</div><div class="head">T+5 超额</div>' +
+    '<div class="head wide">T+5 Rank IC</div><div class="head wide">T+10 P@K</div><div class="head">T+10 超额</div>' +
+    compareRow('V3 热点候选',e5,e10) + compareRow('5日相对强弱 Top3',b5,b10) +
+    '</div></section>';
+}
+
+function renderCalibration() {
+  if (module_ !== 'industry') return '';
+  var c = DATA.calibration || {};
+  var ready = c.status === 'ready' || c.status === 'calibrated';
+  var validation = c.validation || {};
+  var text = ready
+    ? '概率映射已完成时间切分的样本外校准。机会分仍不是确定性结论。'
+    : '校准中：独立预测日期或有效样本尚未达到门槛，页面不会把短样本胜率冒充预测概率。';
+  return '<section class="section"><div class="section-head"><span>概率校准</span>' +
+    '<span class="section-note">训练期与验证期按时间分离</span></div><div class="calibration">' +
+    '<div class="cal-status ' + (ready ? 'ready' : 'insufficient') + '"><strong>' +
+    (ready ? '已校准' : '校准中') + '</strong><br>' + escapeHtml(text) + '</div>' +
+    '<div class="cal-grid">' +
+    '<div class="cal-metric"><b>' + number(c.independent_dates,0) + '</b><span>独立日期 / ' + number(c.min_dates,0) + '</span></div>' +
+    '<div class="cal-metric"><b>' + number(c.sample_size,0) + '</b><span>样本 / ' + number(c.min_samples,0) + '</span></div>' +
+    '<div class="cal-metric"><b>' + (c.base_rate == null ? '—' : number(c.base_rate * 100,1) + '%') + '</b><span>样本热点基准率</span></div>' +
+    '<div class="cal-metric"><b>' + number(validation.brier,4) + '</b><span>验证 Brier</span></div>' +
+    '</div></div></section>';
+}
+
+function renderPicks(moduleData) {
+  var rows = (moduleData.picks || []).slice();
+  if (!rows.length) return '<section class="section empty">暂无可评估记录</section>';
+  rows.sort(function(a,b) { return String(b.date).localeCompare(String(a.date)) || Number(a.rank)-Number(b.rank); });
+  var body = '', lastDate = null;
+  rows.forEach(function(row) {
+    if (row.date !== lastDate) {
+      body += '<tr class="date-row"><td colspan="13">' + fmtDate(row.date) + ' 预测 · T+1 开盘执行</td></tr>';
+      lastDate = row.date;
+    }
+    var stage = row.stage || (module_ === 'momentum' ? '动量通过' : '—');
+    var hit = row.hotspot_hit_t5;
+    body += '<tr><td>#' + escapeHtml(row.rank) + '</td>' +
+      '<td><strong>' + escapeHtml(row.name || row.label || row.code) + '</strong><span class="code">' + escapeHtml(row.code) + '</span></td>' +
+      '<td class="score">' + number(row.opportunity_score == null ? row.score : row.opportunity_score,1) + '</td>' +
+      '<td><span class="tag ' + (stage === 'avoid' ? 'avoid' : '') + '">' + escapeHtml(stageLabel(stage)) + '</span></td>' +
+      '<td>' + (row.entry == null ? '<span class="na">—</span>' : number(row.entry,3)) + '</td>' +
+      '<td>' + pct(row.net_ret_t5 == null ? row.ret_t5 : row.net_ret_t5) + '</td>' +
+      '<td>' + pct(row.benchmark_ret_t5) + '</td>' +
+      '<td>' + pct(row.excess_ret_t5) + '</td>' +
+      '<td>' + (row.forward_percentile_t5 == null ? '<span class="na">—</span>' : number(row.forward_percentile_t5,1) + '%') + '</td>' +
+      '<td class="' + (hit === true ? 'hit' : 'miss') + '">' + (hit == null ? '—' : (hit ? '命中' : '未命中')) + '</td>' +
+      '<td>' + pct(row.net_ret_t10 == null ? row.ret_t10 : row.net_ret_t10) + '</td>' +
+      '<td>' + pct(row.excess_ret_t10) + '</td>' +
+      '<td>' + pct(row.max_dd) + '</td></tr>';
+  });
+  return '<section class="section"><div class="section-head"><span>逐日预测明细</span>' +
+    '<span class="section-note">收益均为百分比；“—”表示尚无完整观察窗</span></div>' +
+    '<div class="table-wrap"><table><thead><tr><th>#</th><th>ETF</th><th>机会分</th><th>阶段</th><th>T+1 开盘</th>' +
+    '<th>T+5 净收益</th><th>510300</th><th>T+5 超额</th><th>横截面分位</th><th>热点标签</th>' +
+    '<th>T+10 净收益</th><th>T+10 超额</th><th>最大回撤</th></tr></thead><tbody>' + body +
+    '</tbody></table></div></section>';
+}
+
+function renderDisabledIntraday() {
+  var intraday = DATA.intraday || {};
+  document.getElementById('summaryCards').innerHTML = '';
+  document.getElementById('notice').innerHTML = '';
+  document.getElementById('content').innerHTML =
+    '<section class="section disabled-box"><div class="icon">⏱</div><h2>14:50 策略回测已停用</h2>' +
+    '<p>' + escapeHtml(intraday.reason || '日线数据无法无穿越复现 14:50 成交价与盘中触发顺序') + '。</p>' +
+    '<p>只有接入分钟级历史报价、真实可成交价格、涨跌停与滑点约束后，才会重新启用。当前不再展示由日线 OHLC 推算的伪净值曲线。</p></section>';
+  document.getElementById('method').innerHTML =
+    '<strong>为什么停用：</strong>日内先后顺序是策略规则的一部分；仅凭最高、最低和收盘无法知道 14:50 的真实价格，也无法判断盘中条件的触发顺序。';
+}
+
+function render() {
+  if (!DATA) return;
+  var dates = DATA.dates || [];
+  document.getElementById('dateSub').textContent =
+    (dates.length ? '回测区间 ' + fmtDate(dates[dates.length-1]) + '—' + fmtDate(dates[0]) + ' · ' : '') +
+    '严格 T+1 · 扣 ' + number((DATA.costs || {}).round_trip_bps,0) + 'bps 成本 · 基准 ' +
+    escapeHtml(((DATA.benchmark || {}).code) || '510300') + ' · 更新于 ' + (DATA.updated_at || '—');
+  if (module_ === 'intraday') { renderDisabledIntraday(); return; }
+  var moduleData = DATA[module_] || {};
+  var calibration = DATA.calibration || {};
+  document.getElementById('notice').innerHTML = module_ === 'industry' && calibration.status !== 'ready' && calibration.status !== 'calibrated'
+    ? '<div class="notice"><strong>校准中</strong><span>当前只把机会分用于排序，不显示伪造的成功概率。历史效果请看完整横截面的 Precision@K、超额收益和 Rank IC。</span></div>' : '';
+  renderSummary(moduleData);
+  document.getElementById('content').innerHTML =
+    renderCalibration() + renderComparison(moduleData) + renderPicks(moduleData);
+  document.getElementById('method').innerHTML =
+    '<strong>信号时点：</strong>' + escapeHtml(DATA.signal_rule || 'D 日收盘后') +
+    ' · <strong>入场：</strong>' + escapeHtml(DATA.entry_rule || 'T+1 开盘') +
+    ' · <strong>成本：</strong>' + escapeHtml((DATA.costs || {}).application || '净收益扣除往返成本') +
+    '<br><strong>热点定义：</strong>' + escapeHtml(DATA.hotspot_definition || '净收益、超额收益与完整横截面分位共同确认') +
+    ' · 统计先按预测日聚类，不能把同日多只 ETF 或相邻重叠窗口当作独立样本。' +
+    (DATA.sample_note ? '<br>' + escapeHtml(DATA.sample_note) : '') +
+    ((DATA.feature_availability || {}).note
+      ? '<br><strong>历史特征边界：</strong>' + escapeHtml(DATA.feature_availability.note) : '');
+}
+
+function refreshData() {
+  var button = document.getElementById('refreshBtn');
+  button.disabled = true;
+  button.textContent = '回测中…';
+  fetch('/api/etf-backtest/recalc', {method:'POST'})
+    .then(function(response) {
+      if (!response.ok) return response.json().then(function(body) {
+        throw new Error(body.detail || '回测失败');
+      });
+      return response.json();
+    })
+    .then(function() { return load(); })
+    .catch(function(error) { alert('回测失败：' + error.message); })
+    .finally(function() { button.disabled = false; button.textContent = '重新回测'; });
+}
+
+load();
+</script>
+<script src="/page-guide.js" defer></script>
+</body>
+</html>

@@ -9,3 +9,10 @@ dist/
 *.blockmap
 /build/
 *.log
+
+# --- 生成的数据产物(不入库,磁盘保留供打包种子) ---
+static/*.json
+static/data.db*
+data.db
+static/industry-heatmap-standalone.html
+.claude/

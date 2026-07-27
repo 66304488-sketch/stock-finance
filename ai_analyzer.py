@@ -12,16 +12,48 @@ import json
 import os
 import sys
 import sqlite3
+import copy
 from datetime import datetime
 
 # 复用 analyze_market 的数据加载和指标计算
 from analyze_market import (
-    load_all, load_json, STATIC, TYPES, TYPE_CN,
+    load_all, STATIC, TYPES,
     get_industry_data, get_total_row,
 )
 from mcp_config import build_anthropic_mcp_parts
+from runtime_paths import user_data_path
 
-DB_PATH = os.path.expanduser("~/.stock-finance/history.db")
+DB_PATH = user_data_path("history.db")
+
+
+def _align_to_common_latest(highs, lows):
+    datasets = [data for group in (highs, lows) for data in group.values() if data and data.get("dates")]
+    if not datasets:
+        return highs, lows, None
+    common = None
+    for data in datasets:
+        keys = {item.get("full_label") or item.get("label") for item in data["dates"]}
+        common = keys if common is None else common & keys
+    if not common:
+        return highs, lows, None
+    ordered = [item.get("full_label") or item.get("label") for item in datasets[0]["dates"]]
+    selected = next((key for key in ordered if key in common), None)
+    aligned_groups = []
+    for group in (highs, lows):
+        aligned = {}
+        for period, original in group.items():
+            if not original or not original.get("dates"):
+                aligned[period] = original
+                continue
+            data = copy.deepcopy(original)
+            keys = [item.get("full_label") or item.get("label") for item in data["dates"]]
+            index = keys.index(selected)
+            data["dates"] = data["dates"][index:]
+            for row in data.get("industries", []):
+                row["daily_counts"] = (row.get("daily_counts") or [])[index:]
+            aligned[period] = data
+        aligned_groups.append(aligned)
+    return aligned_groups[0], aligned_groups[1], selected
 
 
 def ensure_db():
@@ -44,6 +76,10 @@ def ensure_db():
 def compute_metrics(highs, lows):
     """计算所有分析指标，返回结构化字典"""
     metrics = {"timestamp": datetime.now().isoformat()}
+    highs, lows, common_date = _align_to_common_latest(highs, lows)
+    if not common_date:
+        metrics["data_quality_error"] = "各周期没有共同交易日"
+        return metrics
 
     # 获取最新日期
     l_month = lows["month"]
@@ -122,7 +158,7 @@ def compute_metrics(highs, lows):
     metrics["top_highs_industries"] = top_highs[:6]
     metrics["top_lows_industries"] = top_lows[:6]
 
-    # ── 资金共识 ──
+    # ── 趋势扩散共识（基于新高/新低宽度，不代表真实资金流） ──
     inflow = []
     outflow = []
     for ind, s in industry_stats.items():
@@ -177,7 +213,7 @@ def compute_metrics(highs, lows):
 
 def call_llm(metrics):
     """调用 LLM API 生成分析报告 (支持 Anthropic / DeepSeek)"""
-    config_file = os.path.expanduser("~/.stock-finance/config.json")
+    config_file = user_data_path("config.json")
     cfg = {}
     if os.path.exists(config_file):
         with open(config_file, "r") as f:
@@ -192,15 +228,15 @@ def call_llm(metrics):
     # 构建简洁的数据上下文
     ctx_lines = [f"日期: {metrics.get('date', '未知')}"]
     ctx_lines.append(f"市场基调: {metrics.get('market_tone', '未知')}")
-    ctx_lines.append(f"\n全市场总量:")
+    ctx_lines.append("\n全市场总量:")
     ctx_lines.append(f"  20日新低: {metrics.get('lows_month_total', '?')}只 (日环比 {metrics.get('lows_month_change_pct', '?')}%)")
     ctx_lines.append(f"  一年新低: {metrics.get('lows_1year_total', '?')}只")
     ctx_lines.append(f"  近7年新低: {metrics.get('lows_alltime_total', '?')}只")
     ctx_lines.append(f"  历史新高: {metrics.get('highs_alltime_total', '?')}只")
     ctx_lines.append(f"  新高/新低比: {metrics.get('high_low_ratio', '?')}")
 
-    ctx_lines.append(f"\n资金共识流入: {', '.join(f'{ind}({h:.0f}%/{l:.0f}%)' for ind, h, l in metrics.get('capital_inflow', [])) or '无'}")
-    ctx_lines.append(f"资金共识流出: {', '.join(f'{ind}({l:.0f}%/{h:.0f}%)' for ind, h, l in metrics.get('capital_outflow', [])) or '无'}")
+    ctx_lines.append(f"\n趋势扩散偏强: {', '.join(f'{ind}({h:.0f}%/{l:.0f}%)' for ind, h, l in metrics.get('capital_inflow', [])) or '无'}")
+    ctx_lines.append(f"趋势扩散偏弱: {', '.join(f'{ind}({l:.0f}%/{h:.0f}%)' for ind, h, l in metrics.get('capital_outflow', [])) or '无'}")
 
     ctx_lines.append(f"\n新高最强行业: {', '.join(f'{ind}({r:.1f}%)' for ind, r in metrics.get('top_highs_industries', [])[:5])}")
     ctx_lines.append(f"新低最严重行业: {', '.join(f'{ind}({r:.1f}%)' for ind, r in metrics.get('top_lows_industries', [])[:5])}")
@@ -211,7 +247,7 @@ def call_llm(metrics):
         ctx_lines.append(f"日环比恶化: {', '.join(f'{ind}({s:+.1f})' for ind, s, h, l in metrics['day_over_day_worsening'])}")
 
     # 行业详细数据（精简）
-    ctx_lines.append(f"\n行业详细 (20日新高%/新低%):")
+    ctx_lines.append("\n行业详细 (20日新高%/新低%):")
     for ind, s in sorted(metrics.get("industries", {}).items(),
                          key=lambda x: -(x[1].get("highs_20d_ratio", 0) + x[1].get("lows_20d_ratio", 0)))[:15]:
         h = s.get("highs_20d_ratio", 0)
@@ -226,7 +262,7 @@ def call_llm(metrics):
 
 请生成一份200-400字的报告，包含:
 1. **市场总览**: 一句话概括今日基调
-2. **资金流向**: 哪些行业在流入/流出
+2. **行业扩散**: 哪些行业新高扩散或新低扩散（不要表述成真实资金流）
 3. **关键信号**: 2-3个值得关注的信号
 4. **风险提示**: 明日需要关注什么
 
@@ -274,7 +310,22 @@ def call_llm(metrics):
         return None
 
 
-def main():
+def build_rule_report(metrics):
+    strong = metrics.get("top_highs_industries", [])[:3]
+    weak = metrics.get("top_lows_industries", [])[:3]
+    strong_text = "、".join(f"{name}({ratio:.1f}%)" for name, ratio in strong) or "无明显行业"
+    weak_text = "、".join(f"{name}({ratio:.1f}%)" for name, ratio in weak) or "无明显行业"
+    return (
+        f"**市场总览**\n{metrics.get('date', '最新交易日')}市场基调为{metrics.get('market_tone', '未知')}。"
+        f"20日新高{metrics.get('highs_month_total', 0)}只，20日新低{metrics.get('lows_month_total', 0)}只。\n\n"
+        f"**行业扩散**\n新高扩散靠前：{strong_text}；新低扩散靠前：{weak_text}。"
+        "这些是价格宽度信号，不等同于真实资金净流入。\n\n"
+        f"**风险提示**\n历史新高{metrics.get('highs_alltime_total', 0)}只，近7年新低"
+        f"{metrics.get('lows_alltime_total', 0)}只；关注强弱行业扩散是否在下一交易日延续。"
+    )
+
+
+def main(use_llm=True):
     print("AI 市场分析...")
 
     # 加载数据
@@ -287,8 +338,10 @@ def main():
     metrics = compute_metrics(highs, lows)
     date_label = metrics.get("date", "unknown")
 
-    # 尝试 AI 分析
-    ai_report = call_llm(metrics)
+    # 尝试 AI 分析；失败时明确记录规则引擎回退，避免界面误称为 AI 结果。
+    llm_report = call_llm(metrics) if use_llm else None
+    analysis_source = "llm" if llm_report else "rules"
+    ai_report = llm_report or build_rule_report(metrics)
 
     # 保存报告
     report_data = {
@@ -296,6 +349,7 @@ def main():
         "market_tone": metrics.get("market_tone", "未知"),
         "metrics": metrics,
         "ai_report": ai_report,
+        "analysis_source": analysis_source,
         "generated_at": datetime.now().isoformat(),
     }
 
@@ -332,4 +386,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--metrics-only", action="store_true")
+    args = parser.parse_args()
+    main(use_llm=not args.metrics_only)

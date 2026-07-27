@@ -66,7 +66,7 @@ function createMenu(): void {
       submenu: [
         { role: "about" },
         { type: "separator" },
-        { label: "刷新数据", click: () => runDataPipeline() },
+        { label: "刷新数据", click: () => runDataPipeline(1, true) },
         { type: "separator" },
         { role: "quit" },
       ],
@@ -114,7 +114,7 @@ function createTray(): void {
   };
   const contextMenu = Menu.buildFromTemplate([
     { label: "显示窗口", click: showOrCreate },
-    { label: "刷新数据", click: () => runDataPipeline() },
+    { label: "刷新数据", click: () => runDataPipeline(1, true) },
     { type: "separator" },
     { label: "退出", click: () => app.quit() },
   ]);
@@ -122,7 +122,7 @@ function createTray(): void {
   tray.on("click", showOrCreate);
 }
 
-function postRefresh(): Promise<boolean> {
+function postRefresh(days = 1): Promise<boolean> {
   return new Promise((resolve) => {
     const req = http.request(
       {
@@ -131,8 +131,10 @@ function postRefresh(): Promise<boolean> {
         path: "/api/refresh-data",
         method: "POST",
         timeout: 5000,
+        headers: { "Content-Type": "application/json" },
       },
       (res) => {
+        res.resume();
         resolve(res.statusCode === 200);
       }
     );
@@ -141,45 +143,121 @@ function postRefresh(): Promise<boolean> {
       req.destroy();
       resolve(false);
     });
-    req.end();
+    req.end(JSON.stringify({ days, mode: "auto" }));
   });
 }
 
-function pollRefreshStatus(maxMs = 1200000): Promise<{ running: boolean; success?: boolean; error?: string; current_step?: string }> {
+function postIntradayScan(): Promise<void> {
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: "localhost",
+        port: PYTHON_PORT,
+        path: "/api/intraday-scan",
+        method: "POST",
+        timeout: 5000,
+        headers: { "Content-Type": "application/json" },
+      },
+      (res) => {
+        res.resume();
+        resolve();
+      },
+    );
+    req.on("error", () => resolve());
+    req.on("timeout", () => {
+      req.destroy();
+      resolve();
+    });
+    req.end(JSON.stringify({ window: "all", scheme: "all" }));
+  });
+}
+
+function getBackendJson(pathname: string): Promise<any | null> {
+  return new Promise((resolve) => {
+    const req = http.get(`${BASE_URL}${pathname}`, { timeout: 5000 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+}
+
+async function needsCatchUp(): Promise<boolean> {
+  const session = await getBackendJson("/api/market-session");
+  const awaitingTodayClose = session
+    && ["trading", "lunch", "awaiting_close"].includes(session.phase)
+    && !session.close_confirmed;
+  if (awaitingTodayClose) return false;
+
+  const result = await getBackendJson("/api/refresh-data/check");
+  if (!result) return false;
+  const datasets = result?.datasets || {};
+  return ["highs", "lows", "capital_flow"].some(
+    (name) => datasets[name]?.status !== "up_to_date"
+  );
+}
+
+interface RefreshStatus {
+  running: boolean;
+  success?: boolean;
+  error?: string;
+  current_step?: string;
+  pollTimedOut?: boolean;
+}
+
+function fetchRefreshStatus(): Promise<RefreshStatus | null> {
+  return new Promise((resolve) => {
+    const req = http.get(`${BASE_URL}/api/refresh-data/status`, { timeout: 5000 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data) as RefreshStatus);
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
+function pollRefreshStatus(maxMs = 1200000): Promise<RefreshStatus> {
   return new Promise((resolve) => {
     const start = Date.now();
-    const check = () => {
-      if (Date.now() - start > maxMs) {
-        resolve({ running: false, success: false, error: "数据更新轮询超时" });
+    let lastStep = "";
+    const check = async () => {
+      // Always query once after wake/resume before evaluating elapsed wall time.
+      const status = await fetchRefreshStatus();
+      if (status && !status.running) {
+        resolve(status);
         return;
       }
-      const req = http
-        .get(`${BASE_URL}/api/refresh-data/status`, { timeout: 3000 }, (res) => {
-          let data = "";
-          res.on("data", (chunk) => {
-            data += chunk;
-          });
-          res.on("end", () => {
-            try {
-              const status = JSON.parse(data);
-              if (!status.running) {
-                resolve(status);
-              } else {
-                notify("数据更新", status.current_step || "更新中...");
-                setTimeout(check, 1000);
-              }
-            } catch {
-              setTimeout(check, 1000);
-            }
-          });
-        })
-        .on("error", () => setTimeout(check, 1000))
-        .on("timeout", () => {
-          req.destroy();
-          setTimeout(check, 1000);
-        });
+      if (status?.current_step && status.current_step !== lastStep) {
+        lastStep = status.current_step;
+        console.log(`[Scheduler] Data update step: ${lastStep}`);
+      }
+      if (Date.now() - start > maxMs) {
+        resolve(status
+          ? { ...status, pollTimedOut: true }
+          : { running: false, success: undefined, pollTimedOut: true, error: "暂时无法确认后台更新状态" });
+        return;
+      }
+      setTimeout(check, 2000);
     };
-    check();
+    void check();
   });
 }
 
@@ -188,7 +266,7 @@ function pollRefreshStatus(maxMs = 1200000): Promise<{ running: boolean; success
  */
 let pipelineRunning = false;
 
-async function runDataPipeline(): Promise<void> {
+async function runDataPipeline(days = 1, interactive = false): Promise<void> {
   if (pipelineRunning) {
     notify("数据更新", "已有刷新任务在运行中");
     return;
@@ -201,19 +279,27 @@ async function runDataPipeline(): Promise<void> {
   pipelineRunning = true;
   notify("数据更新", "启动后台刷新...");
   try {
-    const started = await postRefresh();
+    const started = await postRefresh(days);
     if (!started) {
-      notify("错误", "无法启动数据刷新，请检查后端服务");
+      const message = "无法启动数据刷新，请检查后端服务";
+      notify("错误", message);
+      if (!interactive) throw new Error(message);
       return;
     }
     const status = await pollRefreshStatus(1200000);
     if (status.success) {
       notify("数据更新", "✅ 数据更新完成");
       mainWindow?.webContents.reload();
+    } else if (status.pollTimedOut) {
+      const message = status.running
+        ? "数据仍在后台更新，完成后页面会自动读取最新结果"
+        : "暂时无法确认更新状态，稍后可在设置页查看最终结果";
+      notify("数据更新", message);
     } else {
       const err = status.error || "未知错误";
       notify("更新失败", err);
-      dialog.showErrorBox("数据更新失败", err);
+      if (interactive) dialog.showErrorBox("数据更新失败", err);
+      else throw new Error(err);
     }
   } finally {
     pipelineRunning = false;
@@ -241,16 +327,33 @@ app.whenReady().then(async () => {
     return result.canceled ? null : result.filePaths[0];
   });
 
+  // IPC: 在 Finder 中打开路径（打包版只允许 app 自己的 userData 目录）
+  ipcMain.handle("open-path", async (_e, target: string) => {
+    const resolved = path.resolve(String(target || ""));
+    if (app.isPackaged) {
+      const base = path.resolve(app.getPath("userData"));
+      if (resolved !== base && !resolved.startsWith(base + path.sep)) return "restricted";
+    }
+    return shell.openPath(resolved);
+  });
+
   // 打包后用 Resources 目录（Python 脚本在 asar 外），开发模式用项目根目录
   const projectRoot = app.isPackaged
     ? process.resourcesPath
     : path.join(__dirname, "..", "..");
-  console.log("Project root:", projectRoot, "isPackaged:", app.isPackaged);
-  pythonManager = new PythonManager(projectRoot);
+  const resourceStaticDir = path.join(projectRoot, "static");
+  const userDataDir = app.getPath("userData");
+  const dataDir = app.isPackaged ? path.join(userDataDir, "data") : resourceStaticDir;
+  console.log("Project root:", projectRoot, "data dir:", dataDir, "isPackaged:", app.isPackaged);
+  pythonManager = new PythonManager(projectRoot, {
+    resourceStaticDir,
+    dataDir,
+    userDataDir: app.isPackaged ? userDataDir : path.join(process.env.HOME || userDataDir, ".stock-finance"),
+  });
   const startResult = await pythonManager.start(PYTHON_PORT);
   if (!startResult.success) {
     const msg = startResult.error || (app.isPackaged
-      ? "Python 后端启动失败。请确认已安装 Python3，然后运行：\npip3 install fastapi uvicorn akshare pandas requests httpx openpyxl baostock\n\n或双击 DMG 中的 setup.sh 一键安装"
+      ? "Python 后端启动失败。请退出 App，在安装镜像中双击“安装运行依赖.command”，完成后重新打开 App。"
       : "无法启动 Python 后端服务，请检查 Python 环境");
     dialog.showErrorBox("启动失败", msg);
     app.quit();
@@ -264,8 +367,14 @@ app.whenReady().then(async () => {
   createTray();
 
   // 启动定时任务 (北京时间 17:30, 周一至周五)
-  scheduler = new Scheduler(() => runDataPipeline());
+  scheduler = new Scheduler(() => runDataPipeline(), postIntradayScan);
   scheduler.start();
+  if (await needsCatchUp()) {
+    console.log("[Scheduler] Runtime data is stale; starting catch-up update");
+    void runDataPipeline(20).catch((err) => {
+      console.error("[Scheduler] Catch-up update failed:", err);
+    });
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

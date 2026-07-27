@@ -6,7 +6,9 @@ import json
 import os
 from typing import Any
 
-DEFAULT_STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+from runtime_paths import DATA_DIR
+
+DEFAULT_STATIC_DIR = DATA_DIR
 VALID_PERIODS = {"month", "60d", "120d", "1year", "alltime"}
 DIRECTION_PREFIX = {"highs": "new_highs", "lows": "new_lows"}
 DIRECTION_LABEL = {"highs": "创新高", "lows": "创新低"}

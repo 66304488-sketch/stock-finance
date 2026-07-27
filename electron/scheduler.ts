@@ -9,9 +9,14 @@ import * as cron from "node-cron";
 
 export class Scheduler {
   private job: cron.ScheduledTask | null = null;
+  private intradayJob: cron.ScheduledTask | null = null;
+  private intradayRunning = false;
   private retryTimers: NodeJS.Timeout[] = [];
 
-  constructor(private task: () => Promise<void>) {}
+  constructor(
+    private task: () => Promise<void>,
+    private intradayTask?: () => Promise<void>,
+  ) {}
 
   /** 获取当前北京时间的小时和分钟 */
   private beijingNow(): { hour: number; minute: number } {
@@ -40,6 +45,24 @@ export class Scheduler {
     });
 
     console.log("[Scheduler] Daily update scheduled at 17:30 Mon-Fri (Asia/Shanghai)");
+
+    if (this.intradayTask) {
+      this.intradayJob = cron.schedule("* 9-15 * * 1-5", async () => {
+        const { hour, minute } = this.beijingNow();
+        const morning = (hour === 9 && minute >= 25) || hour === 10 || (hour === 11 && minute <= 30);
+        const afternoon = hour >= 13 && (hour < 15 || (hour === 15 && minute <= 5));
+        if ((!morning && !afternoon) || this.intradayRunning) return;
+        this.intradayRunning = true;
+        try {
+          await this.intradayTask?.();
+        } catch (err) {
+          console.error("[Scheduler] Intraday snapshot trigger failed:", err);
+        } finally {
+          this.intradayRunning = false;
+        }
+      }, { timezone: "Asia/Shanghai" });
+      console.log("[Scheduler] Intraday snapshots scheduled every minute during market sessions");
+    }
   }
 
   /** 失败后依次安排 18:30、20:00 重试 */
@@ -77,6 +100,7 @@ export class Scheduler {
 
   stop(): void {
     this.job?.stop();
+    this.intradayJob?.stop();
     this.retryTimers.forEach((t) => clearTimeout(t));
     this.retryTimers = [];
     console.log("[Scheduler] Stopped");

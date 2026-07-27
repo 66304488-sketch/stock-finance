@@ -19,4 +19,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** 打开文件夹选择对话框 */
   selectDirectory: () => ipcRenderer.invoke("select-dir"),
+
+  /** 在 Finder 中打开指定路径（打包版仅限应用数据目录） */
+  openPath: (target: string) => ipcRenderer.invoke("open-path", target),
 });

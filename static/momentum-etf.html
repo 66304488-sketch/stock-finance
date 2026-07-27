@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动量ETF · 五福5.2策略信号</title>
+<style>
+  :root { --bg:#1a1d23; --text:#abb2bf; --accent:#61afef; --border:#333842; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; background:var(--bg); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); }
+  .container { max-width:1200px; margin:0 auto; padding:20px; }
+  .header { text-align:center; margin-bottom:14px; position:relative; }
+  .header h1 { font-size:1.2em; color:#e5e5e5; }
+  .header .sub { font-size:0.8em; color:#666; margin-top:4px; }
+  .edit-btn { position:absolute; right:0; top:2px; padding:5px 12px; background:#282c34; color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:0.72em; cursor:pointer; }
+  .edit-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .refresh-btn { position:absolute; right:110px; top:2px; padding:5px 12px; background:var(--accent); color:#1a1d23; border:none; border-radius:6px; font-size:0.72em; font-weight:600; cursor:pointer; }
+  .refresh-btn:disabled { background:#3a4a5a; color:#888; cursor:wait; }
+  .mode-chip { display:inline-block; font-size:0.62em; padding:1px 8px; border-radius:8px; margin-left:6px; vertical-align:middle; }
+  .mode-chip.intraday { background:#e5c07b22; color:#e5c07b; border:1px solid #e5c07b44; }
+  .mode-chip.close { background:#61afef22; color:#61afef; border:1px solid #61afef44; }
+
+  /* 池切换 */
+  .mod-tabs { display:flex; gap:6px; justify-content:center; margin-bottom:12px; flex-wrap:wrap; }
+  .mod-tab { padding:5px 16px; border:1px solid var(--border); border-radius:6px; background:#21252b; color:var(--text); font:inherit; font-size:0.78em; cursor:pointer; }
+  .mod-tab.active { background:var(--accent); color:#1a1d23; border-color:var(--accent); font-weight:600; }
+  .weak-note { text-align:center; font-size:0.7em; color:#e06c75; margin:-6px 0 10px; display:none; }
+
+  /* 市场状态条 */
+  .market-strip { display:flex; gap:10px; align-items:stretch; margin-bottom:14px; flex-wrap:wrap; }
+  .market-badge { padding:10px 16px; border-radius:10px; border:1px solid var(--border); background:#21252b; text-align:center; min-width:150px; }
+  .market-badge .st { font-size:1.05em; font-weight:700; }
+  .market-badge .days { font-size:0.68em; color:#888; margin-top:3px; }
+  .market-badge.weak { border-color:#e06c7555; }
+  .market-badge.weak .st { color:#e06c75; }
+  .market-badge.normal { border-color:#98c37955; }
+  .market-badge.normal .st { color:#98c379; }
+  .idx-chip { flex:1; min-width:110px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#21252b; text-align:center; }
+  .idx-chip .nm { font-size:0.7em; color:#888; }
+  .idx-chip .px { font-size:0.85em; font-weight:600; color:#e5e5e5; font-family:"SF Mono","Menlo","Consolas",monospace; margin:2px 0; }
+  .idx-chip .ma { font-size:0.65em; }
+  .idx-chip.above .ma { color:#98c379; }
+  .idx-chip.below .ma { color:#e06c75; }
+
+  /* 今日目标卡 */
+  .target-card { border-radius:12px; padding:16px 18px; margin-bottom:16px; border:1px solid #e5c07b55; background:linear-gradient(135deg,#26221a 0%,#21252b 100%); }
+  .target-card.defensive { border-color:#61afef55; background:linear-gradient(135deg,#1a2230 0%,#21252b 100%); }
+  .target-label { font-size:0.72em; color:#888; letter-spacing:1px; }
+  .target-name { font-size:1.3em; font-weight:700; color:#e5e5e5; margin:4px 0; }
+  .target-name .code { font-family:"SF Mono","Menlo","Consolas",monospace; color:#d19a66; font-size:0.7em; margin-left:8px; }
+  .target-metrics { display:flex; gap:18px; flex-wrap:wrap; margin-top:8px; }
+  .tm { text-align:center; }
+  .tm .v { font-size:1.05em; font-weight:700; font-family:"SF Mono","Menlo","Consolas",monospace; color:#e5c07b; }
+  .tm .k { font-size:0.62em; color:#888; margin-top:2px; }
+
+  /* 中国池与动态池并列动量 */
+  .compare-section { margin-bottom:16px; }
+  .compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .compare-col { background:#21252b; border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+  .compare-col h3 { font-size:0.78em; color:#888; font-weight:600; margin-bottom:8px; }
+  .compare-item { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; font-size:0.76em; }
+  .compare-item + .compare-item { border-top:1px solid #1e2130; }
+  .compare-item .rk { color:#666; font-family:"SF Mono","Menlo","Consolas",monospace; width:16px; }
+  .compare-item .nm { flex:1; color:#e5e5e5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .compare-item .nm small { color:#666; margin-left:4px; }
+  .compare-item .sc { font-family:"SF Mono","Menlo","Consolas",monospace; color:#e5c07b; }
+  .compare-item.both { background:#e5c07b14; border:1px solid #e5c07b44; }
+  .both-chip { font-size:0.58em; padding:0 5px; border-radius:7px; background:#e5c07b; color:#1a1d23; font-weight:700; }
+  .compare-empty { color:#555; font-size:0.75em; padding:8px; text-align:center; }
+  .source-chip { font-size:0.58em; padding:0 5px; border-radius:4px; color:#61afef; border:1px solid #61afef55; }
+  .etf-link { color:inherit; text-decoration:none; }
+  .etf-link:hover { color:var(--accent); text-decoration:underline; }
+
+  /* 表格 */
+  .section-title { font-size:0.9em; color:#e5e5e5; font-weight:600; margin:14px 0 8px; }
+  .table-scroll { overflow-x:auto; max-height:52vh; overflow-y:auto; }
+  table { width:100%; border-collapse:collapse; font-size:0.78em; }
+  th { background:#21252b; padding:7px 6px; text-align:right; border-bottom:2px solid var(--border); font-weight:600; color:#888; font-size:0.78em; position:sticky; top:0; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  th.sortable { cursor:pointer; user-select:none; }
+  th.sortable:hover { color:var(--accent); }
+  th.sort-active { color:var(--accent) !important; }
+  td { padding:6px; text-align:right; border-bottom:1px solid #1e2130; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  tr:hover td { background:#21252b22; }
+  tr.in-top td { background:#e5c07b0a; }
+  .code { font-family:"SF Mono","Menlo","Consolas",monospace; color:#d19a66; font-size:0.92em; }
+  .nm { color:#e5e5e5; font-weight:600; }
+  .score-v { color:#e5c07b; font-weight:700; font-family:"SF Mono","Menlo","Consolas",monospace; }
+  .up { color:#e06c75; }
+  .down { color:#61afef; }
+  .pass { color:#98c379; }
+  .fail { color:#e06c75; }
+  .na { color:#444; }
+  .footnote { font-size:0.7em; color:#555; margin-top:12px; line-height:1.8; }
+  .error { text-align:center; padding:40px; color:#e06c75; }
+
+  /* 编辑器弹窗 */
+  .modal-overlay { display:none; position:fixed; inset:0; background:#000000aa; z-index:1000; justify-content:center; align-items:center; }
+  .modal-overlay.active { display:flex; }
+  .modal { background:#1a1d23; border:1px solid var(--border); border-radius:8px; padding:20px; width:min(1060px,96vw); max-height:90vh; overflow-y:auto; }
+  .modal h2 { font-size:1em; color:#e5e5e5; margin-bottom:12px; }
+  .pool-cols { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .pool-col { border:1px solid var(--border); border-radius:6px; background:#21252b; padding:10px; min-width:0; }
+  .pool-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .pool-head strong { font-size:0.76em; color:#e5e5e5; }
+  .pool-count { color:#666; font-size:0.68em; }
+  .pool-add { display:grid; grid-template-columns:80px 1fr 30px; gap:5px; margin-bottom:8px; }
+  .pool-add input { min-width:0; background:#1a1d23; color:var(--text); border:1px solid var(--border); border-radius:4px; padding:5px 6px; font-size:0.72em; }
+  .icon-btn { width:30px; height:28px; border:1px solid var(--border); background:#282c34; color:var(--text); border-radius:4px; cursor:pointer; font-size:1em; }
+  .icon-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .pool-list { height:225px; overflow:auto; border-top:1px solid var(--border); }
+  .pool-row { display:grid; grid-template-columns:48px 1fr 24px; gap:6px; align-items:center; padding:6px 2px; border-bottom:1px solid #2a2e36; font-size:0.7em; }
+  .pool-row.dynamic { grid-template-columns:24px 48px 1fr; }
+  .pool-row .pool-code { color:#d19a66; font-family:"SF Mono","Menlo","Consolas",monospace; }
+  .pool-row .pool-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#e5e5e5; }
+  .pool-row .pool-industry { display:block; color:#666; font-size:0.9em; margin-top:1px; }
+  .remove-btn { border:0; background:transparent; color:#777; cursor:pointer; width:24px; height:24px; font-size:1.1em; }
+  .remove-btn:hover { color:#e06c75; }
+  .dynamic-note { color:#666; font-size:0.65em; line-height:1.5; margin-bottom:7px; min-height:30px; }
+  .params-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-top:12px; }
+  .param-item label { font-size:0.66em; color:#888; display:block; margin-bottom:2px; }
+  .param-item input { width:100%; background:#21252b; color:var(--text); border:1px solid var(--border); border-radius:5px; padding:5px 8px; font-size:0.8em; font-family:"SF Mono","Menlo","Consolas",monospace; }
+  .modal-actions { display:flex; gap:10px; margin-top:14px; align-items:center; }
+  .btn-primary { padding:7px 16px; background:var(--accent); color:#1a1d23; border:none; border-radius:6px; font-size:0.82em; font-weight:600; cursor:pointer; }
+  .btn-normal { padding:7px 14px; background:#282c34; color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:0.82em; cursor:pointer; }
+  .save-status { font-size:0.75em; }
+  .save-status.ok { color:#98c379; }
+  .save-status.warn { color:#e06c75; }
+  .modal-hint { font-size:0.68em; color:#555; margin-top:8px; line-height:1.6; }
+  @media (max-width:760px) {
+    .container { padding:12px; }
+    .header { padding-top:36px; }
+    .pool-cols, .compare-grid { grid-template-columns:1fr; }
+    .pool-list { height:180px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🚀 动量ETF <span style="font-size:0.6em;color:#666;font-weight:400">五福5.2策略信号</span></h1>
+    <div class="sub" id="dateSub"></div>
+    <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">🔄 更新数据</button>
+    <button class="edit-btn" onclick="openEditor()">⚙️ 池子与参数</button>
+  </div>
+  <div class="mod-tabs" role="tablist" aria-label="动量策略池">
+    <button type="button" class="mod-tab active" data-variant="combined" onclick="switchVariant('combined')" role="tab" aria-selected="true">中国 + 动态</button>
+    <button type="button" class="mod-tab" data-variant="china" onclick="switchVariant('china')" role="tab" aria-selected="false">中国池</button>
+    <button type="button" class="mod-tab" data-variant="dynamic" onclick="switchVariant('dynamic')" role="tab" aria-selected="false">动态池</button>
+    <button type="button" class="mod-tab" data-variant="global" onclick="switchVariant('global')" role="tab" aria-selected="false">全球池</button>
+  </div>
+  <div class="weak-note" id="weakNote">走弱期策略目标仅从全球池选择；中国池和动态池仍持续计算供观察</div>
+  <div id="statusSection"></div>
+  <div id="targetSection"></div>
+  <div class="compare-section" id="compareSection"></div>
+  <div class="section-title" id="topTitle">过滤后 Top10</div>
+  <div class="table-scroll" style="max-height:32vh">
+    <table><thead><tr>
+      <th>#</th><th>代码</th><th>名称</th><th>动量得分</th><th>年化收益</th>
+      <th>R²</th><th>量比</th><th>3日最小</th><th>MA10</th><th>今日涨幅</th>
+    </tr></thead><tbody id="topTbody"></tbody></table>
+  </div>
+  <div class="section-title" id="allTitle">全部评分</div>
+  <div class="table-scroll">
+    <table><thead><tr>
+      <th class="sortable" data-sort="code">代码</th>
+      <th class="sortable" data-sort="name">名称</th>
+      <th class="sortable" data-sort="score">动量得分</th>
+      <th class="sortable" data-sort="annualized">年化收益</th>
+      <th class="sortable" data-sort="r2">R²</th>
+      <th class="sortable" data-sort="vol">量比</th>
+      <th class="sortable" data-sort="minday">3日最小</th>
+      <th class="sortable" data-sort="amt">日均成交</th>
+      <th>过滤状态</th>
+    </tr></thead><tbody id="allTbody"></tbody></table>
+  </div>
+  <div class="footnote" id="footnote"></div>
+</div>
+
+<!-- 池子编辑器 -->
+<div class="modal-overlay" id="editorOverlay" onclick="if(event.target===this)closeEditor()">
+  <div class="modal">
+    <h2>⚙️ ETF 池与策略参数</h2>
+    <div class="pool-cols">
+      <div class="pool-col">
+        <div class="pool-head"><strong>全球/海外池</strong><span class="pool-count" id="globalPoolCount"></span></div>
+        <div class="pool-add">
+          <input id="globalCode" inputmode="numeric" maxlength="6" placeholder="ETF代码">
+          <input id="globalName" placeholder="名称（可选）">
+          <button class="icon-btn" onclick="addPoolItem('global_pool')" title="添加到全球池">+</button>
+        </div>
+        <div class="pool-list" id="globalPoolList"></div>
+      </div>
+      <div class="pool-col">
+        <div class="pool-head"><strong>中国池</strong><span class="pool-count" id="chinaPoolCount"></span></div>
+        <div class="pool-add">
+          <input id="chinaCode" inputmode="numeric" maxlength="6" placeholder="ETF代码">
+          <input id="chinaName" placeholder="名称（可选）">
+          <button class="icon-btn" onclick="addPoolItem('china_pool')" title="添加到中国池">+</button>
+        </div>
+        <div class="pool-list" id="chinaPoolList"></div>
+      </div>
+      <div class="pool-col">
+        <div class="pool-head"><strong>动态池 · ETF 热点候选</strong><span class="pool-count" id="dynamicPoolCount"></span></div>
+        <div class="dynamic-note">随 ETF 热点候选自动更新；模型允许今日无信号，只读，无需手工维护。</div>
+        <div class="pool-list" id="dynamicPoolList"></div>
+      </div>
+    </div>
+    <div class="params-grid" id="paramsGrid"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="saveConfig()">💾 保存</button>
+      <button class="btn-normal" onclick="saveConfig(true)">💾 保存并重算</button>
+      <button class="btn-normal" onclick="closeEditor()">取消</button>
+      <span class="save-status" id="saveStatus"></span>
+    </div>
+    <div class="modal-hint">
+      全球池和中国池可逐条添加、移除；动态池由 ETF 热点候选自动维护。保存后在下次重算生效。<br>
+      流动性阈值：20日日均成交额 ≥ 该值（元）。走弱期判断：4指数 ≥3/4 破 MA10 进入，≥3/4 站上退出。
+    </div>
+  </div>
+</div>
+
+<script>
+var DATA = null;
+var sortState = { key: 'score', dir: 'desc' };
+var currentVariant = 'combined';
+var POOL_DRAFT = { global_pool: [], china_pool: [] };
+var VARIANT_LABELS = { combined:'中国 + 动态', china:'中国池', dynamic:'动态池', global:'全球池' };
+
+// 当前方案数据（兼容旧版无 variants 的 JSON）
+function V() {
+  if (!DATA) return {};
+  if (DATA.variants) return DATA.variants[currentVariant] || {};
+  return DATA;
+}
+
+function switchVariant(v) {
+  currentVariant = v;
+  document.querySelectorAll('.mod-tab').forEach(function(tab) {
+    var active = tab.getAttribute('data-variant') === v;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  render();
+}
+
+function fmtPct(v, signed) {
+  if (v === null || v === undefined) return '—';
+  return (signed && v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+}
+function fmtYi(v) { return !v ? '—' : (v >= 1e8 ? (v/1e8).toFixed(1) + '亿' : (v/1e4).toFixed(0) + '万'); }
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+function etfLink(code, content, name) {
+  if (!code) return content || '—';
+  var safeCode = String(code).replace(/[^\d]/g, '');
+  if (!safeCode) return content || '—';
+  return '<a class="etf-link" href="https://stockpage.10jqka.com.cn/' + safeCode
+    + '/" target="_blank" rel="noopener" title="在同花顺打开 ' + escapeHtml(name || safeCode) + '">' + content + '</a>';
+}
+function passIcon(p, active) {
+  if (active === false) return '<span class="na">—</span>';
+  return p ? '<span class="pass">✅</span>' : '<span class="fail">❌</span>';
+}
+
+async function load() {
+  try {
+    var resp = await fetch('/momentum_etf.json?_=' + Date.now());
+    if (!resp.ok) throw new Error('数据未生成');
+    DATA = await resp.json();
+  } catch(e) {
+    document.getElementById('topTbody').innerHTML = '<tr><td colspan="10"><div class="error">动量ETF数据尚未生成<br><small>请运行批量更新（ETF热点候选），或执行 momentum_etf.py</small></div></td></tr>';
+    return;
+  }
+  render();
+}
+
+// ── 市场状态条 ──
+function renderStatus() {
+  var d = DATA;
+  var h = '<div class="market-strip">';
+  h += '<div class="market-badge ' + (d.is_weak ? 'weak' : 'normal') + '">'
+     + '<div class="st">' + (d.is_weak ? '🔴 走弱期' : '🟢 正常期') + '</div>'
+     + '<div class="days">' + (d.is_weak ? '已持续 ' + d.weak_days_count + ' / ' + d.max_weak_days + ' 交易日 · 策略用全球池' : '策略池：全球 + 中国 + 动态') + '</div></div>';
+  (d.indexes || []).forEach(function(ix) {
+    if (ix.close === null) return;
+    h += '<div class="idx-chip ' + (ix.above ? 'above' : 'below') + '">'
+       + '<div class="nm">' + escapeHtml(ix.name) + '</div>'
+       + '<div class="px">' + ix.close + '</div>'
+       + '<div class="ma">' + (ix.above ? '▲ 站上' : '▼ 破位') + ' MA10 ' + ix.ma + '</div></div>';
+  });
+  h += '</div>';
+  document.getElementById('statusSection').innerHTML = h;
+}
+
+// ── 今日目标卡 ──
+function renderTarget() {
+  var d = DATA, v = (d.variants || {}).strategy || {};
+  var h = '';
+  if (v.target) {
+    var t = v.target;
+    h += '<div class="target-card">';
+    h += '<div class="target-label">策略目标 · ' + (d.is_weak ? '全球池' : '全球 + 中国 + 动态') + ' · 候选阈值 ≥ ' + v.candidate_threshold + '</div>';
+    h += '<div class="target-name">' + etfLink(t.code, escapeHtml(t.name) + '<span class="code">' + escapeHtml(t.code) + '</span>', t.name) + '</div>';
+    h += '<div class="target-metrics">';
+    h += '<div class="tm"><div class="v">' + t.score.toFixed(3) + '</div><div class="k">动量得分</div></div>';
+    h += '<div class="tm"><div class="v">' + fmtPct(t.annualized) + '</div><div class="k">年化收益</div></div>';
+    h += '<div class="tm"><div class="v">' + t.r_squared + '</div><div class="k">R²</div></div>';
+    h += '<div class="tm"><div class="v">' + (t.volume_ratio != null ? t.volume_ratio : '—') + '</div><div class="k">量比</div></div>';
+    h += '<div class="tm"><div class="v">' + t.price + '</div><div class="k">最新价</div></div>';
+    h += '<div class="tm"><div class="v ' + (t.change_pct > 0 ? 'up' : 'down') + '">' + (t.change_pct > 0 ? '+' : '') + t.change_pct + '%</div><div class="k">今日涨幅</div></div>';
+    h += '</div></div>';
+  } else {
+    var df = d.defensive_etf || {};
+    h += '<div class="target-card defensive">';
+    h += '<div class="target-label">🛡️ 无符合条件的ETF — 防御模式</div>';
+    h += '<div class="target-name">' + etfLink(df.code, escapeHtml(df.name || '防御ETF') + '<span class="code">' + escapeHtml(df.code || '') + '</span>', df.name) + '</div>';
+    h += '<div style="font-size:0.75em;color:#888;margin-top:4px">策略规则：无目标时转入货币基金避险</div>';
+    h += '</div>';
+  }
+  document.getElementById('targetSection').innerHTML = h;
+}
+
+// ── 中国池与动态池同时展示 ──
+function renderCompare() {
+  var variants = DATA.variants || {};
+  var china = variants.china || {}, dynamic = variants.dynamic || {};
+  var h = '<div class="section-title">中国池与动态池动量</div><div class="compare-grid">';
+  [['中国池', china, false], ['动态池 · ETF热点候选', dynamic, true]].forEach(function(group) {
+    var rows = (group[1].all || []).slice(0, 5);
+    h += '<div class="compare-col"><h3>' + group[0] + ' · 动量前5 · 通过过滤 ' + (group[1].top10 || []).length + ' 只</h3>';
+    if (rows.length) {
+      rows.forEach(function(m, i) {
+        var rec = m.recommendation || {};
+        h += '<div class="compare-item"><span class="rk">' + (i + 1) + '</span>'
+           + '<span class="nm">' + etfLink(m.code, escapeHtml(m.name), m.name) + '<small>' + m.code
+           + (rec.industry ? ' · ' + escapeHtml(rec.industry) : '') + '</small></span>'
+           + (m.passed_all ? '<span class="both-chip">通过</span>' : '')
+           + (group[2] && rec.rank ? '<span class="source-chip">ETF#' + rec.rank + '</span>' : '')
+           + '<span class="sc">' + m.score.toFixed(3) + '</span></div>';
+      });
+    } else {
+      h += '<div class="compare-empty">暂无通过当前过滤条件的 ETF</div>';
+    }
+    h += '</div>';
+  });
+  h += '</div>';
+  document.getElementById('compareSection').innerHTML = h;
+}
+
+// ── Top10 表 ──
+function renderTop() {
+  var h = '';
+  (V().top10 || []).forEach(function(m, i) {
+    h += '<tr>';
+    h += '<td>' + (i + 1) + '</td>';
+    h += '<td class="code">' + etfLink(m.code, m.code, m.name) + '</td>';
+    h += '<td class="nm">' + etfLink(m.code, escapeHtml(m.name), m.name) + '</td>';
+    h += '<td class="score-v">' + m.score.toFixed(3) + '</td>';
+    h += '<td class="' + (m.annualized > 0 ? 'up' : 'down') + '">' + fmtPct(m.annualized) + '</td>';
+    h += '<td>' + m.r_squared + '</td>';
+    h += '<td>' + (m.volume_ratio != null ? m.volume_ratio : '—') + '</td>';
+    h += '<td>' + (m.min_day_ratio != null ? fmtPct(m.min_day_ratio - 1) : '—') + '</td>';
+    h += '<td>' + (m.ma_value != null ? m.ma_value : '—') + '</td>';
+    h += '<td class="' + (m.change_pct > 0 ? 'up' : 'down') + '">' + (m.change_pct > 0 ? '+' : '') + m.change_pct + '%</td>';
+    h += '</tr>';
+  });
+  if (!h) h = '<tr><td colspan="10" style="text-align:center;color:#555;padding:20px">无通过全部过滤的ETF</td></tr>';
+  document.getElementById('topTbody').innerHTML = h;
+}
+
+// ── 全部评分表 ──
+function getSortedAll() {
+  var rows = (V().all || []).slice();
+  var key = sortState.key, dir = sortState.dir;
+  rows.sort(function(a, b) {
+    var va, vb;
+    if (key === 'code') { return dir === 'asc' ? a.code.localeCompare(b.code) : b.code.localeCompare(a.code); }
+    if (key === 'name') { return dir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name); }
+    if (key === 'score') { va = a.score; vb = b.score; }
+    else if (key === 'annualized') { va = a.annualized; vb = b.annualized; }
+    else if (key === 'r2') { va = a.r_squared; vb = b.r_squared; }
+    else if (key === 'vol') { va = a.volume_ratio != null ? a.volume_ratio : -1; vb = b.volume_ratio != null ? b.volume_ratio : -1; }
+    else if (key === 'minday') { va = a.min_day_ratio != null ? a.min_day_ratio : -1; vb = b.min_day_ratio != null ? b.min_day_ratio : -1; }
+    else if (key === 'amt') { va = a.avg_amount_20d; vb = b.avg_amount_20d; }
+    else { va = 0; vb = 0; }
+    return dir === 'asc' ? va - vb : vb - va;
+  });
+  return rows;
+}
+
+function renderAll() {
+  var weak = DATA.is_weak;
+  var topCodes = {};
+  (V().top10 || []).forEach(function(m) { topCodes[m.code] = true; });
+  var h = '';
+  getSortedAll().forEach(function(m) {
+    h += '<tr class="' + (topCodes[m.code] ? 'in-top' : '') + '">';
+    h += '<td class="code">' + etfLink(m.code, m.code, m.name) + '</td>';
+    h += '<td class="nm">' + etfLink(m.code, escapeHtml(m.name), m.name) + '</td>';
+    h += '<td class="score-v">' + m.score.toFixed(3) + '</td>';
+    h += '<td class="' + (m.annualized > 0 ? 'up' : 'down') + '">' + fmtPct(m.annualized) + '</td>';
+    h += '<td>' + m.r_squared + '</td>';
+    h += '<td>' + (m.volume_ratio != null ? m.volume_ratio : '—') + '</td>';
+    h += '<td>' + (m.min_day_ratio != null ? fmtPct(m.min_day_ratio - 1) : '—') + '</td>';
+    h += '<td>' + fmtYi(m.avg_amount_20d) + '</td>';
+    h += '<td style="font-size:0.85em">'
+       + passIcon(m.passed_score) + '得分 '
+       + passIcon(m.passed_r2, !weak) + 'R² '
+       + passIcon(m.passed_ma, weak) + 'MA '
+       + passIcon(m.passed_volume) + '量 '
+       + passIcon(m.passed_loss) + '风控</td>';
+    h += '</tr>';
+  });
+  document.getElementById('allTbody').innerHTML = h;
+}
+
+function renderSortHeaders() {
+  document.querySelectorAll('#allTbody').length; // noop
+  document.querySelectorAll('th.sortable').forEach(function(th) {
+    th.classList.remove('sort-active');
+    var old = th.querySelector('.sort-arrow');
+    if (old) old.remove();
+    if (th.getAttribute('data-sort') === sortState.key) {
+      th.classList.add('sort-active');
+      var arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.style.cssText = 'font-size:9px;margin-left:2px;color:var(--accent)';
+      arrow.textContent = sortState.dir === 'desc' ? '↓' : '↑';
+      th.appendChild(arrow);
+    }
+  });
+}
+
+function render() {
+  var d = DATA, v = V();
+  var modeChip = d.mode === 'intraday'
+    ? '<span class="mode-chip intraday">盘中信号 · 截至 ' + escapeHtml(d.asof || '?') + '</span>'
+    : '<span class="mode-chip close">收盘数据</span>';
+  var poolInfo = '池 ' + (v.pool_size || 0) + ' 只 · 流动性合格 ' + (v.pool_qualified || 0) + ' 只';
+  if ((currentVariant === 'dynamic' || currentVariant === 'combined') && d.dynamic_pool) {
+    var dp = d.dynamic_pool;
+    poolInfo += ' · 动态池来源 ' + escapeHtml(dp.source_date || '?') + (dp.stale ? '（上次快照）' : '');
+  }
+  document.getElementById('dateSub').innerHTML =
+    '数据日期: ' + escapeHtml(d.date || '?') + modeChip + ' · ' + poolInfo;
+  document.getElementById('weakNote').style.display = d.is_weak ? 'block' : 'none';
+  var p = d.params || {};
+  document.getElementById('footnote').innerHTML =
+    '动量得分 = 年化收益 × R²（' + p.lookback_days + '日对数价格加权回归，近期权重高）· '
+    + '过滤：得分∈[' + (p.score_range || [0,5]).join(',') + '] · R²>' + p.r2_threshold + '(正常期) · '
+    + '收盘>MA' + p.ma_lookback + '(走弱期) · 量比<' + p.volume_threshold + ' · 近3日单日跌幅≥' + Math.round((1 - p.loss) * 100) + '%<br>'
+    + '走弱期：沪深300/中小综指/创业板指/中证A500 ≥3/4 破 MA' + (p.weak_ma_lookback || 10) + ' 进入，≥3/4 站上退出，最长 ' + p.max_weak_days + ' 交易日 · '
+    + '动态池自动读取 ETF 热点候选（候选可为空）；中国池与动态池独立评分，正常期策略合并全球/中国/动态三池，走弱期策略仅用全球池。<br>'
+    + '流动性门槛：20日日均成交额 ≥ ' + fmtYi(p.min_avg_amount) + ' · 盘中刷新时量比按已交易分钟投影全天 · 更新于 ' + escapeHtml(d.updated_at || '?');
+  document.getElementById('topTitle').textContent = (VARIANT_LABELS[currentVariant] || currentVariant) + ' · 过滤后 Top10';
+  document.getElementById('allTitle').textContent = (VARIANT_LABELS[currentVariant] || currentVariant) + ' · 全部评分';
+  renderStatus();
+  renderTarget();
+  renderCompare();
+  renderTop();
+  renderAll();
+  renderSortHeaders();
+}
+
+// ── 独立刷新（只重算动量，不动其他板块数据）──
+function refreshData() {
+  var btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 计算中...';
+  fetch('/api/momentum-etf/recalc', {method: 'POST'})
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || '更新失败'); });
+      return r.json();
+    })
+    .then(function(res) {
+      btn.textContent = '🔄 更新数据';
+      btn.disabled = false;
+      load();
+    })
+    .catch(function(e) {
+      btn.textContent = '🔄 更新数据';
+      btn.disabled = false;
+      alert('动量ETF更新失败: ' + e.message);
+    });
+}
+
+// ── 池子编辑器 ──
+var PARAM_FIELDS = [
+  ['lookback_days', '动量回看天数', 1, 2, 250],
+  ['score_range_min', '得分下限', 0.1, -100, 100],
+  ['score_range_max', '得分上限', 0.1, -100, 100],
+  ['score_threshold_ratio', '候选阈值系数', 0.05, 0, 1],
+  ['r2_threshold', 'R²阈值(正常期)', 0.05, 0, 1],
+  ['ma_lookback', 'MA周期(走弱期)', 1, 1, 250],
+  ['volume_lookback', '量比均量天数', 1, 1, 60],
+  ['volume_threshold', '量比阈值', 0.1, 0.01, 20],
+  ['loss', '单日跌幅下限(如0.97)', 0.01, 0.5, 1],
+  ['weak_ma_lookback', '走弱期MA周期', 1, 2, 250],
+  ['max_weak_days', '走弱期最长天数', 1, 1, 250],
+  ['min_avg_amount', '流动性阈值(元)', 1000000, 0, 10000000000000]
+];
+
+function openEditor() {
+  fetch('/api/momentum-etf/config?_=' + Date.now())
+    .then(function(r) { return r.json(); })
+    .then(function(cfg) {
+      POOL_DRAFT = {
+        global_pool: (cfg.global_pool || []).map(function(e) { return {code:e.code, name:e.name || ''}; }),
+        china_pool: (cfg.china_pool || []).map(function(e) { return {code:e.code, name:e.name || ''}; })
+      };
+      renderPoolEditor();
+      var p = cfg.params || {};
+      var h = '';
+      PARAM_FIELDS.forEach(function(f) {
+        var v = f[0] === 'score_range_min' ? (p.score_range || [0,5])[0]
+              : f[0] === 'score_range_max' ? (p.score_range || [0,5])[1]
+              : p[f[0]];
+        h += '<div class="param-item"><label>' + f[1] + '</label>'
+           + '<input id="param_' + f[0] + '" type="number" step="' + f[2] + '" min="' + f[3]
+           + '" max="' + f[4] + '" value="' + (v != null ? v : '') + '"></div>';
+      });
+      document.getElementById('paramsGrid').innerHTML = h;
+      document.getElementById('saveStatus').textContent = '';
+      document.getElementById('editorOverlay').classList.add('active');
+    })
+    .catch(function(e) { alert('读取配置失败: ' + e.message); });
+}
+
+function closeEditor() {
+  document.getElementById('editorOverlay').classList.remove('active');
+}
+
+function renderPoolEditor() {
+  [['global_pool','global'], ['china_pool','china']].forEach(function(def) {
+    var key = def[0], prefix = def[1], rows = POOL_DRAFT[key] || [];
+    document.getElementById(prefix + 'PoolCount').textContent = rows.length + ' 只';
+    document.getElementById(prefix + 'PoolList').innerHTML = rows.map(function(item) {
+      return '<div class="pool-row"><span class="pool-code">' + item.code + '</span>'
+        + '<span class="pool-name">' + escapeHtml(item.name || '未命名ETF') + '</span>'
+        + '<button class="remove-btn" onclick="removePoolItem(\'' + key + '\',\'' + item.code + '\')" title="移除 ' + item.code + '">×</button></div>';
+    }).join('') || '<div class="compare-empty">池内暂无 ETF</div>';
+  });
+  var entries = ((DATA || {}).dynamic_pool || {}).entries || [];
+  document.getElementById('dynamicPoolCount').textContent = entries.length + ' 只';
+  document.getElementById('dynamicPoolList').innerHTML = entries.map(function(item) {
+    return '<div class="pool-row dynamic"><span class="pool-count">#' + item.rank + '</span>'
+      + '<span class="pool-code">' + etfLink(item.code, item.code, item.name) + '</span>'
+      + '<span class="pool-name">' + etfLink(item.code, escapeHtml(item.name), item.name)
+      + '<span class="pool-industry">' + escapeHtml(item.industry || '') + '</span></span></div>';
+  }).join('') || '<div class="compare-empty">今日暂无可执行的 ETF 热点候选</div>';
+}
+
+function addPoolItem(key) {
+  var prefix = key === 'global_pool' ? 'global' : 'china';
+  var codeEl = document.getElementById(prefix + 'Code');
+  var nameEl = document.getElementById(prefix + 'Name');
+  var code = codeEl.value.trim(), name = nameEl.value.trim();
+  var status = document.getElementById('saveStatus');
+  if (!/^\d{6}$/.test(code)) {
+    status.className = 'save-status warn';
+    status.textContent = '请输入6位 ETF 代码';
+    codeEl.focus();
+    return;
+  }
+  var existing = (POOL_DRAFT[key] || []).find(function(item) { return item.code === code; });
+  if (existing) {
+    if (name) existing.name = name;
+  } else {
+    POOL_DRAFT[key].push({code:code, name:name});
+  }
+  codeEl.value = '';
+  nameEl.value = '';
+  status.textContent = '';
+  renderPoolEditor();
+  codeEl.focus();
+}
+
+function removePoolItem(key, code) {
+  POOL_DRAFT[key] = (POOL_DRAFT[key] || []).filter(function(item) { return item.code !== code; });
+  renderPoolEditor();
+}
+
+function saveConfig(recalc) {
+  var status = document.getElementById('saveStatus');
+  var payload = {
+    global_pool: POOL_DRAFT.global_pool,
+    china_pool: POOL_DRAFT.china_pool,
+    params: {}
+  };
+  var invalidParam = false;
+  PARAM_FIELDS.forEach(function(f) {
+    if (invalidParam) return;
+    var el = document.getElementById('param_' + f[0]);
+    if (!el.checkValidity()) {
+      status.className = 'save-status warn';
+      status.textContent = f[1] + ' 必须在 ' + f[3] + ' 到 ' + f[4] + ' 之间';
+      el.focus();
+      invalidParam = true;
+      return;
+    }
+    var v = parseFloat(el.value);
+    if (!isNaN(v)) payload.params[f[0]] = v;
+  });
+  if (invalidParam) return;
+  if (payload.params.score_range_min >= payload.params.score_range_max) {
+    status.className = 'save-status warn';
+    status.textContent = '得分下限必须小于得分上限';
+    document.getElementById('param_score_range_min').focus();
+    return;
+  }
+  status.className = 'save-status';
+  status.textContent = '保存中...';
+  fetch('/api/momentum-etf/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || '保存失败'); });
+    if (!recalc) {
+      status.className = 'save-status ok';
+      status.textContent = '✅ 已保存，下次更新生效';
+      return;
+    }
+    status.textContent = '重算中(约20-40秒)...';
+    return fetch('/api/momentum-etf/recalc', {method: 'POST'}).then(function(rr) {
+      if (!rr.ok) throw new Error('重算失败');
+      status.className = 'save-status ok';
+      status.textContent = '✅ 已保存并重算完成';
+      closeEditor();
+      load();
+    });
+  }).catch(function(e) {
+    status.className = 'save-status warn';
+    status.textContent = '❌ ' + e.message;
+  });
+}
+
+// ── 排序 ──
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('thead').forEach(function(thead) {
+    thead.addEventListener('click', function(e) {
+      var th = e.target.closest('th.sortable');
+      if (!th) return;
+      var key = th.getAttribute('data-sort');
+      if (sortState.key === key) {
+        sortState = { key: key, dir: sortState.dir === 'desc' ? 'asc' : 'desc' };
+      } else {
+        sortState = { key: key, dir: (key === 'code' || key === 'name') ? 'asc' : 'desc' };
+      }
+      renderAll();
+      renderSortHeaders();
+    });
+  });
+  [['globalCode','global_pool'], ['globalName','global_pool'], ['chinaCode','china_pool'], ['chinaName','china_pool']].forEach(function(def) {
+    document.getElementById(def[0]).addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); addPoolItem(def[1]); }
+    });
+  });
+});
+
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeEditor(); });
+load();
+</script>
+<script src="/page-guide.js" defer></script>
+</body>
+</html>

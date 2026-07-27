@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行业创新高个股分布</title>
+<title>行业机会热力图</title>
 <style>
   :root {
     --bg: #1a1d23;
@@ -25,7 +25,7 @@
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    padding: 24px;
+    padding: 20px 24px 16px;
   }
 
   .container { width: 100%; max-width: 1800px; }
@@ -34,8 +34,8 @@
   .header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 20px;
+    align-items: flex-start;
+    margin-bottom: 14px;
     flex-wrap: wrap;
     gap: 16px;
   }
@@ -56,8 +56,10 @@
   .header-right {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 8px 12px;
     flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 1 1 760px;
   }
 
   /* Legend */
@@ -76,6 +78,19 @@
     width: 180px;
   }
   .legend-bar span { flex: 1; }
+  .header-actions { display: flex; align-items: center; gap: 6px; }
+  .freshness-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text-dim); font-size: 11px; white-space: nowrap;
+  }
+  .freshness-badge::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: #98c379;
+  }
+  .freshness-badge.stale { color: #e5c07b; border-color: #6d5d34; }
+  .freshness-badge.stale::before { background: #e5c07b; }
+  .freshness-badge.danger { color: #e06c75; border-color: #7d3f48; }
+  .freshness-badge.danger::before { background: #e06c75; }
 
   /* Type toggle */
   .type-toggle {
@@ -105,6 +120,23 @@
     color: var(--text-bright);
     background: rgba(97,175,239,0.1);
   }
+  .custom-window-control {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 31px; padding: 0 5px 0 8px;
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text-dim); font-size: 12px;
+  }
+  .custom-window-control input {
+    width: 48px; height: 24px; padding: 2px 4px;
+    border: 0; border-bottom: 1px solid #4b5263; outline: none;
+    background: transparent; color: var(--text-bright); text-align: center;
+    font-family: "SF Mono", "Menlo", monospace;
+  }
+  .custom-window-control button {
+    width: 24px; height: 24px; border: 0; border-radius: 4px;
+    background: #282c34; color: var(--accent); cursor: pointer;
+  }
+  .custom-window-control button:hover { background: #343a46; }
 
   /* Export button */
   .export-wrap { position: relative; }
@@ -179,6 +211,8 @@
   .scroll-container {
     overflow-x: auto;
     max-height: 85vh;
+    scrollbar-color: #4b5263 transparent;
+    scrollbar-width: thin;
   }
 
   table {
@@ -208,8 +242,9 @@
     left: 0;
     z-index: 4;
     text-align: left;
-    min-width: 90px;
+    min-width: 112px;
     padding-left: 14px;
+    min-width: 112px;
   }
   thead th.col-total,
   thead th.col-ratio {
@@ -264,12 +299,36 @@
     outline: none;
     box-shadow: none;
   }
+  .heat-cell.missing {
+    color: #828a96 !important;
+    background:
+      repeating-linear-gradient(
+        135deg,
+        rgba(130,138,150,0.17) 0,
+        rgba(130,138,150,0.17) 4px,
+        rgba(32,36,43,0.7) 4px,
+        rgba(32,36,43,0.7) 8px
+      ) !important;
+  }
+  .cell-rate {
+    display: block;
+    margin-top: 1px;
+    font-size: 8px;
+    font-weight: 500;
+    line-height: 1;
+    opacity: 0.82;
+  }
 
   /* Stock count & ratio */
   td.col-total, td.col-ratio {
     background: rgba(42,48,64,0.4);
     color: #abb2bf;
     font-weight: 500;
+  }
+  td.col-mcap, td.col-mcap-change, th.col-mcap, th.col-mcap-change {
+    background: rgba(42,48,64,0.4);
+    color: #d5b778;
+    min-width: 82px;
   }
   td.col-ratio { font-weight: 600; }
 
@@ -323,6 +382,7 @@
     flex-direction: column;
     box-shadow: 0 16px 48px rgba(0,0,0,0.6);
   }
+  .modal.intraday-wide { max-width: 1120px; }
 
   .modal-header {
     display: flex;
@@ -404,6 +464,10 @@
   .stock-table thead th.sortable:hover { color: var(--text-bright); background: #2a2e36; }
   .stock-table thead th.sort-active { color: #e5c07b; }
   .stock-table thead th .sort-arrow { font-size: 9px; margin-left: 2px; color: #e5c07b; }
+  #heatmapTable th.date-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  #heatmapTable th.date-sortable:hover { color: var(--text-bright); background: #2a2e36; }
+  #heatmapTable th.date-sort-active { color: #e5c07b; }
+  #heatmapTable th.date-sortable .sort-arrow { margin-left: 3px; font-size: 9px; }
   .stock-table tbody td {
     padding: 5px 4px;
     text-align: center;
@@ -420,6 +484,9 @@
   .stock-table tbody tr:hover td { background: #2a2e36; }
   .stock-table .change-up { color: #e06c75; }
   .stock-table .change-down { color: #61afef; }
+  .stock-table .signal-standing { color: #98c379; }
+  .stock-table .signal-pulled { color: #e5c07b; }
+  .stock-table .signal-candidate { color: #61afef; }
 
   .stock-table .stock-link {
     color: var(--text-bright);
@@ -495,12 +562,91 @@
   .dashboard .card.weak .val { color: #61afef; }
   .dashboard .card.neutral .val { color: #98c379; }
   .dashboard .card.warn .val { color: #e5c07b; }
+  .dashboard .card.permission-attack { border-color: rgba(224,108,117,0.55); }
+  .dashboard .card.permission-defense { border-color: rgba(97,175,239,0.55); }
+  .dashboard .card.permission-watch { border-color: rgba(229,192,123,0.55); }
+  .dashboard .card.permission-paused { border-color: rgba(224,108,117,0.75); }
+  .dashboard .card.permission-attack .val { color: #e06c75; }
+  .dashboard .card.permission-defense .val { color: #61afef; }
+  .dashboard .card.permission-watch .val { color: #e5c07b; }
+  .dashboard .card.permission-paused .val { color: #e06c75; }
+
+  .quality-gate {
+    display: none;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 0 0 10px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .quality-gate.visible { display: flex; }
+  .quality-gate strong { color: var(--text-bright); }
+  .quality-gate.valid { border-color: rgba(152,195,121,0.45); }
+  .quality-gate.degraded { border-color: rgba(229,192,123,0.55); }
+  .quality-gate.invalid {
+    border-color: rgba(224,108,117,0.65);
+    background: rgba(224,108,117,0.07);
+  }
+  .quality-gate .quality-title { white-space: nowrap; font-weight: 700; }
+  .quality-gate .quality-detail { flex: 1; line-height: 1.5; }
+  .quality-gate .quality-method { white-space: nowrap; color: #d19a66; }
+
+  .intraday-timeline {
+    display: none;
+    position: relative;
+    margin: 0 0 10px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .timeline-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    margin-bottom: 7px; font-size: 11px; color: var(--text-dim);
+  }
+  .timeline-controls { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+  .timeline-toggle { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+  .timeline-toggle input { width: 13px; height: 13px; accent-color: #98c379; cursor: pointer; }
+  .timeline-toggle .swatch { width: 8px; height: 8px; border-radius: 2px; }
+  .timeline-toggle .swatch.high { background: #e06c75; }
+  .timeline-toggle .swatch.low { background: #61afef; }
+  .timeline-scale-note { color: #5f6670; }
+  .timeline-bars { display: flex; align-items: flex-end; gap: 3px; height: 68px; overflow: visible; }
+  .timeline-point { position: relative; flex: 1; min-width: 5px; height: 100%; display: flex; align-items: flex-end; gap: 1px; cursor: crosshair; }
+  .timeline-bar { flex: 1; min-height: 2px; border-radius: 2px 2px 0 0; }
+  .timeline-bar.high { background: #e06c75; }
+  .timeline-bar.low { background: #61afef; }
+  .timeline-tooltip {
+    display: none; position: absolute; left: 50%; bottom: calc(100% + 7px);
+    transform: translateX(-50%); z-index: 30; min-width: 118px;
+    padding: 7px 9px; border: 1px solid #4b5263; border-radius: 5px;
+    background: #171a1f; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    color: var(--text-bright); font-size: 11px; line-height: 1.6; white-space: nowrap;
+    pointer-events: none;
+  }
+  .timeline-point:hover .timeline-tooltip { display: block; }
+  .timeline-tooltip strong { display: block; color: #e5c07b; font-weight: 600; }
+  .timeline-tooltip .high { color: #e06c75; }
+  .timeline-tooltip .low { color: #61afef; }
 
   /* ── 净强度/方向切换按钮组 ── */
   #directionToggle .toggle-btn[data-direction="net"] {
     background: #282c34;
     color: #d19a66;
     border-color: #d19a66;
+  }
+  #directionToggle .toggle-btn[data-direction="opportunity"] {
+    background: #282c34;
+    color: #98c379;
+  }
+  #directionToggle .toggle-btn[data-direction="opportunity"].active {
+    background: #98c379;
+    color: #1a1d23;
   }
   #directionToggle .toggle-btn[data-direction="net"].active {
     background: #d19a66;
@@ -543,6 +689,7 @@
     gap: 10px;
     align-items: flex-start;
   }
+  .board-wrap.sidebar-hidden .leaderboard { display: none !important; }
   .board-wrap .scroll-container { flex: 1; min-width: 0; }
   .leaderboard {
     width: 260px;
@@ -575,6 +722,160 @@
   }
   .leaderboard ol li .ind-name { color: var(--text-bright); }
   .leaderboard .val { font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: 0.9em; }
+  .leaderboard .opportunity-list {
+    list-style: none;
+    padding: 0;
+  }
+  .opportunity-card {
+    margin: 0 0 7px;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(31,35,41,0.72);
+    cursor: pointer;
+  }
+  .opportunity-card:hover { border-color: #5c6370; background: #282c34; }
+  .opportunity-card .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .opportunity-card .card-industry { color: var(--text-bright); font-weight: 700; }
+  .opportunity-card .card-reason { margin-top: 4px; color: var(--text); line-height: 1.4; }
+  .opportunity-card .card-risk { margin-top: 3px; color: #e5c07b; line-height: 1.35; }
+  .stage-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    padding: 2px 6px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .stage-emerging, .stage-confirmed, .stage-extending { color: #e06c75; }
+  .stage-relative, .stage-intraday_watch { color: #d19a66; }
+  .stage-crowded { color: #e5c07b; }
+  .stage-declining, .stage-failed { color: #61afef; }
+  .stage-insufficient { color: #e06c75; }
+  .stage-dormant { color: #7f8792; }
+  .raw-diagnostics {
+    margin-top: 10px;
+    border-top: 1px solid var(--border);
+    padding-top: 7px;
+  }
+  .raw-diagnostics summary {
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 11px;
+    user-select: none;
+  }
+  .raw-diagnostics summary:hover { color: var(--text-bright); }
+
+  .opportunity-table { min-width: 1420px; }
+  .opportunity-table tbody tr { cursor: pointer; }
+  .opportunity-table tbody tr:hover td { background: #2a2e36 !important; }
+  .opportunity-table th { min-width: 86px; }
+  .opportunity-table th:first-child { min-width: 118px; }
+  .opportunity-table .reason-col,
+  .opportunity-table .risk-col,
+  .opportunity-table .invalid-col {
+    min-width: 190px;
+    max-width: 260px;
+    white-space: normal;
+    text-align: left;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.35;
+  }
+  .opportunity-table .risk-col { color: #e5c07b; }
+  .opportunity-table .invalid-col { color: #8f96a1; }
+  .opportunity-companion {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .opportunity-companion-head {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: min(100%, 920px);
+    margin-bottom: 9px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: #20242b;
+  }
+  .opportunity-companion-title {
+    color: var(--text-bright);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .opportunity-companion-title span {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 400;
+  }
+  .companion-toggle { display: flex; gap: 5px; flex-shrink: 0; }
+  .companion-toggle button {
+    padding: 4px 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: #282c34;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .companion-toggle button.active {
+    border-color: #61afef;
+    color: #61afef;
+    background: #61afef18;
+  }
+  #opportunityRawMatrix {
+    max-height: none;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+  }
+  .metric-cell { font-weight: 700; }
+  .metric-cell .metric-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 8px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.72);
+  }
+  .evidence-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin: 0 2px;
+    border-radius: 50%;
+    background: #4b5263;
+  }
+  .evidence-dot.on { background: #98c379; }
+  .evidence-dot.risk { background: #e5c07b; }
+  .opportunity-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    gap: 8px;
+    margin: 8px 0 12px;
+  }
+  .opportunity-detail-grid .detail-metric {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #1d2026;
+  }
+  .detail-metric .detail-value { color: var(--text-bright); font-weight: 700; }
+  .detail-metric .detail-label { margin-top: 2px; color: var(--text-dim); font-size: 10px; }
+  .evidence-section { margin: 10px 0; }
+  .evidence-section h4 { margin-bottom: 5px; color: #e5c07b; font-size: 12px; }
+  .evidence-section ul { margin: 0; padding-left: 18px; color: var(--text); line-height: 1.6; }
 
   @media (max-width: 900px) {
     .board-wrap { flex-direction: column; }
@@ -602,6 +903,8 @@
     font-size: 0.75em;
     color: #555;
     padding: 4px 8px;
+    pointer-events: none;
+    z-index: 1;
   }
   .quadrant-map .dot {
     position: absolute;
@@ -618,6 +921,12 @@
     outline: 2px solid #fff;
     z-index: 5;
   }
+  .quadrant-map .dot.quadrant-risk {
+    box-shadow: 0 0 0 2px #e5c07b;
+  }
+  .quadrant-map .dot.quadrant-crowded {
+    box-shadow: 0 0 0 3px #e06c75;
+  }
   .quadrant-map .dot-label {
     position: absolute;
     font-size: 0.58em;
@@ -628,7 +937,7 @@
     text-shadow: 0 0 4px #1a1d23;
   }
   .quadrant-legend {
-    display: flex; gap: 12px; justify-content: center;
+    display: flex; flex-wrap: wrap; gap: 7px 12px; justify-content: center;
     margin-top: 6px; font-size: 0.7em; color: var(--text-dim);
   }
   .playback-btn {
@@ -637,6 +946,24 @@
     cursor: pointer; font-size: 0.75em; white-space: nowrap;
   }
   .playback-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .playback-btn.active { border-color: var(--accent); color: #1a1d23; background: var(--accent); }
+
+  @media (max-width: 1250px) {
+    body { padding: 16px; }
+    .header { gap: 10px; }
+    .header-right { justify-content: flex-start; flex-basis: 100%; }
+    .legend-section { order: 5; }
+    .legend-bar { width: 120px; }
+  }
+
+  @media (max-width: 760px) {
+    body { padding: 12px; }
+    .title-section h1 { font-size: 18px; }
+    .header-right { gap: 6px; }
+    .toggle-btn { padding: 6px 9px; }
+    .legend-section { display: none; }
+    .dashboard .card { min-width: 30%; }
+  }
 
   /* ── 异动标记 ── */
   .anomaly-dot {
@@ -699,12 +1026,12 @@
 
   <div class="header">
     <div class="title-section">
-      <h1>行业创新高/新低个股分布 <select id="schemeSelect" onchange="switchScheme(this.value)" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#282c34;color:var(--text);font-size:0.7em;cursor:pointer;vertical-align:middle"><option value="sw">申万2021</option><option value="ths">同花顺</option></select></h1>
-      <div class="subtitle"><span id="schemeLabel">申万行业</span> · <span id="directionLabel">新高</span> · <span id="typeLabel">创20日新高</span> · <span id="dateRange"></span></div>
+      <h1>行业机会热力图 <select id="schemeSelect" onchange="switchScheme(this.value)" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#282c34;color:var(--text);font-size:0.7em;cursor:pointer;vertical-align:middle"><option value="sw">申万一级</option><option value="ths">同花顺细分</option><option value="sw3" title="申万三级，缺少数据时回退二级或一级">申万三级</option></select></h1>
+      <div class="subtitle"><span id="schemeLabel">申万一级</span> · <span id="directionLabel">机会状态</span> · <span id="typeLabel">20日极值宽度</span> · <span id="dateRange"></span></div>
     </div>
     <div class="header-right">
       <div class="legend-section">
-        <span id="legendLabel">创新高家数</span>
+        <span id="legendLabel">机会阶段</span>
         <div class="legend-bar">
           <span style="background:#3d8c40"></span>
           <span style="background:#6aaa3a"></span>
@@ -714,12 +1041,13 @@
           <span style="background:#e06c35"></span>
           <span style="background:#c93a3a"></span>
         </div>
-        <span>少 → 多</span>
+        <span id="legendText">失效 → 确认</span>
       </div>
       <div class="type-toggle" id="directionToggle">
-        <button class="toggle-btn active" data-direction="highs">创新高</button>
+        <button class="toggle-btn active" data-direction="opportunity">🎯 机会</button>
+        <button class="toggle-btn" data-direction="highs">创新高</button>
         <button class="toggle-btn" data-direction="lows">创新低</button>
-        <button class="toggle-btn" data-direction="net">⚖️ 净强度</button>
+        <button class="toggle-btn" data-direction="net">⚖️ 净扩散</button>
       </div>
       <div class="type-toggle" id="typeToggle">
         <button class="toggle-btn active" data-type="month">20日</button>
@@ -727,44 +1055,59 @@
         <button class="toggle-btn" data-type="120d">120日</button>
         <button class="toggle-btn" data-type="1year">一年新高</button>
         <button class="toggle-btn" data-type="alltime">收盘历史新高</button>
+        <button class="toggle-btn" data-type="custom">自定义</button>
       </div>
+      <label class="custom-window-control" title="自定义回看交易日，范围5至250日">
+        <input id="customWindowInput" type="number" min="5" max="250" step="1" value="30" aria-label="自定义回看交易日">
+        <span>日</span>
+        <button id="applyCustomWindow" type="button" title="应用自定义周期">✓</button>
+      </label>
       <div class="type-toggle" id="modeToggle" style="margin-top:6px">
-        <button class="toggle-btn active" data-mode="daily">📊 收盘数据</button>
+        <button class="toggle-btn active" data-mode="auto">自动</button>
+        <button class="toggle-btn" data-mode="daily">📊 收盘数据</button>
         <button class="toggle-btn" data-mode="intraday">📡 盘中实时</button>
       </div>
       <div class="export-wrap" id="exportWrap">
-        <button class="export-btn" id="exportBtn" disabled>导出Excel</button>
+        <button class="export-btn" id="exportBtn" disabled>导出CSV</button>
         <div class="export-dropdown" id="exportDropdown"></div>
       </div>
-      <span class="playback-wrap" style="margin-left:4px">
+      <span class="header-actions">
+        <button class="playback-btn" id="leaderboardToggle" onclick="toggleLeaderboard()" title="显示或隐藏右侧榜单">榜单</button>
         <button class="playback-btn" onclick="openQuadrant()" title="行业轮动象限图">🧭 象限</button>
         <button class="playback-btn" onclick="openBriefing()" title="一键生成每日简报">📋 简报</button>
+        <span class="freshness-badge" id="freshnessBadge">等待数据</span>
       </span>
     </div>
   </div>
 
   <!-- Dashboard 仪表盘 -->
   <div class="dashboard" id="dashboard"></div>
+  <div class="quality-gate" id="qualityGate"></div>
+  <div class="intraday-timeline" id="intradayTimeline"></div>
 
   <!-- 内层布局：热力图表格 + 右侧榜单 -->
   <div class="board-wrap">
   <div class="scroll-container" id="scrollContainer"></div>
 
   <div class="leaderboard" id="leaderboardPanel">
-    <h3>🔥 今日最强扩散</h3>
-    <ol id="lbTop"></ol>
-    <h3>❄️ 今日转弱最快</h3>
-    <ol id="lbBottom"></ol>
-    <h3>⚡ 连续走强</h3>
-    <ol id="lbStreak"></ol>
-    <h3>⚠️ 高分歧行业</h3>
-    <ol id="lbDiverge"></ol>
-    <h3 style="color:#d19a66">📊 量价联动</h3>
-    <ol id="lbFlowLink"></ol>
-    <h3 style="color:#e06c75">⚠️ 智能异动</h3>
-    <ol id="lbAnomaly"></ol>
-    <h3 style="color:#98c379">🎯 机会雷达</h3>
-    <ol id="lbOpportunity"></ol>
+    <h3 style="color:#98c379">🎯 状态迁移候选</h3>
+    <ol id="lbOpportunity" class="opportunity-list"></ol>
+    <div id="calibrationNote"></div>
+    <details class="raw-diagnostics">
+      <summary>展开原始宽度诊断</summary>
+      <h3>新高扩散率</h3>
+      <ol id="lbTop"></ol>
+      <h3>新低扩散率</h3>
+      <ol id="lbBottom"></ol>
+      <h3>连续扩散</h3>
+      <ol id="lbStreak"></ol>
+      <h3>高分歧行业</h3>
+      <ol id="lbDiverge"></ol>
+      <h3 style="color:#d19a66">宽度—活跃度联动</h3>
+      <ol id="lbFlowLink"></ol>
+      <h3 style="color:#e06c75">原始异动</h3>
+      <ol id="lbAnomaly"></ol>
+    </details>
   </div>
   </div>
 
@@ -798,17 +1141,19 @@
     <div class="modal-header">
       <div class="modal-header-info">
         <h2>🧭 行业轮动象限图</h2>
-        <div class="modal-sub">净强度（横轴） × 成交额变化（纵轴）· 点大小=成交规模 · 拖拽窗口边缘可放大</div>
+        <div class="modal-sub">规模收缩后净扩散（横轴） × 成交参与历史分位（纵轴）· P50 为中性 · 圆面积≈成交规模</div>
+        <div class="modal-sub" id="quadrantContext">正在计算当前分布…</div>
       </div>
       <button class="modal-close" onclick="document.getElementById('quadrantOverlay').classList.remove('active');document.body.style.overflow=''">&times;</button>
     </div>
     <div class="modal-body" style="padding:8px">
       <div class="quadrant-map" id="quadrantMap" style="height:78vh"></div>
       <div class="quadrant-legend">
-        <span>🟠 强势+放量（右上突破）</span>
-        <span>🔵 弱势+缩量（左下衰退）</span>
-        <span>🟡 强势+缩量（右上背离）</span>
-        <span>🟣 弱势+放量（放量杀跌）</span>
+        <span>🟢 扩散+高参与（右上确认）</span>
+        <span>🔴 收缩+高参与（左上风险）</span>
+        <span>🟡 扩散+低参与（右下待确认）</span>
+        <span>🔵 收缩+低参与（左下沉寂）</span>
+        <span>黄圈=独立风险证据 · 红圈=拥挤</span>
       </div>
     </div>
   </div>
@@ -832,41 +1177,144 @@
   </div>
 </div>
 
-<script src="/xlsx.full.min.js"></script>
 <script>
 // =========================================================================
 //  数据加载 & 渲染
 // =========================================================================
 
 let currentType = 'month';
+let currentWindow = 20;
 let currentDirection = 'highs';
-let currentView = 'highs';       // 'highs' | 'lows' | 'net'
-let currentMode = 'daily';  // 'daily' | 'intraday'
-let currentScheme = 'sw';       // 'sw' (申万) | 'ths' (同花顺)
+let currentView = 'opportunity'; // 'opportunity' | 'highs' | 'lows' | 'net'
+let currentMode = 'auto';        // 'auto' | 'daily' | 'intraday'
+let effectiveMode = 'daily';     // 当前真正展示的数据源
+let currentScheme = 'sw';       // 'sw' (申万一级) | 'ths' (同花顺细分) | 'sw3' (申万三级)
 let tableData = null;
 let highsData = null;          // 新高数据（净强度模式需要）
 let lowsData = null;           // 新低数据（净强度模式需要）
 let flowData = null;           // 资金流向数据（联动判断）
+let opportunityData = null;    // 证据闸门、机会状态与历史校准
 let detailsData = null;
 let detailsLoading = false;
 let detailsLoadedType = null;
 let detailsLoadedDirection = null;
 let detailsLoadedMode = null;
+let heatmapDateSort = { index: null, direction: 'desc' };
+let leaderboardVisible = window.innerWidth >= 1350;
+let sessionState = null;
+let intradayHistory = null;
+let customSnapshot = null;
+let loadInProgress = false;
+let loadGeneration = 0;
+let timelineSeriesVisibility = {highs: true, lows: true};
+let scheduledSessionCheckInProgress = false;
+let opportunityRawDirection = 'highs';
+
+async function fetchJsonWithTimeout(url, timeoutMs) {
+  var controller = new AbortController();
+  var timeout = setTimeout(function() { controller.abort(); }, timeoutMs || 10000);
+  try {
+    var response = await fetch(url, {signal: controller.signal});
+    var payload = await response.json().catch(function() { return {}; });
+    if (!response.ok) throw new Error(payload.detail || ('HTTP ' + response.status));
+    return payload;
+  } catch(e) {
+    if (e && e.name === 'AbortError') throw new Error('后端响应超时，请重启行业热力图');
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function selectedWindowDays() {
+  if (currentType === '60d') return 60;
+  if (currentType === '120d') return 120;
+  if (currentType === '1year') return 250;
+  if (currentType === 'custom') return currentWindow;
+  return 20;
+}
+
+function detailTypeKey() {
+  return currentType === 'custom' ? 'custom-' + currentWindow : currentType;
+}
+
+function schemeSuffix(scheme) {
+  return scheme === 'ths' ? '_ths' : (scheme === 'sw3' ? '_sw3' : '');
+}
+
+async function resolveEffectiveMode() {
+  if (currentMode !== 'auto') {
+    effectiveMode = currentMode;
+    return;
+  }
+  try {
+    sessionState = await fetchJsonWithTimeout('/api/market-session?_=' + Date.now(), 4000);
+    effectiveMode = sessionState.recommended_mode || 'daily';
+  } catch(e) {
+    effectiveMode = 'daily';
+  }
+}
+
+function updateModeAvailability() {
+  var isIntraday = effectiveMode === 'intraday';
+  document.querySelectorAll('#typeToggle .toggle-btn').forEach(function(btn) {
+    if (btn.getAttribute('data-type') === 'alltime') btn.style.display = isIntraday ? 'none' : '';
+  });
+  if (isIntraday && currentType === 'alltime') {
+    currentType = 'month';
+    currentWindow = 20;
+    document.querySelectorAll('#typeToggle .toggle-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-type') === 'month');
+    });
+  }
+}
+
+function applyLeaderboardVisibility() {
+  var board = document.querySelector('.board-wrap');
+  var button = document.getElementById('leaderboardToggle');
+  if (!board || !button) return;
+  board.classList.toggle('sidebar-hidden', !leaderboardVisible);
+  button.classList.toggle('active', leaderboardVisible);
+  button.textContent = leaderboardVisible ? '收起榜单' : '展开榜单';
+}
+
+function toggleLeaderboard() {
+  leaderboardVisible = !leaderboardVisible;
+  applyLeaderboardVisibility();
+}
+
+function sortHeatmapByDate(index) {
+  if (heatmapDateSort.index === index) {
+    heatmapDateSort.direction = heatmapDateSort.direction === 'desc' ? 'asc' : 'desc';
+  } else {
+    heatmapDateSort = { index: index, direction: 'desc' };
+  }
+  renderTable();
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+function encodedArg(value) {
+  return encodeURIComponent(String(value == null ? '' : value)).replace(/'/g, '%27');
+}
+function dateKey(value) {
+  var text = String(value == null ? '' : value);
+  var separated = text.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (separated) {
+    return separated[1] + String(Number(separated[2])).padStart(2, '0') +
+      String(Number(separated[3])).padStart(2, '0');
+  }
+  var digits = text.replace(/\D/g, '');
+  return digits.length >= 8 ? digits.slice(0, 8) : '';
+}
 
 function getUrls() {
   var suffix = currentType;
   var cb = '?_=' + Date.now();
-  var sch = currentScheme === 'ths' ? '_ths' : '';
-  if (currentMode === 'intraday') {
-    var intraSuffix = currentType === 'month' ? '20d' : currentType;
-    var prefix2 = currentDirection === 'lows' ? 'intraday_lows' : 'intraday_highs';
-    return {
-      counts: '/' + prefix2 + '_' + intraSuffix + sch + '.json' + cb,
-      details: null,
-      highsCounts: '/' + 'intraday_highs' + '_' + intraSuffix + sch + '.json' + cb,
-      lowsCounts: '/' + 'intraday_lows' + '_' + intraSuffix + sch + '.json' + cb,
-    };
-  }
+  var sch = schemeSuffix(currentScheme);
   return {
     counts: '/new_' + (currentDirection === 'lows' ? 'lows' : 'highs') + '_data_' + suffix + sch + '.json' + cb,
     details: '/new_' + (currentDirection === 'lows' ? 'lows' : 'highs') + '_details_' + suffix + sch + '.json' + cb,
@@ -877,38 +1325,90 @@ function getUrls() {
 
 function switchScheme(s) {
   currentScheme = s;
-  document.getElementById('schemeLabel').textContent = s === 'ths' ? '同花顺行业' : '申万行业';
+  document.getElementById('schemeLabel').textContent = s === 'ths' ? '同花顺细分' : (s === 'sw3' ? '申万三级' : '申万一级');
   detailsData = null;
   detailsLoadedType = null;
   detailsLoadedDirection = null;
   detailsLoadedMode = null;
   multiPeriodCache = {};
+  opportunityData = null;
+  heatmapDateSort = { index: null, direction: 'desc' };
   loadData();
 }
 
 async function loadData() {
+  var requestId = ++loadGeneration;
+  loadInProgress = true;
+  opportunityData = null;
+  renderQualityGate();
   var mainContent = document.getElementById('mainContent');
   mainContent.innerHTML = '<div class="loading">正在加载数据...</div>';
   try {
-    var urls = getUrls();
-    // 总是同时拉取新高和新低 counts（用于仪表盘和净强度模式）
-    var results = await Promise.all([
-      fetch(urls.counts).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
-      fetch(urls.highsCounts).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }),
-      fetch(urls.lowsCounts).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }),
-      fetch('/capital_flow' + (currentScheme === 'ths' ? '_ths' : '') + '.json?_=' + Date.now()).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }),
-    ]);
-    tableData = results[0];
-    highsData = results[1];
-    lowsData = results[2];
-    flowData = results[3];
+    await resolveEffectiveMode();
+    updateModeAvailability();
+    var flowPromise = fetchJsonWithTimeout('/capital_flow' + schemeSuffix(currentScheme) + '.json?_=' + Date.now(), 8000)
+      .catch(function() { return null; });
+    var staleSnapshot = false;
+    if (effectiveMode === 'intraday') {
+      var intraPayload = await fetchJsonWithTimeout('/api/intraday-snapshot?window=' + selectedWindowDays() + '&scheme=' + currentScheme + '&refresh=true&_=' + Date.now(), 30000);
+      highsData = intraPayload.highs;
+      lowsData = intraPayload.lows;
+      intradayHistory = intraPayload.history || null;
+      staleSnapshot = !!intraPayload.stale;
+      customSnapshot = null;
+      tableData = currentDirection === 'lows' ? lowsData : highsData;
+    } else if (currentType === 'custom') {
+      customSnapshot = await fetchJsonWithTimeout('/api/custom-heatmap?window=' + currentWindow + '&scheme=' + currentScheme + '&_=' + Date.now(), 60000);
+      highsData = customSnapshot.highs;
+      lowsData = customSnapshot.lows;
+      intradayHistory = null;
+      tableData = currentDirection === 'lows' ? lowsData : highsData;
+    } else {
+      var urls = getUrls();
+      var results = await Promise.all([
+        fetchJsonWithTimeout(urls.counts, 10000),
+        fetchJsonWithTimeout(urls.highsCounts, 10000).catch(function() { return null; }),
+        fetchJsonWithTimeout(urls.lowsCounts, 10000).catch(function() { return null; }),
+      ]);
+      tableData = results[0];
+      highsData = results[1];
+      lowsData = results[2];
+      intradayHistory = null;
+      customSnapshot = null;
+    }
+    flowData = await flowPromise;
+    var opportunityUrl = '/api/heatmap-opportunities?period=' + currentType +
+      '&window=' + selectedWindowDays() + '&scheme=' + currentScheme +
+      '&mode=' + effectiveMode + '&_=' + Date.now();
+    opportunityData = await fetchJsonWithTimeout(opportunityUrl, currentType === 'custom' ? 65000 : 12000)
+      .catch(function(error) {
+        console.warn('机会状态暂不可用:', error);
+        return null;
+      });
+    if (requestId !== loadGeneration) return;
     updateLabels();
     renderDashboard();
+    renderIntradayTimeline();
     renderTable();
     renderLeaderboard();
     setupExportButton();
+    var latestDate = tableData.dates && tableData.dates.length ? tableData.dates[0].full_label : '';
+    var modeLabel = effectiveMode === 'intraday' ? '盘中' : '收盘';
+    if (currentMode === 'auto') modeLabel = '自动·' + modeLabel;
+    var freshness = document.getElementById('freshnessBadge');
+    var quality = opportunityData && opportunityData.quality;
+    freshness.textContent = modeLabel + ' · ' + (tableData.updated_at || latestDate || '日期未知') +
+      (quality ? ' · ' + quality.label : '');
+    freshness.classList.toggle('stale', staleSnapshot || (quality && quality.status === 'degraded'));
+    freshness.classList.toggle('danger', !!(quality && quality.status === 'invalid'));
+    var coverage = tableData.coverage || (customSnapshot && customSnapshot.coverage);
+    var coverageText = coverage ? (' · 行情覆盖 ' + (coverage.spot || coverage.covered || 0) + '/' + (coverage.active || 0)) : '';
+    var mcapCoverageText = coverage && coverage.market_cap !== undefined
+      ? (' · 市值覆盖 ' + coverage.market_cap + '/' + (coverage.active || 0))
+      : '';
     document.getElementById('updateNote').textContent =
-      '数据更新于 ' + (tableData.updated_at || 'unknown') + ' · 数据源: 同花顺/申万研究所 · 点击单元格查看个股明细';
+      '数据更新于 ' + (tableData.updated_at || 'unknown') + coverageText + mcapCoverageText +
+      ' · 机会评分只在日期、覆盖与分类不变量通过后启用';
     // 根据模式决定是否显示仪表盘和榜单
     var dashboard = document.getElementById('dashboard');
     var lbPanel = document.getElementById('leaderboardPanel');
@@ -916,57 +1416,104 @@ async function loadData() {
     dashboard.style.display = hasBoth ? 'flex' : 'none';
     lbPanel.style.display = hasBoth ? 'block' : 'none';
   } catch (e) {
+    if (requestId !== loadGeneration) return;
     var scriptName = currentDirection === 'lows' ? 'fetch_new_lows.py' : 'fetch_new_highs.py';
     mainContent.innerHTML =
       '<div class="error-msg">' +
       '数据加载失败: ' + e.message +
       '<br><button onclick="location.reload()">重试</button>' +
-      '<br><br><span style="font-size:12px;color:var(--text-dim)">请先运行: python ' + scriptName + ' --type ' + currentType + '</span>' +
+      '<br><br><span style="font-size:12px;color:var(--text-dim)">请检查数据更新状态后重试</span>' +
       '</div>';
+  } finally {
+    if (requestId === loadGeneration) loadInProgress = false;
   }
 }
 
 function updateLabels() {
+  var isOpportunity = currentView === 'opportunity';
   var isNet = currentView === 'net';
-  var dirLabel = isNet ? '净强度' : (currentDirection === 'lows' ? '新低' : '新高');
+  var dirLabel = isOpportunity ? '机会状态' : (isNet ? '净扩散' : (currentDirection === 'lows' ? '新低' : '新高'));
   document.getElementById('directionLabel').textContent = dirLabel;
-  document.getElementById('legendLabel').textContent = isNet ? '净强度' : ('创' + dirLabel + '家数');
-  var btns = document.querySelectorAll('#typeToggle .toggle-btn');
-  var newLabels = ['20日', '60日', '120日'];
-  if (currentDirection === 'lows') {
-    newLabels.push('一年新低');
-    newLabels.push('收盘近7年新低');
+  document.getElementById('legendLabel').textContent = isOpportunity
+    ? '机会阶段'
+    : (isNet ? '净扩散率' : ('创' + dirLabel + '覆盖率'));
+  document.getElementById('legendText').textContent = isOpportunity
+    ? '失效 → 确认'
+    : (isNet ? '新低 → 新高' : '行业自身历史低 → 高');
+  var legendColors;
+  if (isOpportunity) {
+    legendColors = ['#355d7a','#4b5263','#7f8792','#d19a66','#e5c07b','#c75b65','#e06c75'];
+  } else if (isNet) {
+    legendColors = ['#24517a','#3977a8','#6c8ca1','#4b5263','#a76a62','#c75b65','#e06c75'];
+  } else if (currentDirection === 'lows') {
+    legendColors = ['#263c52','#315a7a','#3977a8','#438bc0','#61afef','#7bc2ef','#a6d9f5'];
   } else {
-    newLabels.push('一年新高');
-    newLabels.push('收盘历史新高');
+    legendColors = ['#4a2f33','#6d3941','#91434d','#b54e59','#c75b65','#d76872','#e06c75'];
   }
-  for (var i = 0; i < btns.length && i < newLabels.length; i++) {
-    btns[i].textContent = newLabels[i];
-  }
+  document.querySelectorAll('.legend-bar span').forEach(function(element, index) {
+    element.style.background = legendColors[index];
+  });
+  var labels = {
+    month: '20日', '60d': '60日', '120d': '120日', custom: '自定义',
+    '1year': currentDirection === 'lows' ? '一年新低' : '一年新高',
+    alltime: currentDirection === 'lows' ? '收盘近7年新低' : '收盘历史新高'
+  };
+  document.querySelectorAll('#typeToggle .toggle-btn').forEach(function(btn) {
+    btn.textContent = labels[btn.getAttribute('data-type')] || btn.textContent;
+  });
+}
+
+function detailsFromHeatmap(data) {
+  var result = {};
+  var totalByDate = {};
+  (data && data.industries || []).forEach(function(row) {
+    if (row.is_total) return;
+    var dd = row.daily_details || {};
+    result[row.industry] = dd;
+    Object.keys(dd).forEach(function(date) {
+      if (!totalByDate[date]) totalByDate[date] = [];
+      (dd[date] || []).forEach(function(stock) {
+        var item = Object.assign({}, stock);
+        item.industry = item.industry || row.industry;
+        totalByDate[date].push(item);
+      });
+    });
+  });
+  result['全市场合计'] = totalByDate;
+  return result;
 }
 
 async function ensureDetails() {
-  if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection && detailsLoadedMode === currentMode) return detailsData;
+  var typeKey = detailTypeKey();
+  if (detailsData && detailsLoadedType === typeKey && detailsLoadedDirection === currentDirection && detailsLoadedMode === effectiveMode) return detailsData;
   if (detailsLoading) {
     while (detailsLoading) await new Promise(function(r) { setTimeout(r, 100); });
-    if (detailsData && detailsLoadedType === currentType && detailsLoadedDirection === currentDirection && detailsLoadedMode === currentMode) return detailsData;
+    if (detailsData && detailsLoadedType === typeKey && detailsLoadedDirection === currentDirection && detailsLoadedMode === effectiveMode) return detailsData;
   }
   detailsLoading = true;
   try {
-    if (currentMode === 'intraday') {
-      // 盘中模式: 明细嵌入在 data JSON 的 daily_details 中
-      detailsData = {};
-      for (var i = 0; i < tableData.industries.length; i++) {
-        var row = tableData.industries[i];
-        var dd = row.daily_details || {};
-        for (var d in dd) {
-          if (!detailsData[row.industry]) detailsData[row.industry] = {};
-          detailsData[row.industry][d] = dd[d];
-        }
-      }
-      detailsLoadedType = currentType;
+    if (effectiveMode === 'intraday') {
+      detailsData = detailsFromHeatmap(tableData);
+      detailsLoadedType = typeKey;
       detailsLoadedDirection = currentDirection;
-      detailsLoadedMode = currentMode;
+      detailsLoadedMode = effectiveMode;
+      return detailsData;
+    }
+    if (currentType === 'custom' && customSnapshot) {
+      detailsData = customSnapshot[currentDirection + '_details'] || {};
+      var totalByDate = {};
+      Object.keys(detailsData).forEach(function(industry) {
+        Object.keys(detailsData[industry] || {}).forEach(function(date) {
+          if (!totalByDate[date]) totalByDate[date] = [];
+          (detailsData[industry][date] || []).forEach(function(stock) {
+            totalByDate[date].push(Object.assign({industry: industry}, stock));
+          });
+        });
+      });
+      detailsData['全市场合计'] = totalByDate;
+      detailsLoadedType = typeKey;
+      detailsLoadedDirection = currentDirection;
+      detailsLoadedMode = effectiveMode;
       return detailsData;
     }
     var urls = getUrls();
@@ -974,9 +1521,9 @@ async function ensureDetails() {
     var resp = await fetch(urls.details);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     detailsData = await resp.json();
-    detailsLoadedType = currentType;
+    detailsLoadedType = typeKey;
     detailsLoadedDirection = currentDirection;
-    detailsLoadedMode = currentMode;
+    detailsLoadedMode = effectiveMode;
     return detailsData;
   } catch (e) {
     console.error('加载明细失败:', e);
@@ -988,7 +1535,13 @@ async function ensureDetails() {
 
 // 净强度模式：为指定方向拉取详情（绕过方向缓存）
 async function ensureDetailsFor(dir) {
-  var sch = currentScheme === 'ths' ? '_ths' : '';
+  if (effectiveMode === 'intraday') {
+    return detailsFromHeatmap(dir === 'lows' ? lowsData : highsData);
+  }
+  if (currentType === 'custom' && customSnapshot) {
+    return customSnapshot[dir + '_details'] || {};
+  }
+  var sch = schemeSuffix(currentScheme);
   var suffix = currentType;
   var cb = '?_=' + Date.now();
   var url = '/new_' + dir + '_details_' + suffix + sch + '.json' + cb;
@@ -1056,6 +1609,39 @@ function netHeatColor(val, maxAbs) {
 // ── 仪表盘 ──
 function renderDashboard() {
   if (!highsData || !lowsData) return;
+  if (opportunityData && opportunityData.market_permission) {
+    var permission = opportunityData.market_permission;
+    var quality = opportunityData.quality || {};
+    var stages = opportunityData.stage_counts || {};
+    var candidateCount = (stages.emerging || 0) + (stages.confirmed || 0) +
+      (stages.extending || 0) + (stages.intraday_watch || 0);
+    var riskCount = (stages.crowded || 0) + (stages.declining || 0) + (stages.failed || 0);
+    var ratioText = permission.high_low_ratio === null ? '∞' : Number(permission.high_low_ratio || 0).toFixed(1);
+    var permissionClass = 'permission-' + permission.state;
+    var html = '';
+    html += '<div class="card ' + permissionClass + '"><div class="val">' +
+      escapeHtml(permission.label) + '</div><div class="lbl">市场许可 · ' +
+      escapeHtml(permission.message) + '</div></div>';
+    html += '<div class="card ' + (permission.net_breadth_pct >= 0 ? 'strong' : 'weak') +
+      '"><div class="val">' + (permission.net_breadth_pct >= 0 ? '+' : '') +
+      Number(permission.net_breadth_pct || 0).toFixed(1) + '%</div><div class="lbl">有效净扩散率</div></div>';
+    var widthLabel = effectiveMode === 'intraday' ? '严格站稳高 / 低' : '新高 / 新低';
+    var candidateLabel = effectiveMode === 'intraday'
+      ? '盘中观察 · 尚待量价确认'
+      : '萌芽 / 确认 / 延续';
+    html += '<div class="card neutral"><div class="val">' + permission.highs + ' / ' +
+      permission.lows + '</div><div class="lbl">' + widthLabel + ' · 比值 ' + ratioText + '</div></div>';
+    html += '<div class="card strong"><div class="val">' + candidateCount +
+      '</div><div class="lbl">' + candidateLabel + '</div></div>';
+    html += '<div class="card warn"><div class="val">' + riskCount +
+      '</div><div class="lbl">拥挤 / 衰退 / 失效</div></div>';
+    html += '<div class="card ' + (quality.status === 'valid' ? 'neutral' : 'warn') +
+      '"><div class="val">' + escapeHtml(quality.label || '未知') +
+      '</div><div class="lbl">数据可信度 ' + Number(quality.score || 0).toFixed(0) + '/100</div></div>';
+    document.getElementById('dashboard').innerHTML = html;
+    renderQualityGate();
+    return;
+  }
   var hRow = highsData.industries.find(function(r) { return r.is_total; });
   var lRow = lowsData.industries.find(function(r) { return r.is_total; });
   if (!hRow || !lRow) return;
@@ -1063,14 +1649,37 @@ function renderDashboard() {
   var lCounts = lRow.daily_counts || [];
   var hi = hCounts[0] || 0;
   var li = lCounts[0] || 0;
+  if (effectiveMode === 'intraday') {
+    var highTouched = hRow.touched_count || 0;
+    var highStanding = hRow.standing_count || 0;
+    var highRetained = hRow.retained_count;
+    var lowTouched = lRow.touched_count || 0;
+    var lowStanding = lRow.standing_count || 0;
+    var lowRetained = lRow.retained_count;
+    var standingRatio = lowStanding > 0 ? (highStanding / lowStanding).toFixed(1) : (highStanding > 0 ? '∞' : '—');
+    var mcapChange = Number(hRow.market_cap_change || 0);
+    var mcapText = (mcapChange >= 0 ? '+' : '') + (mcapChange / 1e8).toFixed(0) + '亿';
+    var intraHtml = '';
+    intraHtml += '<div class="card strong"><div class="val">' + highTouched + '</div><div class="lbl">触及历史最高价</div></div>';
+    intraHtml += '<div class="card neutral"><div class="val">' + (highRetained === undefined ? highStanding : highRetained) + '</div><div class="lbl">' + (highRetained === undefined ? '站上历史最高收盘' : '仍保持在同一最高价阈值上') + '</div></div>';
+    intraHtml += '<div class="card weak"><div class="val">' + lowTouched + '</div><div class="lbl">触及历史最低价</div></div>';
+    intraHtml += '<div class="card warn"><div class="val">' + (lowRetained === undefined ? lowStanding : lowRetained) + '</div><div class="lbl">' + (lowRetained === undefined ? '跌破历史最低收盘' : '仍低于同一最低价阈值') + '</div></div>';
+    intraHtml += '<div class="card neutral"><div class="val">' + standingRatio + '</div><div class="lbl">站上/破位比</div></div>';
+    intraHtml += '<div class="card ' + (mcapChange >= 0 ? 'strong' : 'weak') + '"><div class="val">' + mcapText + '</div><div class="lbl">全市场市值变动</div></div>';
+    document.getElementById('dashboard').innerHTML = intraHtml;
+    return;
+  }
   var ratio = li > 0 ? (hi / li) : (hi > 0 ? 99 : 1);
   var ratioStr = li > 0 ? ratio.toFixed(1) : '∞';
 
   var hInds = highsData.industries.filter(function(r) { return !r.is_total; });
   var lInds = lowsData.industries.filter(function(r) { return !r.is_total; });
   var strong = 0, weak = 0, diverge = 0;
-  var hMap = {}, lMap = {};
-  hInds.forEach(function(r) { hMap[r.industry] = (r.daily_counts || [])[0] || 0; });
+  var hMap = {}, lMap = {}, hTotalMap = {};
+  hInds.forEach(function(r) {
+    hMap[r.industry] = (r.daily_counts || [])[0] || 0;
+    hTotalMap[r.industry] = r.total || 0;
+  });
   lInds.forEach(function(r) { lMap[r.industry] = (r.daily_counts || [])[0] || 0; });
   var allInds = Object.keys(hMap);
   allInds.forEach(function(ind) {
@@ -1078,7 +1687,7 @@ function renderDashboard() {
     var net = hv - lv;
     if (net > 0) strong++;
     else if (net < 0) weak++;
-    var threshold = hInds[0] ? hInds[0].total * 0.05 : 5;
+    var threshold = Math.max((hTotalMap[ind] || 0) * 0.05, 1);
     if (hv > threshold && lv > threshold && Math.abs(net) < Math.max(hv, lv) * 0.5) diverge++;
   });
   var ratioCls = ratio > 3 ? 'strong' : (ratio < 0.5 ? 'weak' : (ratio >= 1 ? 'neutral' : 'warn'));
@@ -1091,6 +1700,113 @@ function renderDashboard() {
   html += '<div class="card weak"><div class="val">' + weak + ' 个</div><div class="lbl">弱势行业</div></div>';
   html += '<div class="card warn"><div class="val">' + diverge + ' 个</div><div class="lbl">高分歧行业</div></div>';
   document.getElementById('dashboard').innerHTML = html;
+}
+
+function renderQualityGate() {
+  var gate = document.getElementById('qualityGate');
+  if (!gate) return;
+  if (!opportunityData || !opportunityData.quality) {
+    gate.className = 'quality-gate';
+    gate.innerHTML = '';
+    return;
+  }
+  var quality = opportunityData.quality;
+  var detail = [];
+  (quality.reasons || []).forEach(function(item) { detail.push('暂停：' + item); });
+  (quality.warnings || []).forEach(function(item) { detail.push('降级：' + item); });
+  if (!detail.length) detail.push('日期、行业合计、分类总数与覆盖率检查均通过');
+  var classification = quality.classification;
+  if (classification && classification.levels && currentScheme === 'sw3') {
+    detail.push(
+      '申万三级直接映射 ' + (classification.levels.sw3 || 0) +
+      '，一级回退 ' + (classification.levels.sw1 || 0)
+    );
+  }
+  gate.className = 'quality-gate visible ' + quality.status;
+  gate.innerHTML =
+    '<span class="quality-title">数据闸门：' + escapeHtml(quality.label) + '</span>' +
+    '<span class="quality-detail">' + detail.map(escapeHtml).join(' · ') + '</span>' +
+    '<span class="quality-method">' +
+      (quality.can_score ? '允许状态排序' : '所有机会状态已停用') +
+    '</span>';
+}
+
+function renderIntradayTimeline() {
+  var container = document.getElementById('intradayTimeline');
+  if (!container) return;
+  if (effectiveMode !== 'intraday' || !intradayHistory || !intradayHistory.snapshots) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  var windowKey = String(selectedWindowDays());
+  var rawPoints = intradayHistory.snapshots.filter(function(item) {
+    return item.by_window && item.by_window[windowKey];
+  });
+  // 每个5分钟桶只保留最后一次快照，避免累计触及数被误读为持续加速。
+  var bucketMap = {};
+  rawPoints.forEach(function(item) {
+    var timeText = String(item.time || '');
+    var match = timeText.match(/T(\d{2}):(\d{2})/);
+    if (!match) return;
+    var minute = Math.floor(parseInt(match[2], 10) / 5) * 5;
+    var key = match[1] + ':' + String(minute).padStart(2, '0');
+    bucketMap[key] = item;
+  });
+  var points = Object.keys(bucketMap).sort().map(function(key) { return bucketMap[key]; }).slice(-30);
+  if (!points.length) {
+    container.style.display = 'none';
+    return;
+  }
+  var deltas = points.map(function(point, index) {
+    var pair = point.by_window[windowKey] || {};
+    var previousPair = index > 0 ? (points[index - 1].by_window[windowKey] || {}) : pair;
+    var high = (pair.highs || {}).touched || 0;
+    var low = (pair.lows || {}).touched || 0;
+    var previousHigh = (previousPair.highs || {}).touched || 0;
+    var previousLow = (previousPair.lows || {}).touched || 0;
+    return {
+      high: index === 0 ? 0 : Math.max(0, high - previousHigh),
+      low: index === 0 ? 0 : Math.max(0, low - previousLow),
+      highRetained: (pair.highs || {}).retained,
+      lowRetained: (pair.lows || {}).retained,
+      highTouched: high,
+      lowTouched: low
+    };
+  });
+  var commonMax = Math.max.apply(null, deltas.reduce(function(values, item) {
+    return values.concat([item.high, item.low]);
+  }, [1]));
+  var bars = '';
+  points.forEach(function(point, index) {
+    var delta = deltas[index];
+    var label = String(point.time || '').slice(11, 16);
+    var retainedText = delta.highRetained === undefined
+      ? ''
+      : '<br>严格保持 新高' + delta.highRetained + ' / 新低' + delta.lowRetained;
+    bars += '<div class="timeline-point" aria-label="' + label + ' 新增新高' + delta.high + ' 新增新低' + delta.low + '">' +
+      (timelineSeriesVisibility.highs ? '<span class="timeline-bar high" style="height:' + Math.max(2, delta.high / commonMax * 100) + '%"></span>' : '') +
+      (timelineSeriesVisibility.lows ? '<span class="timeline-bar low" style="height:' + Math.max(2, delta.low / commonMax * 100) + '%"></span>' : '') +
+      '<span class="timeline-tooltip"><strong>' + label + '</strong>' +
+      '<span class="high">5分钟新增新高 ' + delta.high + ' 只</span><br>' +
+      '<span class="low">5分钟新增新低 ' + delta.low + ' 只</span><br>' +
+      '累计触及 ' + delta.highTouched + ' / ' + delta.lowTouched + retainedText + '</span></div>';
+  });
+  var firstTime = String(points[0].time || '').slice(11, 16);
+  var lastTime = String(points[points.length - 1].time || '').slice(11, 16);
+  container.innerHTML = '<div class="timeline-head"><span>' + selectedWindowDays() + '日 · 每5分钟新增触及 · ' + firstTime + ' 至 ' + lastTime + '</span>' +
+    '<span class="timeline-controls">' +
+    '<label class="timeline-toggle"><input type="checkbox" ' + (timelineSeriesVisibility.highs ? 'checked' : '') + ' onchange="toggleTimelineSeries(\'highs\',this.checked)"><span class="swatch high"></span>新高</label>' +
+    '<label class="timeline-toggle"><input type="checkbox" ' + (timelineSeriesVisibility.lows ? 'checked' : '') + ' onchange="toggleTimelineSeries(\'lows\',this.checked)"><span class="swatch low"></span>新低</label>' +
+    '<span class="timeline-scale-note">同一刻度</span></span></div>' +
+    '<div class="timeline-bars">' + bars + '</div>';
+  container.style.display = 'block';
+}
+
+function toggleTimelineSeries(series, visible) {
+  if (series !== 'highs' && series !== 'lows') return;
+  timelineSeriesVisibility[series] = !!visible;
+  renderIntradayTimeline();
 }
 
 // ── 趋势判断 ──
@@ -1109,24 +1825,27 @@ function calcTrendArrows(counts) {
   return arrows || '—';
 }
 
-function trendBadge(counts) {
+function trendBadge(counts, total) {
   // counts: [0]=最新日, [1]=昨天, ...
   if (!counts || counts.length < 4) return '';
-  var last5 = counts.slice(0, 5);
+  var denominator = Math.max(Number(total || 0), 1);
+  var last5 = counts.slice(0, 5).map(function(value) {
+    return Number(value || 0) / denominator * 100;
+  });
   var ups = 0, downs = 0;
   for (var i = 0; i < last5.length - 1; i++) {
     if (last5[i] > last5[i+1]) ups++;
     else if (last5[i] < last5[i+1]) downs++;
   }
-  var latest = counts[0];
-  var prev = counts.length > 1 ? counts[1] : 0;
-  var surge = prev > 0 ? ((latest - prev) / prev) : 0;
+  var latest = last5[0] || 0;
+  var prev = last5.length > 1 ? last5[1] : 0;
+  var surge = latest - prev;
   if (ups >= 3 && downs === 0) return '<span class="badge badge-fire">🔥 连强</span>';
   if (downs >= 3 && ups === 0) return '<span class="badge badge-down">📉 连弱</span>';
-  if (surge > 0.5) return '<span class="badge badge-surge">⚡ 大增</span>';
-  if (surge > 0.2) return '<span class="badge badge-fire">↑</span>';
-  if (surge < -0.5) return '<span class="badge badge-down">⚡ 大减</span>';
-  if (surge < -0.2) return '<span class="badge badge-down">↓</span>';
+  if (surge > 3) return '<span class="badge badge-surge">⚡ 扩散加速</span>';
+  if (surge > 1) return '<span class="badge badge-fire">↑</span>';
+  if (surge < -3) return '<span class="badge badge-down">⚡ 扩散减速</span>';
+  if (surge < -1) return '<span class="badge badge-down">↓</span>';
   if (ups + downs <= 1) return '<span class="badge badge-mixed">↔ 平</span>';
   return '';
 }
@@ -1201,13 +1920,25 @@ function renderLeaderboard() {
   if (!htmlDiv) htmlDiv = '<li style="color:var(--text-dim)">暂无高分歧行业</li>';
   document.getElementById('lbDiverge').innerHTML = htmlDiv;
 
-  // ── 资金流向 + 净强度联动 ──
+  // ── 成交动能 + 净强度联动 ──
   renderFlowLinkage(rows);
 }
 
 function renderFlowLinkage(rows) {
   var lbEl = document.getElementById('lbFlowLink');
-  if (!lbEl || !flowData) { if (lbEl) lbEl.innerHTML = '<li style="color:var(--text-dim)">资金流向数据未加载</li>'; return; }
+  if (!lbEl || !flowData) { if (lbEl) lbEl.innerHTML = '<li style="color:var(--text-dim)">成交动能数据未加载</li>'; return; }
+  var heatDate = dateKey(highsData && highsData.dates && highsData.dates[0] &&
+    (highsData.dates[0].full_label || highsData.dates[0].label));
+  var flowDate = dateKey(flowData && flowData.dates && flowData.dates[0] &&
+    (flowData.dates[0].full_label || flowData.dates[0].label));
+  if (effectiveMode === 'intraday' || !heatDate || heatDate !== flowDate) {
+    lbEl.innerHTML = '<li style="color:var(--text-dim)">证据不可比：盘中宽度不能与上一收盘日成交直接合成</li>';
+    return;
+  }
+  if (opportunityData && opportunityData.quality && !opportunityData.quality.can_score) {
+    lbEl.innerHTML = '<li style="color:var(--text-dim)">数据闸门未通过，联动结论已暂停</li>';
+    return;
+  }
   var fMap = {};
   flowData.industries.filter(function(r) { return !r.is_total; }).forEach(function(r) {
     var daily = r.daily_turnover || [];
@@ -1223,12 +1954,12 @@ function renderFlowLinkage(rows) {
     var netDir = r.net > 0 ? 1 : (r.net < 0 ? -1 : 0);
     var flowDir = f.flowChange !== null ? (parseFloat(f.flowChange) > 0 ? 1 : (parseFloat(f.flowChange) < 0 ? -1 : 0)) : 0;
     var sig;
-    if (netDir > 0 && flowDir > 0) sig = '🔥 量价齐升';
-    else if (netDir > 0 && flowDir < 0) sig = '↕ 缩量冲高';
-    else if (netDir < 0 && flowDir > 0) sig = '⚠️ 放量走弱';
-    else if (netDir < 0 && flowDir < 0) sig = '❄️ 缩量杀跌';
-    else if (netDir > 0 && flowDir === 0) sig = '↗ 价升量平';
-    else if (netDir < 0 && flowDir === 0) sig = '↘ 价跌量平';
+    if (netDir > 0 && flowDir > 0) sig = '🔥 宽度+活跃度确认';
+    else if (netDir > 0 && flowDir < 0) sig = '↕ 宽度扩散但活跃下降';
+    else if (netDir < 0 && flowDir > 0) sig = '⚠️ 活跃放大且宽度转弱';
+    else if (netDir < 0 && flowDir < 0) sig = '❄️ 宽度与活跃共同收缩';
+    else if (netDir > 0 && flowDir === 0) sig = '↗ 宽度升、活跃平';
+    else if (netDir < 0 && flowDir === 0) sig = '↘ 宽度降、活跃平';
     else sig = '—';
     var significance = Math.abs(r.net) * (f.turnover / 1e8);
     linked.push({ industry: r.industry, net: r.net, turnover: f.turnover, flowChg: f.flowChange, sig: sig, score: significance });
@@ -1248,17 +1979,186 @@ function renderFlowLinkage(rows) {
 //  渲染表格
 // =========================================================================
 
-function renderTable() {
-  var data = tableData;
+function metricTone(percentile, negative) {
+  if (percentile === null || percentile === undefined || !Number.isFinite(Number(percentile))) {
+    return {bg:'rgba(75,82,99,0.25)', color:'#8b929d'};
+  }
+  var strength = Math.min(Math.max(Number(percentile) / 100, 0), 1);
+  var alpha = 0.10 + strength * 0.68;
+  return negative
+    ? {bg:'rgba(97,175,239,' + alpha.toFixed(2) + ')', color:strength > 0.58 ? '#0f1821' : '#b9d8ee'}
+    : {bg:'rgba(224,108,117,' + alpha.toFixed(2) + ')', color:strength > 0.58 ? '#201012' : '#efc2c6'};
+}
+
+function rawCellPercentile(counts, index) {
+  var value = Number(counts[index] || 0);
+  var reference = counts.filter(function(item, itemIndex) {
+    return itemIndex !== index && Number.isFinite(Number(item));
+  }).map(Number).sort(function(a,b){return a-b;});
+  if (!reference.length) return 50;
+  var below = reference.filter(function(item){return item < value;}).length;
+  var equal = reference.filter(function(item){return item === value;}).length;
+  return (below + equal * 0.5) / reference.length * 100;
+}
+
+function stageClass(stage) {
+  return 'stage-' + String(stage || 'insufficient').replace(/_/g, '_');
+}
+
+function metricCell(value, percentile, label, negative) {
+  var tone = metricTone(percentile, negative);
+  var valueText = value === null || value === undefined || !Number.isFinite(Number(value))
+    ? '—'
+    : Number(value).toFixed(1);
+  return '<td class="metric-cell" style="background:' + tone.bg + ';color:' + tone.color + '">' +
+    valueText + '<span class="metric-sub">' + escapeHtml(label || '') + '</span></td>';
+}
+
+function switchOpportunityRaw(direction) {
+  if (direction !== 'highs' && direction !== 'lows') return;
+  opportunityRawDirection = direction;
+  currentDirection = direction;
+  tableData = direction === 'lows' ? lowsData : highsData;
+  detailsData = null;
+  detailsLoadedType = null;
+  detailsLoadedDirection = null;
+  detailsLoadedMode = null;
+  renderOpportunityTable();
+}
+
+function renderOpportunityTable() {
+  var data = opportunityData;
+  var sc = document.getElementById('scrollContainer');
+  if (!sc) return;
+  document.getElementById('directionLabel').textContent = '机会状态';
+  document.getElementById('typeLabel').textContent =
+    selectedWindowDays() + '日极值宽度 · 状态迁移而非强弱排名';
+  var latest = data && data.quality && data.quality.latest_date;
+  document.getElementById('dateRange').textContent = latest || '';
+  if (!data || !Array.isArray(data.industries)) {
+    sc.innerHTML = '<div class="error-msg">机会状态暂不可用，请切换原始矩阵查看底层数据</div>';
+    document.getElementById('mainContent').innerHTML = '';
+    return;
+  }
+  var rows = data.industries.slice();
+  var qualityInvalid = data.quality && !data.quality.can_score;
+  var html = '<table id="opportunityTable" class="opportunity-table"><thead><tr>' +
+    '<th>行业</th><th>阶段</th><th>净扩散%</th><th>扩散加速度</th>' +
+    '<th>相对趋势</th><th>成交参与</th><th>活跃广度</th><th>证据</th>' +
+    '<th class="reason-col">为什么现在</th><th class="risk-col">主要风险</th>' +
+    '<th class="invalid-col">失效条件</th></tr></thead><tbody>';
+  rows.forEach(function(row) {
+    var confirmations = row.confirmations || {};
+    var dots = Object.keys(confirmations).map(function(key) {
+      return '<span class="evidence-dot ' + (confirmations[key] ? 'on' : '') +
+        '" title="' + escapeHtml(key + '：' + (confirmations[key] ? '已确认' : '待确认')) + '"></span>';
+    }).join('');
+    var breadthNegative = Number(row.adjusted_net_breadth_pct || row.net_breadth_pct || 0) < 0;
+    var risk = (row.risk_reasons || [])[0] ||
+      ((row.risk_domains || []).length ? row.risk_domains.join('、') : '未见独立危险证据');
+    var why = (row.why_now || []).join('；');
+    var accelLabel = row.acceleration_percentile === null || row.acceleration_percentile === undefined
+      ? '盘中等待序列'
+      : '自身历史' + Number(row.acceleration_percentile).toFixed(0) + '分位';
+    var breadthCountsLabel = effectiveMode === 'intraday'
+      ? ('严格' + row.high_count + '高/' + row.low_count + '低 · 触及' +
+        Number(row.high_touched || 0) + '/' + Number(row.low_touched || 0))
+      : (row.high_count + '/' + row.total + ' 高 · ' + row.low_count + ' 低');
+    html += '<tr class="opportunity-row' + (qualityInvalid ? ' quality-disabled' : '') +
+      '" data-opportunity-industry="' + escapeHtml(row.industry) + '">' +
+      '<td>' + escapeHtml(row.industry) + '</td>' +
+      '<td><span class="stage-pill ' + stageClass(row.stage) + '">' +
+        escapeHtml(row.stage_label) + '</span></td>' +
+      metricCell(
+        row.adjusted_net_breadth_pct !== undefined ? row.adjusted_net_breadth_pct : row.net_breadth_pct,
+        row.breadth_percentile === null ? 50 : row.breadth_percentile,
+        breadthCountsLabel,
+        breadthNegative
+      ) +
+      metricCell(
+        row.acceleration_pp,
+        row.acceleration_percentile,
+        accelLabel,
+        Number(row.acceleration_pp || 0) < 0
+      ) +
+      metricCell(
+        row.trend_percentile,
+        row.trend_percentile,
+        row.excess_return_pct === null || row.excess_return_pct === undefined
+          ? '等待同时间确认'
+          : '超额' + (Number(row.excess_return_pct) >= 0 ? '+' : '') + Number(row.excess_return_pct).toFixed(2) + '%',
+        Number(row.excess_return_pct || 0) < 0
+      ) +
+      metricCell(row.activity_percentile, row.activity_percentile, '成交历史分位', false) +
+      metricCell(
+        row.participation_percentile,
+        row.participation_percentile,
+        row.effective_participants === null || row.effective_participants === undefined
+          ? '等待有效参与者'
+          : '有效参与者' + Number(row.effective_participants).toFixed(1),
+        false
+      ) +
+      '<td>' + dots + '<span class="cell-rate">' + (row.confirmation_count || 0) + '项确认</span></td>' +
+      '<td class="reason-col">' + escapeHtml(why) + '</td>' +
+      '<td class="risk-col">' + escapeHtml(risk) + '</td>' +
+      '<td class="invalid-col">' + escapeHtml(row.invalidation || '—') + '</td></tr>';
+  });
+  html += '</tbody></table>' +
+    '<section class="opportunity-companion" aria-label="原始热力矩阵">' +
+      '<div class="opportunity-companion-head">' +
+        '<div class="opportunity-companion-title">原始热力矩阵 · 与机会状态同步' +
+          '<span>保留日期×行业的完整变化；颜色按行业自身历史分位，点击单元格继续查看个股</span></div>' +
+        '<div class="companion-toggle">' +
+          '<button type="button" class="' + (opportunityRawDirection === 'highs' ? 'active' : '') +
+            '" onclick="switchOpportunityRaw(\'highs\')">创新高矩阵</button>' +
+          '<button type="button" class="' + (opportunityRawDirection === 'lows' ? 'active' : '') +
+            '" onclick="switchOpportunityRaw(\'lows\')">创新低矩阵</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="scroll-container" id="opportunityRawMatrix"></div>' +
+    '</section>';
+  sc.innerHTML = html;
+  document.getElementById('mainContent').innerHTML = '';
+  var bw = document.querySelector('.board-wrap');
+  if (bw) bw.style.display = 'flex';
+  setupTableClick('opportunityTable');
+  renderTable({
+    embedded: true,
+    targetId: 'opportunityRawMatrix',
+    tableId: 'opportunityRawHeatmapTable',
+    view: opportunityRawDirection,
+    direction: opportunityRawDirection,
+    data: opportunityRawDirection === 'lows' ? lowsData : highsData
+  });
+}
+
+function renderTable(options) {
+  var opts = options || {};
+  var view = opts.view || currentView;
+  var direction = opts.direction || currentDirection;
+  var embedded = !!opts.embedded;
+  if (view === 'opportunity' && !embedded) {
+    renderOpportunityTable();
+    return;
+  }
+  var data = opts.data || tableData;
   if (!data || !data.industries || !data.dates) return;
 
-  var isNet = currentView === 'net';
-  var dirLabel = isNet ? '净强度 · 新高-新低' : (currentDirection === 'lows' ? '新低' : '新高');
-  var typeLabelText = isNet ? '净强度' : (data.type_label || (currentDirection === 'lows' ? '创新低' : '创新高'));
-  document.getElementById('directionLabel').textContent = dirLabel;
-  document.getElementById('typeLabel').textContent = typeLabelText;
-  document.getElementById('legendLabel').textContent = isNet ? '净强度' : ('创' + (currentDirection === 'lows' ? '新低' : '新高') + '家数');
-  document.getElementById('dateRange').textContent = '';
+  var isNet = view === 'net';
+  var dirLabel = isNet ? '净扩散率' : (direction === 'lows' ? '新低' : '新高');
+  var typeLabelText = isNet ? '净扩散率 · (新高-新低)/成分股' : (data.type_label || (direction === 'lows' ? '创新低' : '创新高'));
+  if (!embedded) {
+    document.getElementById('directionLabel').textContent = dirLabel;
+    document.getElementById('typeLabel').textContent = typeLabelText;
+    document.getElementById('legendLabel').textContent = isNet ? '净扩散率%' : ('创' + (direction === 'lows' ? '新低' : '新高') + '家数');
+  }
+  var rangeText = '';
+  if (data.dates.length) {
+    var newest = data.dates[0].label;
+    var oldest = data.dates[data.dates.length - 1].label;
+    rangeText = newest === oldest ? newest : oldest + ' – ' + newest;
+  }
+  if (!embedded) document.getElementById('dateRange').textContent = rangeText;
 
   // 净强度模式：拼合新高/新低数据
   var rows = [];
@@ -1282,53 +2182,75 @@ function renderTable() {
       // 用新高数据的dates对齐
       var netDates = highsData.dates || data.dates;
       for (var i = 0; i < netDates.length; i++) {
-        nc.push((hc[i] || 0) - (lc[i] || 0));
+        nc.push(((hc[i] || 0) - (lc[i] || 0)) / Math.max(row.total || 0, 1) * 100);
       }
-      netRows.push({ industry: row.industry, daily_counts: nc, total: row.total, ratio: row.ratio, _hCounts: hc, _lCounts: lc });
+      netRows.push({ industry: row.industry, daily_counts: nc, total: row.total, ratio: row.ratio, market_cap: row.market_cap, market_cap_change: row.market_cap_change, _hCounts: hc, _lCounts: lc });
     });
     // 净强度合计
     var totalNet = [];
     for (var j = 0; j < (netRows[0] ? netRows[0].daily_counts.length : 0); j++) {
-      var sum = 0;
-      netRows.forEach(function(r) { sum += r.daily_counts[j] || 0; });
-      totalNet.push(sum);
+      var highTotalRow = highsData.industries.find(function(r) { return r.is_total; });
+      var lowTotalRow = lowsData.industries.find(function(r) { return r.is_total; });
+      var marketTotal = (highTotalRow && highTotalRow.total) || advInds.reduce(function(sum, row) { return sum + (row.total || 0); }, 0);
+      totalNet.push((((highTotalRow && highTotalRow.daily_counts[j]) || 0) - ((lowTotalRow && lowTotalRow.daily_counts[j]) || 0)) / Math.max(marketTotal, 1) * 100);
     }
-    data = { dates: highsData.dates || data.dates, industries: netRows, type_label: '净强度' };
+    data = { dates: highsData.dates || data.dates, industries: netRows, type_label: '净扩散率' };
     advInds = netRows.filter(function(r) { return !r.is_total; });
     totalRow = { is_total: true, daily_counts: totalNet, industry: '全市场合计' };
   }
 
-  // 颜色域
-  var allValues = [];
-  advInds.forEach(function(r) { allValues = allValues.concat(r.daily_counts); });
-  var netAbs = allValues.map(function(v) { return Math.abs(v); });
-  var sortedAbs = netAbs.slice().sort(function(a, b) { return a - b; });
-  var p90abs = sortedAbs[Math.floor(sortedAbs.length * 0.9)] || 1;
-  var colorMaxAbs = Math.max(p90abs, 10);
+  if (heatmapDateSort.index !== null && heatmapDateSort.index < data.dates.length) {
+    var sortIndex = heatmapDateSort.index;
+    var sortFactor = heatmapDateSort.direction === 'asc' ? 1 : -1;
+    advInds = advInds.slice().sort(function(a, b) {
+      var av = (a.daily_counts || [])[sortIndex] || 0;
+      var bv = (b.daily_counts || [])[sortIndex] || 0;
+      var avRate = av / Math.max(a.total || 0, 1);
+      var bvRate = bv / Math.max(b.total || 0, 1);
+      var diff = (avRate - bvRate) * sortFactor;
+      return diff !== 0 ? diff : String(a.industry).localeCompare(String(b.industry), 'zh-CN');
+    });
+  }
 
-  var allSorted = allValues.slice().sort(function(a, b) { return a - b; });
-  var p90 = allSorted[Math.floor(allSorted.length * 0.9)] || 1;
-  var colorMax = Math.max(p90, 20);
+  // 原始矩阵使用固定净扩散域；新高/新低饱和度使用行业自身历史分位。
+  var colorMaxAbs = 20;
+  var invalidDateSet = {};
+  ((opportunityData && opportunityData.quality && opportunityData.quality.invalid_dates) || [])
+    .forEach(function(item) { invalidDateSet[String(item)] = true; });
 
-  var mainContent = document.getElementById('mainContent');
-  var tableHtml = '<table id="heatmapTable"><thead><tr><th>行业</th>';
+  var tableId = opts.tableId || 'heatmapTable';
+  var tableHtml = '<table id="' + tableId + '" data-raw-direction="' + direction +
+    '"><thead><tr><th>行业</th>';
 
-  data.dates.forEach(function(d) {
-    tableHtml += '<th>' + d.label + '</th>';
+  data.dates.forEach(function(d, di) {
+    var active = heatmapDateSort.index === di;
+    var arrow = active ? (heatmapDateSort.direction === 'asc' ? '↑' : '↓') : '';
+    tableHtml += '<th class="date-sortable' + (active ? ' date-sort-active' : '') + '"' +
+      ' onclick="sortHeatmapByDate(' + di + ')" title="按' + d.label + '数量排序">' +
+      d.label + (arrow ? '<span class="sort-arrow">' + arrow + '</span>' : '') + '</th>';
   });
   if (isNet) {
     tableHtml += '<th class="trend-col">5日趋势</th>';
   } else {
     tableHtml += '<th class="col-total">个股总数</th><th class="col-ratio">占比%</th>';
+    if (effectiveMode === 'intraday') {
+      tableHtml += '<th class="col-mcap">行业市值</th><th class="col-mcap-change">市值变动</th>';
+    }
   }
   tableHtml += '</tr></thead><tbody>';
 
   advInds.forEach(function(row) {
     tableHtml += '<tr>';
-    var badge = isNet ? '' : trendBadge(row.daily_counts);
+    var badge = isNet ? '' : trendBadge(row.daily_counts, row.total);
     tableHtml += '<td>' + row.industry + badge + '</td>';
 
     row.daily_counts.forEach(function(count, di) {
+      var currentDateKey = dateKey((data.dates[di] || {}).full_label || (data.dates[di] || {}).label);
+      var isMissing = !!invalidDateSet[currentDateKey];
+      if (isMissing) {
+        tableHtml += '<td class="heat-cell no-data missing" title="该日数据未通过完整性检查">缺</td>';
+        return;
+      }
       var chgHtml = '';
       if (di === 0 && row.daily_counts.length > 1 && count > 0) {
         var prev = row.daily_counts[1] || 0;
@@ -1344,23 +2266,26 @@ function renderTable() {
         tableHtml += '<td class="heat-cell ' + cls + '" style="background:' + c.bg + ';color:' + c.text + '"' +
           ' data-industry="' + row.industry + '"' +
           ' data-date="' + dateLabel + '"' +
-          ' data-count="' + count + '">' + (count > 0 ? '+' : '') + count + chgHtml + '</td>';
+          ' data-count="' + count + '">' + (count > 0 ? '+' : '') + count.toFixed(1) + '%' + chgHtml + '</td>';
       } else if (count > 0) {
-        var c2 = heatColor(count, colorMax);
+        var percentile = rawCellPercentile(row.daily_counts, di);
+        var c2 = metricTone(percentile, direction === 'lows');
         var dateLabel2 = data.dates[di].label;
-        tableHtml += '<td class="heat-cell" style="background:' + c2.bg + ';color:' + c2.text + '"' +
+        var rate2 = count / Math.max(row.total || 0, 1) * 100;
+        tableHtml += '<td class="heat-cell" style="background:' + c2.bg + ';color:' + c2.color + '"' +
           ' data-industry="' + row.industry + '"' +
           ' data-date="' + dateLabel2 + '"' +
-          ' data-count="' + count + '">' + count + chgHtml + '</td>';
+          ' data-count="' + count + '">' + count + chgHtml +
+          '<span class="cell-rate">' + rate2.toFixed(1) + '% · P' + percentile.toFixed(0) + '</span></td>';
       } else if (count < 0 && isNet) {
         var c3 = netHeatColor(count, colorMaxAbs);
         var dateLabel3 = data.dates[di].label;
         tableHtml += '<td class="heat-cell net-neg" style="background:' + c3.bg + ';color:' + c3.text + '"' +
           ' data-industry="' + row.industry + '"' +
           ' data-date="' + dateLabel3 + '"' +
-          ' data-count="' + count + '">' + count + chgHtml + '</td>';
+          ' data-count="' + count + '">' + count.toFixed(1) + '%' + chgHtml + '</td>';
       } else {
-        tableHtml += '<td class="heat-cell no-data" style="background:rgba(45,58,45,0.3);color:#8aaa8a">0</td>';
+        tableHtml += '<td class="heat-cell no-data" style="background:rgba(75,82,99,0.18);color:#8b929d">0<span class="cell-rate">有效零值</span></td>';
       }
     });
 
@@ -1374,6 +2299,13 @@ function renderTable() {
       else if (ratio >= 5) ratioClass = 'ratio-warm';
       else if (ratio > 2) ratioClass = 'ratio-cool';
       tableHtml += '<td class="col-ratio ' + ratioClass + '">' + ratio.toFixed(1) + '%</td>';
+      if (effectiveMode === 'intraday') {
+        var rowMcap = Number(row.market_cap || 0);
+        var rowMcapChange = Number(row.market_cap_change || 0);
+        tableHtml += '<td class="col-mcap">' + (rowMcap / 1e8).toFixed(0) + '亿</td>';
+        tableHtml += '<td class="col-mcap-change ' + (rowMcapChange >= 0 ? 'chg-up' : 'chg-down') + '">' +
+          (rowMcapChange >= 0 ? '+' : '') + (rowMcapChange / 1e8).toFixed(1) + '亿</td>';
+      }
     }
     tableHtml += '</tr>';
   });
@@ -1382,27 +2314,34 @@ function renderTable() {
   if (totalRow) {
     tableHtml += '<tr class="row-total"><td>全市场合计</td>';
     totalRow.daily_counts.forEach(function(count, di) {
+      var totalDateKey = dateKey((data.dates[di] || {}).full_label || (data.dates[di] || {}).label);
+      if (invalidDateSet[totalDateKey]) {
+        tableHtml += '<td class="heat-cell no-data missing">缺</td>';
+        return;
+      }
       if (isNet && count !== 0) {
         var c4 = netHeatColor(count, Math.max(colorMaxAbs * 2, Math.abs(count)));
         var dateLabel4 = data.dates[di].label;
         tableHtml += '<td class="heat-cell ' + (count > 0 ? 'net-pos' : 'net-neg') + '" style="background:' + c4.bg + ';color:' + c4.text + '"' +
           ' data-industry="全市场"' +
           ' data-date="' + dateLabel4 + '"' +
-          ' data-count="' + count + '">' + (count > 0 ? '+' : '') + count + '</td>';
+          ' data-count="' + count + '">' + (count > 0 ? '+' : '') + count.toFixed(1) + '%</td>';
       } else if (count > 0) {
-        var c5 = heatColor(count, Math.max(colorMax * 2, count));
+        var marketDenominator = Math.max(Number(totalRow.total || 0), advInds.reduce(function(sum,row){return sum + (row.total || 0);},0), 1);
+        var marketRate = count / marketDenominator * 100;
+        var c5 = metricTone(Math.min(100, marketRate * 5), direction === 'lows');
         var dateLabel5 = data.dates[di].label;
-        tableHtml += '<td class="heat-cell" style="background:' + c5.bg + ';color:' + c5.text + '"' +
+        tableHtml += '<td class="heat-cell" style="background:' + c5.bg + ';color:' + c5.color + '"' +
           ' data-industry="全市场"' +
           ' data-date="' + dateLabel5 + '"' +
-          ' data-count="' + count + '">' + count + '</td>';
+          ' data-count="' + count + '">' + count + '<span class="cell-rate">' + marketRate.toFixed(1) + '%</span></td>';
       } else if (count < 0 && isNet) {
         var c6 = netHeatColor(count, Math.max(colorMaxAbs * 2, Math.abs(count)));
         var dateLabel6 = data.dates[di].label;
         tableHtml += '<td class="heat-cell net-neg" style="background:' + c6.bg + ';color:' + c6.text + '"' +
           ' data-industry="全市场"' +
           ' data-date="' + dateLabel6 + '"' +
-          ' data-count="' + count + '">' + count + '</td>';
+          ' data-count="' + count + '">' + count.toFixed(1) + '%</td>';
       } else {
         tableHtml += '<td class="heat-cell no-data" style="background:rgba(45,58,45,0.3);color:#8aaa8a">0</td>';
       }
@@ -1413,35 +2352,52 @@ function renderTable() {
     } else {
       tableHtml += '<td class="col-total" style="color:#e5c07b">' + grandTotal + '</td>';
       tableHtml += '<td class="col-ratio">—</td>';
+      if (effectiveMode === 'intraday') {
+        var totalMcap = Number(totalRow.market_cap || 0);
+        var totalMcapChange = Number(totalRow.market_cap_change || 0);
+        tableHtml += '<td class="col-mcap">' + (totalMcap / 1e8).toFixed(0) + '亿</td>';
+        tableHtml += '<td class="col-mcap-change ' + (totalMcapChange >= 0 ? 'chg-up' : 'chg-down') + '">' +
+          (totalMcapChange >= 0 ? '+' : '') + (totalMcapChange / 1e8).toFixed(1) + '亿</td>';
+      }
     }
     tableHtml += '</tr>';
   }
 
   tableHtml += '</tbody></table>';
-  // 放在 scrollContainer 内
-  var sc = document.getElementById('scrollContainer');
+  var sc = document.getElementById(opts.targetId || 'scrollContainer');
   if (sc) { sc.innerHTML = tableHtml; }
-  // board-wrap 显示
-  document.getElementById('mainContent').innerHTML = '';
-  var bw = document.querySelector('.board-wrap');
-  if (bw) bw.style.display = 'flex';
-  setupTableClick();
+  if (!embedded) {
+    document.getElementById('mainContent').innerHTML = '';
+    var bw = document.querySelector('.board-wrap');
+    if (bw) bw.style.display = 'flex';
+  }
+  setupTableClick(tableId);
 }
 
 // =========================================================================
 //  事件委托 — 表格点击
 // =========================================================================
 
-function setupTableClick() {
-  var table = document.getElementById('heatmapTable');
+function setupTableClick(tableId) {
+  var table = document.getElementById(tableId || 'heatmapTable');
   if (!table) return;
   table.addEventListener('click', function(e) {
+    var opportunityRow = e.target.closest('.opportunity-row');
+    if (opportunityRow) {
+      openOpportunityDetail(opportunityRow.getAttribute('data-opportunity-industry'));
+      return;
+    }
     var cell = e.target.closest('.heat-cell');
     if (!cell) return;
     var industry = cell.getAttribute('data-industry');
     var dateLabel = cell.getAttribute('data-date');
-    var count = parseInt(cell.getAttribute('data-count')) || 0;
+    var count = parseFloat(cell.getAttribute('data-count')) || 0;
     if (!industry || !dateLabel || count === 0) return;
+    var rawDirection = table.getAttribute('data-raw-direction');
+    if (rawDirection === 'highs' || rawDirection === 'lows') {
+      currentDirection = rawDirection;
+      tableData = rawDirection === 'lows' ? lowsData : highsData;
+    }
 
     if (industry === '全市场') {
       openTotalDetail(dateLabel, count);
@@ -1454,6 +2410,72 @@ function setupTableClick() {
 // =========================================================================
 //  模态框
 // =========================================================================
+
+function openOpportunityDetail(industry) {
+  if (!opportunityData || !Array.isArray(opportunityData.industries)) return;
+  var row = opportunityData.industries.find(function(item) {
+    return item.industry === industry;
+  });
+  if (!row) return;
+  var overlay = document.getElementById('modalOverlay');
+  var modal = overlay.querySelector('.modal');
+  modal.classList.remove('intraday-wide');
+  document.getElementById('modalTitle').innerHTML =
+    '<span class="ind-name">' + escapeHtml(row.industry) + '</span> · ' +
+    '<span class="stage-pill ' + stageClass(row.stage) + '">' +
+    escapeHtml(row.stage_label) + '</span>';
+  var probabilityText = opportunityData.calibration && opportunityData.calibration.probability_available
+    ? '历史概率已达到展示门槛'
+    : '历史样本不足 · 不显示伪成功率';
+  document.getElementById('modalSub').innerHTML =
+    '机会排序分仅用于排序 <strong>' + Number(row.score || 0).toFixed(1) +
+    '</strong> · ' + escapeHtml(probabilityText);
+
+  function list(items, fallback) {
+    var values = items && items.length ? items : [fallback];
+    return '<ul>' + values.map(function(item) {
+      return '<li>' + escapeHtml(item) + '</li>';
+    }).join('') + '</ul>';
+  }
+  var breadth = row.adjusted_net_breadth_pct !== undefined
+    ? row.adjusted_net_breadth_pct : row.net_breadth_pct;
+  var body = '<div class="opportunity-detail-grid">' +
+    '<div class="detail-metric"><div class="detail-value">' +
+      (breadth === null || breadth === undefined ? '—' : ((Number(breadth) >= 0 ? '+' : '') + Number(breadth).toFixed(1) + '%')) +
+      '</div><div class="detail-label">规模收缩后净扩散</div></div>' +
+    '<div class="detail-metric"><div class="detail-value">' +
+      (row.acceleration_percentile === null || row.acceleration_percentile === undefined ? '盘中待积累' : ('P' + Number(row.acceleration_percentile).toFixed(0))) +
+      '</div><div class="detail-label">扩散加速度分位</div></div>' +
+    '<div class="detail-metric"><div class="detail-value">' +
+      (row.excess_return_pct === null || row.excess_return_pct === undefined ? '待确认' : ((Number(row.excess_return_pct) >= 0 ? '+' : '') + Number(row.excess_return_pct).toFixed(2) + '%')) +
+      '</div><div class="detail-label">行业超额收益</div></div>' +
+    '<div class="detail-metric"><div class="detail-value">' +
+      (row.effective_participants === null || row.effective_participants === undefined ? '待确认' : Number(row.effective_participants).toFixed(1)) +
+      '</div><div class="detail-label">有效参与者</div></div></div>';
+  body += '<div class="evidence-section"><h4>为什么现在</h4>' +
+    list(row.why_now, '尚未形成状态迁移证据') + '</div>';
+  body += '<div class="evidence-section"><h4>还缺什么确认</h4>' +
+    list(row.missing_confirmations, '关键确认项已满足') + '</div>';
+  body += '<div class="evidence-section"><h4>风险在哪里</h4>' +
+    list(row.risk_reasons, (row.risk_domains || []).join('、') || '当前未见独立危险证据') + '</div>';
+  body += '<div class="evidence-section"><h4>失效条件</h4><ul><li>' +
+    escapeHtml(row.invalidation || '等待定义') + '</li></ul></div>';
+  if (row.leaders && row.leaders.length) {
+    body += '<div class="evidence-section"><h4>成交动能引领者 · 仅作证据载体</h4><ul>' +
+      row.leaders.slice(0, 5).map(function(item) {
+        return '<li>' + escapeHtml(item.name || item.code || '') +
+          ' · 收益 ' + (Number(item.return_pct || 0) >= 0 ? '+' : '') +
+          Number(item.return_pct || 0).toFixed(2) + '%</li>';
+      }).join('') + '</ul></div>';
+  }
+  document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modalFooter').textContent =
+    '状态不是交易指令；市场许可为“' +
+    ((opportunityData.market_permission || {}).label || '未知') +
+    '”。数据无效时系统会自动暂停评分。';
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
 
 // ── 市盈率缓存 ──
 var peCache = null;
@@ -1522,7 +2544,16 @@ function sortStocks(stocks, sortState) {
   var sorted = stocks.slice();
   var col = sortState && sortState.key ? getMpSortColumn(sortState.key) : null;
   sorted.sort(function(a, b) {
-    if (col) {
+    var key = sortState && sortState.key;
+    if (key === 'code' || key === 'name') {
+      var textA = String(a[key] || '');
+      var textB = String(b[key] || '');
+      var textDiff = textA.localeCompare(textB, 'zh-CN', {numeric:true});
+      if (textDiff !== 0) return sortState.dir === 'asc' ? textDiff : -textDiff;
+    } else if (key === 'price' || key === 'change_pct' || key === 'mcap' || key === 'mcap_change') {
+      var numberDiff = Number(a[key] || 0) - Number(b[key] || 0);
+      if (numberDiff !== 0) return sortState.dir === 'asc' ? numberDiff : -numberDiff;
+    } else if (col) {
       if (col.key === 'pe') {
         var peA = peCache && peCache[a.code] && !isNaN(Number(peCache[a.code])) ? Number(peCache[a.code]) : 99999;
         var peB = peCache && peCache[b.code] && !isNaN(Number(peCache[b.code])) ? Number(peCache[b.code]) : 99999;
@@ -1542,7 +2573,14 @@ function toggleMpSort(sortState, key) {
   if (sortState.key === key) {
     return { key: key, dir: sortState.dir === 'desc' ? 'asc' : 'desc' };
   }
-  return { key: key, dir: 'desc' };
+  return { key: key, dir: (key === 'code' || key === 'name') ? 'asc' : 'desc' };
+}
+
+function sortableStockHeader(label, key, className, sortState) {
+  var active = sortState && sortState.key === key;
+  var arrow = active ? (sortState.dir === 'asc' ? '↑' : '↓') : '';
+  return '<th class="' + className + ' sortable' + (active ? ' sort-active' : '') + '" data-sort="' + key + '" title="点击排序">' +
+    label + (arrow ? '<span class="sort-arrow">' + arrow + '</span>' : '') + '</th>';
 }
 
 function renderSortableMpHeaders(sortState) {
@@ -1556,6 +2594,17 @@ function renderSortableMpHeaders(sortState) {
       col.label + (arrow ? '<span class="sort-arrow">' + arrow + '</span>' : '') + '</th>';
   });
   return html;
+}
+
+function intradayStatusLabel(stock) {
+  if (stock.status === 'touched_and_standing') return '<span class="signal-standing" title="今日触及且当前仍站上">触及·站上</span>';
+  if (stock.status === 'touched_pulled_back') return '<span class="signal-pulled" title="今日曾触及，当前已经回落">触及·回落</span>';
+  return '<span class="signal-candidate" title="最新价已超过历史收盘阈值">收盘候选</span>';
+}
+
+function formatMcap(value) {
+  var number = Number(value || 0);
+  return number ? (number / 1e8).toFixed(1) + '亿' : '—';
 }
 
 function renderStockRows(stocks) {
@@ -1580,8 +2629,17 @@ function renderStockRows(stocks) {
       '<td class="col-mp">' + cnt[1] + '</td>' +
       '<td class="col-mp">' + cnt[2] + '</td>' +
       '<td class="col-mp">' + cnt[3] + '</td>' +
-      '<td style="font-size:10px;color:var(--text-dim)">' + pe + '</td>' +
-      '</tr>';
+      '<td style="font-size:10px;color:var(--text-dim)">' + pe + '</td>';
+    if (effectiveMode === 'intraday') {
+      var mcapChange = Number(s.mcap_change || 0);
+      html += '<td style="width:72px;font-size:10px" title="首次触发 ' + (s.first_seen_at || '—') + '">' + intradayStatusLabel(s) + '</td>' +
+        '<td style="width:48px">' + (Number(s.break_pct || 0)).toFixed(2) + '%</td>' +
+        '<td style="width:48px">' + (Number(s.pullback_pct || 0)).toFixed(2) + '%</td>' +
+        '<td style="width:70px">' + formatMcap(s.mcap) + '</td>' +
+        '<td class="' + (mcapChange >= 0 ? 'change-up' : 'change-down') + '" style="width:70px" title="对行业市值变动贡献 ' + (s.industry_mcap_contribution_pct || 0) + '%">' +
+        (mcapChange >= 0 ? '+' : '') + formatMcap(mcapChange) + '</td>';
+    }
+    html += '</tr>';
   });
   return html;
 }
@@ -1589,8 +2647,17 @@ function renderStockRows(stocks) {
 function renderStockTable(stocks, sortState) {
   var sorted = sortStocks(stocks, sortState);
   var html = '<table class="stock-table"><thead><tr>';
-  html += '<th class="col-idx">#</th><th class="col-code">代码</th><th class="col-name">名称</th><th class="col-price">价格</th><th class="col-chg">涨跌</th>';
+  html += '<th class="col-idx">#</th>' +
+    sortableStockHeader('代码', 'code', 'col-code', sortState) +
+    sortableStockHeader('名称', 'name', 'col-name', sortState) +
+    sortableStockHeader('价格', 'price', 'col-price', sortState) +
+    sortableStockHeader('涨跌', 'change_pct', 'col-chg', sortState);
   html += renderSortableMpHeaders(sortState);
+  if (effectiveMode === 'intraday') {
+    html += '<th>状态</th><th>突破</th><th>回撤</th>' +
+      sortableStockHeader('市值', 'mcap', '', sortState) +
+      sortableStockHeader('市值变动', 'mcap_change', '', sortState);
+  }
   html += '</tr></thead><tbody>' + renderStockRows(sorted) + '</tbody></table>';
   return html;
 }
@@ -1604,6 +2671,7 @@ async function openDetail(industry, dateLabel, count) {
   document.getElementById('modalBody').onclick = null;
   document.getElementById('modalFooter').innerHTML = '';
   document.getElementById('modalOverlay').classList.add('active');
+  document.querySelector('#modalOverlay .modal').classList.toggle('intraday-wide', effectiveMode === 'intraday');
   document.body.style.overflow = 'hidden';
 
   var isNet = currentView === 'net';
@@ -1657,7 +2725,8 @@ async function openDetail(industry, dateLabel, count) {
     '<span class="ind-name">' + industry + '</span> ' + dateLabel + titleSuffix;
   document.getElementById('modalSub').innerHTML =
     typeLabel + ' · <strong>' + rawStocks.length + '</strong> 只 · 占比 <strong>' + ratio + '%</strong> · 行业共 ' + total + ' 只' +
-    (isNet ? ' · <span style="color:#e06c75">🟢新高</span>/<span style="color:#61afef">🔴新低</span>' : '');
+    (effectiveMode === 'intraday' ? ' · 触及 <strong>' + rawStocks.filter(function(s){return s.touched;}).length + '</strong> · 当前站上/破位 <strong>' + rawStocks.filter(function(s){return s.standing;}).length + '</strong>' : '') +
+    (isNet ? ' · <span style="color:#e06c75">新高</span>/<span style="color:#61afef">新低</span>' : '');
 
   var modalBody = document.getElementById('modalBody');
   function render() {
@@ -1666,10 +2735,7 @@ async function openDetail(industry, dateLabel, count) {
     if (isNet) {
       html += renderStockTableNet(sorted, sortState);
     } else {
-      html += '<table class="stock-table"><thead><tr>';
-      html += '<th class="col-idx">#</th><th class="col-code">代码</th><th class="col-name">名称</th><th class="col-price">价格</th><th class="col-chg">涨跌</th>';
-      html += renderSortableMpHeaders(sortState);
-      html += '</tr></thead><tbody>' + renderStockRows(sorted) + '</tbody></table>';
+      html += renderStockTable(sorted, sortState);
     }
     html += '</div>';
     modalBody.innerHTML = html;
@@ -1682,16 +2748,23 @@ async function openDetail(industry, dateLabel, count) {
     sortState = toggleMpSort(sortState, th.getAttribute('data-sort'));
     render();
   };
-  document.getElementById('modalFooter').innerHTML = '共 ' + rawStocks.length + ' 只 · 20/60/120/一年列为出现次数，点击列头排序 · 点击代码跳转同花顺';
+  document.getElementById('modalFooter').innerHTML = effectiveMode === 'intraday'
+    ? '状态区分今日触及、当前仍站上和冲高回落；市值为最新价乘总股本的实时估算'
+    : '共 ' + rawStocks.length + ' 只 · 20/60/120/一年列为近20个观察日的触发次数 · 点击代码跳转同花顺';
 }
 
 // 净强度模式：股票表显示类型标记
 function renderStockTableNet(stocks, sortState) {
   var sorted = sortStocks(stocks, sortState);
   var html = '<table class="stock-table"><thead><tr>';
-  html += '<th class="col-idx">#</th><th class="col-code">代码</th><th class="col-name">名称</th><th class="col-price">价格</th><th class="col-chg">涨跌</th>';
+  html += '<th class="col-idx">#</th>' +
+    sortableStockHeader('代码', 'code', 'col-code', sortState) +
+    sortableStockHeader('名称', 'name', 'col-name', sortState) +
+    sortableStockHeader('价格', 'price', 'col-price', sortState) +
+    sortableStockHeader('涨跌', 'change_pct', 'col-chg', sortState);
   html += renderSortableMpHeaders(sortState);
   html += '<th style="width:42px;font-size:11px">类型</th>';
+  if (effectiveMode === 'intraday') html += '<th>状态</th><th>突破</th><th>回撤</th>' + sortableStockHeader('市值', 'mcap', '', sortState);
   html += '</tr></thead><tbody>';
   sorted.forEach(function(s, i) {
     var changeCls = s.change_pct >= 0 ? 'change-up' : 'change-down';
@@ -1712,8 +2785,12 @@ function renderStockTableNet(stocks, sortState) {
       '<td class="col-mp">' + cnt[2] + '</td>' +
       '<td class="col-mp">' + cnt[3] + '</td>' +
       '<td style="font-size:10px;color:var(--text-dim)">' + pe + '</td>' +
-      '<td style="font-size:9px">' + netTag + '</td>' +
-      '</tr>';
+      '<td style="font-size:9px">' + netTag + '</td>';
+    if (effectiveMode === 'intraday') {
+      html += '<td>' + intradayStatusLabel(s) + '</td><td>' + Number(s.break_pct || 0).toFixed(2) + '%</td>' +
+        '<td>' + Number(s.pullback_pct || 0).toFixed(2) + '%</td><td>' + formatMcap(s.mcap) + '</td>';
+    }
+    html += '</tr>';
   });
   html += '</tbody></table>';
   return html;
@@ -1726,6 +2803,7 @@ async function openTotalDetail(dateLabel, count) {
   document.getElementById('modalBody').onclick = null;
   document.getElementById('modalFooter').innerHTML = '';
   document.getElementById('modalOverlay').classList.add('active');
+  document.querySelector('#modalOverlay .modal').classList.toggle('intraday-wide', effectiveMode === 'intraday');
   document.body.style.overflow = 'hidden';
 
   var details = await ensureDetails();
@@ -1777,7 +2855,7 @@ async function openTotalDetail(dateLabel, count) {
     sortState = toggleMpSort(sortState, th.getAttribute('data-sort'));
     render();
   };
-  document.getElementById('modalFooter').innerHTML = '共 ' + rawStocks.length + ' 只 · ' + entries.length + ' 个行业 · 按行业分组，组内可按次数排序 · 点击代码跳转同花顺';
+  document.getElementById('modalFooter').innerHTML = '共 ' + rawStocks.length + ' 只 · ' + entries.length + ' 个行业 · 点击代码、名称、价格、涨跌或次数列排序';
 }
 
 function closeModal() {
@@ -1814,9 +2892,14 @@ document.getElementById('typeToggle').addEventListener('click', function(e) {
   var btn = e.target.closest('.toggle-btn');
   if (!btn) return;
   var newType = btn.getAttribute('data-type');
+  if (newType === 'custom') {
+    applyCustomWindowValue();
+    return;
+  }
   if (newType === currentType) return;
 
   currentType = newType;
+  currentWindow = selectedWindowDays();
   var buttons = this.querySelectorAll('.toggle-btn');
   for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
   btn.classList.add('active');
@@ -1825,6 +2908,32 @@ document.getElementById('typeToggle').addEventListener('click', function(e) {
   detailsLoadedType = null;
   detailsLoadedDirection = null;
   loadData();
+});
+
+function applyCustomWindowValue() {
+  var input = document.getElementById('customWindowInput');
+  var value = parseInt(input.value, 10);
+  if (!Number.isFinite(value) || value < 5 || value > 250) {
+    input.setCustomValidity('请输入5至250之间的交易日');
+    input.reportValidity();
+    return;
+  }
+  input.setCustomValidity('');
+  input.value = value;
+  currentType = 'custom';
+  currentWindow = value;
+  document.querySelectorAll('#typeToggle .toggle-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-type') === 'custom');
+  });
+  detailsData = null;
+  detailsLoadedType = null;
+  detailsLoadedDirection = null;
+  loadData();
+}
+
+document.getElementById('applyCustomWindow').addEventListener('click', applyCustomWindowValue);
+document.getElementById('customWindowInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') applyCustomWindowValue();
 });
 
 // 方向切换（新高 / 新低 / 净强度）
@@ -1847,7 +2956,7 @@ document.getElementById('directionToggle').addEventListener('click', function(e)
   loadData();
 });
 
-// 模式切换（收盘数据 / 盘中实时）
+// 模式切换（自动 / 收盘数据 / 盘中实时）
 document.getElementById('modeToggle').addEventListener('click', function(e) {
   var btn = e.target.closest('.toggle-btn');
   if (!btn) return;
@@ -1859,17 +2968,10 @@ document.getElementById('modeToggle').addEventListener('click', function(e) {
   for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
   btn.classList.add('active');
 
-  // 盘中模式隐藏 alltime（历史数据不支持盘中）
   var typeBtns = document.querySelectorAll('#typeToggle .toggle-btn');
-  for (var j = 0; j < typeBtns.length; j++) {
-    var tb = typeBtns[j];
-    if (tb.getAttribute('data-type') === 'alltime') {
-      tb.style.display = currentMode === 'intraday' ? 'none' : '';
-    }
-  }
-  // 切换到盘中时默认选 20d
-  if (currentMode === 'intraday' && currentType === 'alltime') {
+  if (newMode === 'intraday' && currentType === 'alltime') {
     currentType = 'month';
+    currentWindow = 20;
     for (var k = 0; k < typeBtns.length; k++) {
       typeBtns[k].classList.remove('active');
       if (typeBtns[k].getAttribute('data-type') === 'month') typeBtns[k].classList.add('active');
@@ -1970,54 +3072,90 @@ async function exportToExcel(dateLabel) {
     return;
   }
 
-  if (typeof XLSX === 'undefined') {
-    alert('Excel 库加载失败，请刷新页面后重试');
-    return;
-  }
-
   // 按行业分组排序
   rows.sort(function(a, b) {
     if (a['行业'] !== b['行业']) return a['行业'].localeCompare(b['行业']);
     return b['涨跌幅%'] - a['涨跌幅%'];
   });
 
-  var ws = XLSX.utils.json_to_sheet(rows);
-  var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, dateLabel);
-  var filename = typeLabel + '_' + dateLabel + '.xlsx';
-  XLSX.writeFile(wb, filename);
+  var columns = ['行业','股票代码','股票名称','最新价','涨跌幅%'];
+  function csvCell(value) { return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"'; }
+  var csv = '\ufeff' + columns.map(csvCell).join(',') + '\n' + rows.map(function(row) {
+    return columns.map(function(column) { return csvCell(row[column]); }).join(',');
+  }).join('\n');
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  link.download = typeLabel + '_' + dateLabel + '.csv';
+  link.click();
+  setTimeout(function(){ URL.revokeObjectURL(link.href); }, 1000);
 }
 
 // =========================================================================
 //  启动
 // =========================================================================
 
-// 检查 URL 参数，支持 ?mode=intraday
+// 检查 URL 参数，支持 ?mode=auto/daily/intraday
 (function() {
   var params = new URLSearchParams(window.location.search);
-  if (params.get('mode') === 'intraday') {
-    currentMode = 'intraday';
+  var requestedMode = params.get('mode');
+  if (['auto','daily','intraday'].indexOf(requestedMode) >= 0) {
+    currentMode = requestedMode;
     // 更新模式切换按钮状态
     var modeBtns = document.querySelectorAll('#modeToggle .toggle-btn');
     for (var i = 0; i < modeBtns.length; i++) {
       modeBtns[i].classList.remove('active');
-      if (modeBtns[i].getAttribute('data-mode') === 'intraday') modeBtns[i].classList.add('active');
-    }
-    // 隐藏 alltime 按钮
-    var typeBtns = document.querySelectorAll('#typeToggle .toggle-btn');
-    for (var j = 0; j < typeBtns.length; j++) {
-      if (typeBtns[j].getAttribute('data-type') === 'alltime') typeBtns[j].style.display = 'none';
+      if (modeBtns[i].getAttribute('data-mode') === requestedMode) modeBtns[i].classList.add('active');
     }
   }
 })();
 
+applyLeaderboardVisibility();
 loadData();
+
+async function scheduledRefreshTick() {
+  if (scheduledSessionCheckInProgress || loadInProgress || (currentMode !== 'auto' && currentMode !== 'intraday')) return;
+  scheduledSessionCheckInProgress = true;
+  try {
+    var state = await fetchJsonWithTimeout('/api/market-session?_=' + Date.now(), 4000);
+    var nextMode = currentMode === 'auto' ? (state.recommended_mode || 'daily') : currentMode;
+    var modeChanged = nextMode !== effectiveMode;
+    sessionState = state;
+    if (state.phase === 'trading' || (currentMode === 'auto' && modeChanged)) {
+      await loadData();
+      return;
+    }
+    var freshness = document.getElementById('freshnessBadge');
+    if (freshness && currentMode === 'auto') {
+      freshness.textContent = '自动已暂停 · 非交易时段';
+      freshness.classList.remove('stale');
+    }
+  } catch(e) {
+    // 会话状态检查失败时保持当前画面，不触发全量数据刷新。
+  } finally {
+    scheduledSessionCheckInProgress = false;
+  }
+}
+
+setInterval(scheduledRefreshTick, 60000);
 
 // =========================================================================
 //  行业轮动象限图
 // =========================================================================
 function openQuadrant() {
-  if (!highsData || !lowsData || !flowData) { alert('需要新高/新低/资金流向数据，请刷新页面'); return; }
+  if (effectiveMode === 'intraday') {
+    alert('盘中成交参与仍是上一收盘日背景，不能与实时扩散混画；象限仅在收盘模式启用');
+    return;
+  }
+  if (!opportunityData || !Array.isArray(opportunityData.industries) ||
+      !opportunityData.industries.length) {
+    alert('缺少同口径的扩散与成交参与数据，请刷新页面');
+    return;
+  }
+  var quality = opportunityData.quality || {};
+  if (!quality.can_score || !quality.flow_aligned) {
+    alert('扩散、成交参与或分类口径未通过数据闸门，象限已停用');
+    return;
+  }
   var ov = document.getElementById('quadrantOverlay');
   ov.classList.add('active');
   document.body.style.overflow = 'hidden';
@@ -2026,66 +3164,141 @@ function openQuadrant() {
 
 function renderQuadrant() {
   var map = document.getElementById('quadrantMap');
-  if (!map) return;
+  if (!map || !opportunityData || !Array.isArray(opportunityData.industries)) return;
 
-  var hMap = {}, lMap = {}, fMap = {};
-  highsData.industries.filter(function(r) { return !r.is_total; }).forEach(function(r) {
-    var dc = r.daily_counts || [];
-    hMap[r.industry] = dc[0] || 0;  // [0]=最新日
-  });
-  lowsData.industries.filter(function(r) { return !r.is_total; }).forEach(function(r) {
-    var dc = r.daily_counts || [];
-    lMap[r.industry] = dc[0] || 0;
-  });
-  flowData.industries.filter(function(r) { return !r.is_total; }).forEach(function(r) {
-    var dt = r.daily_turnover || [];
-    var latest = dt[0] || 0;
-    var prev = dt.length > 1 ? dt[1] : 0;
-    fMap[r.industry] = { turnover: latest, flowChg: prev > 0 ? ((latest - prev) / prev * 100) : 0 };
+  var fMap = {};
+  ((flowData && flowData.industries) || []).filter(function(row) {
+    return !row.is_total;
+  }).forEach(function(row) {
+    var daily = row.daily_turnover || [];
+    fMap[row.industry] = Number(daily[0] || 0);
   });
 
-  // 计算各行业净强度和成交变化
-  var points = [];
-  var names = Object.keys(hMap);
-  names.forEach(function(ind) {
-    var net = (hMap[ind] || 0) - (lMap[ind] || 0);
-    var f = fMap[ind] || { turnover: 0, flowChg: 0 };
-    points.push({ industry: ind, net: net, flowChg: f.flowChg, turnover: f.turnover });
+  // 坐标直接使用经过数据闸门的同口径机会快照：
+  // X 为小行业收缩后的净扩散，Y 为行业自身成交参与历史分位相对 P50。
+  var points = opportunityData.industries.map(function(row) {
+    var adjustedNet = row.adjusted_net_breadth_pct;
+    if (adjustedNet === null || adjustedNet === undefined) adjustedNet = row.net_breadth_pct;
+    var activity = row.activity_percentile;
+    return {
+      industry: row.industry,
+      net: Number(adjustedNet || 0),
+      rawNet: Number(row.net_breadth_pct || 0),
+      activity: Number(activity),
+      turnover: Number(row.turnover_amount || fMap[row.industry] || 0),
+      stage: row.stage || 'insufficient',
+      stageLabel: row.stage_label || '数据不足',
+      riskDomains: row.risk_domains || [],
+      riskReasons: row.risk_reasons || []
+    };
+  }).filter(function(point) {
+    return Number.isFinite(point.net) && Number.isFinite(point.activity);
   });
 
-  // 计算范围
-  var maxAbsNet = Math.max.apply(null, points.map(function(p) { return Math.abs(p.net); })) || 1;
-  var maxAbsFlow = Math.max.apply(null, points.map(function(p) { return Math.abs(p.flowChg); })) || 1;
+  if (!points.length) {
+    map.innerHTML = '<div class="error-msg">没有可比较的收盘行业数据</div>';
+    return;
+  }
+
+  var quadrantCounts = {rightTop: 0, leftTop: 0, rightBottom: 0, leftBottom: 0};
+  points.forEach(function(point) {
+    if (point.net > 0 && point.activity >= 50) quadrantCounts.rightTop += 1;
+    else if (point.net <= 0 && point.activity >= 50) quadrantCounts.leftTop += 1;
+    else if (point.net > 0) quadrantCounts.rightBottom += 1;
+    else quadrantCounts.leftBottom += 1;
+  });
+  var context = document.getElementById('quadrantContext');
+  if (context) {
+    var permission = (opportunityData.market_permission || {}).label || '未知';
+    context.textContent = '当前市场许可：' + permission + ' · 右上' +
+      quadrantCounts.rightTop + ' / 左上' + quadrantCounts.leftTop +
+      ' / 右下' + quadrantCounts.rightBottom + ' / 左下' +
+      quadrantCounts.leftBottom + '；偏在一侧是当日真实扩散结果';
+  }
+
+  // 横轴使用完整样本最大绝对值向上取整，不再把超出 ±20% 的行业挤在边缘。
+  var observedMaxNet = Math.max.apply(null, points.map(function(point) {
+    return Math.abs(point.net);
+  })) || 0;
+  var maxAbsNet = Math.max(20, Math.ceil(observedMaxNet / 5) * 5);
   var maxTurnover = Math.max.apply(null, points.map(function(p) { return p.turnover; })) || 1;
-  var w = map.clientWidth, h = map.clientHeight;
-  var pad = 60;
+  var innerSpan = 88;
+  var padPct = 6;
+  var labelLimit = currentScheme === 'sw3' ? 24 : (currentScheme === 'ths' ? 20 : 18);
+  points.forEach(function(point) {
+    point.xPct = padPct + innerSpan * (point.net + maxAbsNet) / (2 * maxAbsNet);
+    point.yPct = padPct + innerSpan * (100 - point.activity) / 100;
+  });
+  var labelScore = points.slice().sort(function(a, b) {
+    function score(point) {
+      return Math.abs(point.net) / maxAbsNet * 0.45 +
+        Math.abs(point.activity - 50) / 50 * 0.35 +
+        Math.sqrt(point.turnover / maxTurnover) * 0.20;
+    }
+    return score(b) - score(a);
+  });
+  var labeled = {};
+  var labeledPoints = [];
+  var mapWidth = Math.max(map.clientWidth || 0, 800);
+  labelScore.some(function(point) {
+    var collision = labeledPoints.some(function(other) {
+      var combinedLabelWidth = (point.industry.length + other.industry.length) * 5 /
+        mapWidth * 100 + 1.5;
+      return Math.abs(point.yPct - other.yPct) < 4.5 &&
+        Math.abs(point.xPct - other.xPct) < combinedLabelWidth;
+    });
+    if (collision) return false;
+    labeled[point.industry] = true;
+    labeledPoints.push(point);
+    return labeledPoints.length >= labelLimit;
+  });
 
   // 象限标签
   var html = '<div class="axis-h"></div><div class="axis-v"></div>';
-  html += '<div class="q-label" style="left:52%;top:8px">成交↑ 放量</div>';
-  html += '<div class="q-label" style="left:52%;bottom:8px">成交↓ 缩量</div>';
-  html += '<div class="q-label" style="left:8px;top:48%">新低</div>';
-  html += '<div class="q-label" style="right:8px;top:48%">新高</div>';
-  html += '<div class="q-label" style="left:8px;top:8px;color:#e06c75">放量杀跌</div>';
-  html += '<div class="q-label" style="right:8px;top:8px;color:#98c379">量价齐升</div>';
-  html += '<div class="q-label" style="left:8px;bottom:8px;color:#61afef">缩量杀跌</div>';
-  html += '<div class="q-label" style="right:8px;bottom:8px;color:#e5c07b">缩量冲高</div>';
+  html += '<div class="q-label" style="left:51%;top:4px">成交参与高 · P100</div>';
+  html += '<div class="q-label" style="left:51%;bottom:4px">成交参与低 · P0</div>';
+  html += '<div class="q-label" style="left:4px;top:49%">−' + maxAbsNet + '% 收缩</div>';
+  html += '<div class="q-label" style="right:4px;top:49%">扩散 +' + maxAbsNet + '%</div>';
+  html += '<div class="q-label" style="left:8px;top:8px;color:#e06c75">收缩 + 高参与 · 风险/杀跌</div>';
+  html += '<div class="q-label" style="right:8px;top:8px;color:#98c379">扩散 + 高参与 · 确认</div>';
+  html += '<div class="q-label" style="left:8px;bottom:8px;color:#61afef">收缩 + 低参与 · 沉寂</div>';
+  html += '<div class="q-label" style="right:8px;bottom:8px;color:#e5c07b">扩散 + 低参与 · 待确认</div>';
 
   points.forEach(function(p) {
-    var x = (w - pad * 2) * (p.net + maxAbsNet) / (2 * maxAbsNet) + pad;
-    var y = h - ((h - pad * 2) * (p.flowChg + maxAbsFlow) / (2 * maxAbsFlow) + pad);
-    x = Math.max(pad, Math.min(w - pad, x));
-    y = Math.max(pad, Math.min(h - pad, y));
-    var size = Math.max(5, Math.min(16, 5 + 11 * (p.turnover / maxTurnover)));
-    var lum = 0.3 + 0.7 * (p.turnover / maxTurnover);
+    var x = p.xPct;
+    var y = p.yPct;
+    x = Math.max(padPct, Math.min(100 - padPct, x));
+    y = Math.max(padPct, Math.min(100 - padPct, y));
+    // 最小圆保证可点击，其余圆面积与成交规模线性对应。
+    var turnoverRatio = Math.max(0, Math.min(1, p.turnover / maxTurnover));
+    var size = Math.sqrt(36 + (484 - 36) * turnoverRatio);
     var color;
-    if (p.net > 0 && p.flowChg > 0) color = 'rgb(' + Math.round(120*lum) + ',' + Math.round(200*lum) + ',' + Math.round(80*lum) + ')';
-    else if (p.net > 0 && p.flowChg <= 0) color = 'rgb(' + Math.round(230*lum) + ',' + Math.round(180*lum) + ',' + Math.round(50*lum) + ')';
-    else if (p.net <= 0 && p.flowChg > 0) color = 'rgb(' + Math.round(200*lum) + ',' + Math.round(100*lum) + ',' + Math.round(180*lum) + ')';
-    else color = 'rgb(' + Math.round(80*lum) + ',' + Math.round(140*lum) + ',' + Math.round(210*lum) + ')';
+    if (p.net > 0 && p.activity >= 50) color = '#98c379';
+    else if (p.net > 0 && p.activity < 50) color = '#e5c07b';
+    else if (p.net <= 0 && p.activity >= 50) color = '#e06c75';
+    else color = '#61afef';
+    var riskClass = p.stage === 'crowded'
+      ? ' quadrant-crowded'
+      : (p.riskDomains.length ? ' quadrant-risk' : '');
+    var opacity = (0.58 + 0.38 * Math.sqrt(turnoverRatio)).toFixed(2);
+    var riskText = (p.riskDomains.length || p.stage === 'crowded') && p.riskReasons.length
+      ? (' 风险：' + p.riskReasons[0])
+      : '';
     var latestDate = (highsData.dates && highsData.dates.length > 0) ? highsData.dates[0].label : '';
-    html += '<div class="dot" style="left:' + x + 'px;top:' + y + 'px;width:' + size + 'px;height:' + size + 'px;background:' + color + '" title="' + p.industry + ' 净' + (p.net>0?'+':'') + p.net + ' 成' + p.flowChg.toFixed(1) + '% · 点击查看明细" onclick="closeQuadrantAndDetail(\'' + p.industry + '\',\'' + latestDate + '\')">';
-    html += '<div class="dot-label">' + p.industry + '</div></div>';
+    html += '<div class="dot' + riskClass + '" data-industry="' + escapeHtml(p.industry) +
+      '" data-net="' + p.net.toFixed(2) + '" data-activity="' + p.activity.toFixed(1) +
+      '" style="left:' + x.toFixed(3) + '%;top:' + y.toFixed(3) + '%;width:' +
+      size.toFixed(1) + 'px;height:' + size.toFixed(1) + 'px;background:' + color +
+      ';opacity:' + opacity + '" title="' + escapeHtml(p.industry) + ' · ' +
+      escapeHtml(p.stageLabel) + ' · 收缩后净扩散' + (p.net > 0 ? '+' : '') +
+      p.net.toFixed(1) + '%（原始' + (p.rawNet > 0 ? '+' : '') + p.rawNet.toFixed(1) +
+      '%）· 成交参与P' + p.activity.toFixed(0) + escapeHtml(riskText) +
+      ' · 点击查看证据" onclick="closeQuadrantAndDetail(decodeURIComponent(\'' +
+      encodedArg(p.industry) + '\'),decodeURIComponent(\'' + encodedArg(latestDate) + '\'))">';
+    if (labeled[p.industry]) {
+      html += '<div class="dot-label">' + escapeHtml(p.industry) + '</div>';
+    }
+    html += '</div>';
   });
 
   map.innerHTML = html;
@@ -2093,8 +3306,8 @@ function renderQuadrant() {
 
 function closeQuadrantAndDetail(industry, dateLabel) {
   document.getElementById('quadrantOverlay').classList.remove('active');
-  // openDetail will set overflow:hidden itself, don't lock here
-  openDetail(industry, dateLabel, 0);
+  if (opportunityData) openOpportunityDetail(industry);
+  else openDetail(industry, dateLabel, 0);
 }
 
 // Quadrant close on overlay click
@@ -2110,6 +3323,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // =========================================================================
 function detectAnomalies() {
   if (!highsData || !lowsData) return [];
+  if (effectiveMode === 'intraday') return [];
+  if (opportunityData && opportunityData.quality && !opportunityData.quality.can_score) return [];
   var hRows = highsData.industries.filter(function(r) { return !r.is_total; });
   var lRows = lowsData.industries.filter(function(r) { return !r.is_total; });
   var hMap = {}, lMap = {};
@@ -2188,68 +3403,51 @@ renderLeaderboard = function() {
 
 function renderOpportunities() {
   var lbEl = document.getElementById('lbOpportunity');
-  if (!lbEl || !highsData || !lowsData) return;
-
-  var hRows = highsData.industries.filter(function(r){return !r.is_total;});
-  var lRows = lowsData.industries.filter(function(r){return !r.is_total;});
-  var opps = [];
-
-  hRows.forEach(function(r) {
-    var dc = r.daily_counts || [];
-    if (dc.length < 6) return;
-    var now = dc[0], prev = dc[1], p2 = dc[2], p3 = dc[3], p4 = dc[4];
-    var rate = r.total > 0 ? (now / r.total * 100) : 0;
-
-    // 🐂 持续扩散: 连续3天递增且今天>5只
-    if (now > prev && prev > p2 && now > 5 && rate > 1.5) {
-      opps.push({ind: r.industry, type: 'bull', score: now + rate*3,
-        msg: '新高' + now + '只(' + rate.toFixed(1) + '%) 连续3天扩散 ' + p2 + '→' + prev + '→' + now});
-    }
-    // 🌱 暗流涌动: 前5天平均<3, 今天突然>5且占比>2%
-    if (dc.length >= 10) {
-      var prev5 = (dc[5]+dc[6]+dc[7]+dc[8]+dc[9]) / 5;
-      if (prev5 < 2 && now > 5 && rate > 2) {
-        opps.push({ind: r.industry, type: 'stealth', score: now - prev5,
-          msg: '前5日均' + prev5.toFixed(1) + '只 → 今日' + now + '只(' + rate.toFixed(1) + '%) 首次放量'});
-      }
-    }
-  });
-
-  // 🐻 恐慌超跌: 新低占比>15% 且 成交放量
-  lRows.forEach(function(r) {
-    var dc = r.daily_counts || [];
-    if (dc.length < 2) return;
-    var now = dc[0], rate = r.total > 0 ? (now / r.total * 100) : 0;
-    if (rate > 12 && flowData) {
-      var fRow = flowData.industries.find(function(f){return f.industry === r.industry;});
-      if (fRow && !fRow.is_total) {
-        var dt = fRow.daily_turnover || [];
-        var fc = dt.length > 1 && dt[1] > 0 ? ((dt[0]-dt[1])/dt[1]*100) : 0;
-        if (fc > 5) {
-          opps.push({ind: r.industry, type: 'bear', score: rate + fc/2,
-            msg: '新低' + now + '只(' + rate.toFixed(1) + '%) 成交↑' + fc.toFixed(1) + '% · 恐慌释放'});
-        }
-      }
-    }
-  });
-
-  // Sort and deduplicate
-  opps.sort(function(a,b){return b.score - a.score;});
-  var seen = {};
-  opps = opps.filter(function(o){
-    var key = o.ind + o.type;
-    if (seen[key]) return false;
-    seen[key] = true;
-    return true;
-  }).slice(0, 8);
-
+  var calibrationEl = document.getElementById('calibrationNote');
+  if (!lbEl) return;
+  if (!opportunityData || !Array.isArray(opportunityData.industries)) {
+    lbEl.innerHTML = '<li style="color:var(--text-dim)">机会状态暂不可用；原始矩阵仍可查看</li>';
+    if (calibrationEl) calibrationEl.innerHTML = '';
+    return;
+  }
+  var preferredStages = {
+    emerging: 0, confirmed: 1, extending: 2, intraday_watch: 3,
+    relative: 4, crowded: 5, declining: 6, failed: 7, insufficient: 8
+  };
+  var candidates = opportunityData.industries.filter(function(row) {
+    return row.stage !== 'dormant';
+  }).sort(function(a,b) {
+    return (preferredStages[a.stage] ?? 9) - (preferredStages[b.stage] ?? 9) ||
+      Number(b.score || 0) - Number(a.score || 0);
+  }).slice(0, 12);
   var html = '';
-  opps.forEach(function(o){
-    var icon = o.type === 'bull' ? '🐂' : (o.type === 'stealth' ? '🌱' : '🐻');
-    html += '<li>' + icon + ' <span class="ind-name">' + o.ind + '</span> ' + o.msg + '</li>';
+  candidates.forEach(function(row) {
+    var reason = (row.why_now || [])[0] || '等待更多证据';
+    var risk = (row.risk_reasons || [])[0] ||
+      ((row.missing_confirmations || [])[0] ? '待确认：' + row.missing_confirmations[0] : '未见独立危险证据');
+    html += '<li class="opportunity-card" data-opportunity-industry="' + escapeHtml(row.industry) + '">' +
+      '<div class="card-head"><span class="card-industry">' + escapeHtml(row.industry) + '</span>' +
+      '<span class="stage-pill ' + stageClass(row.stage) + '">' + escapeHtml(row.stage_label) + '</span></div>' +
+      '<div class="card-reason">' + escapeHtml(reason) + '</div>' +
+      '<div class="card-risk">风险/缺口：' + escapeHtml(risk) + '</div></li>';
   });
-  if (!html) html = '<li style="color:var(--text-dim)">今日无显著机会信号</li>';
+  if (!html) {
+    html = '<li style="color:var(--text-dim);list-style:none">当前没有通过状态迁移门槛的行业；这是有效的“无信号”状态</li>';
+  }
   lbEl.innerHTML = html;
+  if (calibrationEl) {
+    var calibration = opportunityData.calibration || {};
+    calibrationEl.innerHTML =
+      '<div style="margin-top:8px;padding:7px;border:1px solid var(--border);border-radius:5px;color:var(--text-dim);line-height:1.45">' +
+      '<strong style="color:#d19a66">' + escapeHtml(calibration.label || '校准状态未知') + '</strong> · ' +
+      escapeHtml(calibration.message || '暂不显示成功概率') +
+      '<br>入场口径：' + escapeHtml(calibration.entry_rule || '等待定义') + '</div>';
+  }
+  lbEl.querySelectorAll('[data-opportunity-industry]').forEach(function(element) {
+    element.addEventListener('click', function() {
+      openOpportunityDetail(this.getAttribute('data-opportunity-industry'));
+    });
+  });
 }
 
 function renderAnomalies() {
@@ -2261,7 +3459,12 @@ function renderAnomalies() {
     var icon = a.type === 'surge' ? '<span class="anomaly-dot surge"></span>' : (a.type === 'diverge' ? '<span class="anomaly-dot diverge"></span>' : '<span class="anomaly-dot breakout"></span>');
     html += '<li>' + icon + ' <span class="ind-name">' + a.industry + '</span> ' + a.msg + '</li>';
   });
-  if (!html) html = '<li style="color:var(--text-dim)">今日无异动</li>';
+  if (!html) {
+    var unavailable = effectiveMode === 'intraday' ||
+      (opportunityData && opportunityData.quality && !opportunityData.quality.can_score);
+    html = '<li style="color:var(--text-dim)">' +
+      (unavailable ? '当前模式不可评估原始日线异动' : '今日无异动') + '</li>';
+  }
   lbEl.innerHTML = html;
 
   // 在热力图表格中标记异动行业
@@ -2288,7 +3491,7 @@ function renderAnomalies() {
 //  一键每日简报
 // =========================================================================
 function openBriefing() {
-  if (!highsData || !lowsData || !flowData) { alert('需要新高/新低/资金流向数据'); return; }
+  if (!highsData || !lowsData || !flowData) { alert('需要新高/新低/成交动能数据'); return; }
   var ov = document.getElementById('briefingOverlay');
   generateBriefing();
   ov.classList.add('active');
@@ -2300,28 +3503,51 @@ function generateBriefing() {
   var lTotal = lowsData.industries.find(function(r) { return r.is_total; });
   var hCounts = hTotal ? (hTotal.daily_counts || []) : [];
   var lCounts = lTotal ? (lTotal.daily_counts || []) : [];
-  var hi = hCounts[0] || 0, li = lCounts[0] || 0;
-  var ratio = li > 0 ? (hi / li) : 99;
+  var isIntraday = effectiveMode === 'intraday' || highsData.session === 'intraday';
+  var highTouched = hTotal ? (hTotal.touched_count || 0) : 0;
+  var lowTouched = lTotal ? (lTotal.touched_count || 0) : 0;
+  var highStanding = hTotal ? (hTotal.standing_count || 0) : 0;
+  var lowStanding = lTotal ? (lTotal.standing_count || 0) : 0;
+  var hi = isIntraday ? highStanding : (hCounts[0] || 0);
+  var li = isIntraday ? lowStanding : (lCounts[0] || 0);
+  var ratio = li > 0 ? (hi / li) : (hi > 0 ? Infinity : null);
+  var ratioText = ratio === null ? '—' : (ratio === Infinity ? '∞' : ratio.toFixed(1));
 
   var fTotal = flowData.industries.find(function(r) { return r.is_total; });
   var fDaily = fTotal ? (fTotal.daily_turnover || []) : [];
   var flowNow = fDaily[0] || 0;
   var flowPrev = fDaily.length > 1 ? fDaily[1] : 0;
   var flowChg = flowPrev > 0 ? ((flowNow - flowPrev) / flowPrev * 100) : 0;
+  var heatDate = (highsData.dates || [])[0] || {};
+  var flowDate = (flowData.dates || [])[0] || {};
+  var sameFlowDate = !!heatDate.full_label && heatDate.full_label === flowDate.full_label;
+  var turnoverLabel = isIntraday && sameFlowDate
+    ? '盘中成交估算（' + (flowDate.label || '当日') + '）'
+    : (sameFlowDate ? '全市场成交' : '最近收盘成交（' + (flowDate.label || '日期未知') + '）');
+  var turnoverCompareLabel = isIntraday && sameFlowDate ? '较前一交易日全日' : '较前日';
 
   var hRows = highsData.industries.filter(function(r) { return !r.is_total; });
   var lRows = lowsData.industries.filter(function(r) { return !r.is_total; });
   var hMap = {}, lMap = {};
-  hRows.forEach(function(r) { hMap[r.industry] = (r.daily_counts || [])[0] || 0; });
-  lRows.forEach(function(r) { lMap[r.industry] = (r.daily_counts || [])[0] || 0; });
+  hRows.forEach(function(r) { hMap[r.industry] = isIntraday ? (r.standing_count || 0) : ((r.daily_counts || [])[0] || 0); });
+  lRows.forEach(function(r) { lMap[r.industry] = isIntraday ? (r.standing_count || 0) : ((r.daily_counts || [])[0] || 0); });
 
-  // 整体判断
+  function breadthValue(row, direction) {
+    if (!isIntraday) return (row.daily_counts || [])[0] || 0;
+    return row.touched_count || 0;
+  }
+  function breadthRate(row, direction) {
+    return breadthValue(row, direction) / Math.max(row.total || 0, 1);
+  }
+
+  // 新高/新低是极值宽度信号，不能直接等同于普涨或普跌。
   var stateText = '', stateCls = '';
-  if (ratio > 3) { stateText = '强势普涨'; stateCls = 'b-fire'; }
-  else if (ratio > 1.2) { stateText = '结构性强势'; stateCls = 'b-fire'; }
-  else if (ratio > 0.6) { stateText = '震荡分化'; stateCls = 'b-warn'; }
-  else if (ratio > 0.3) { stateText = '结构性弱势'; stateCls = 'b-ice'; }
-  else { stateText = '普跌'; stateCls = 'b-ice'; }
+  if (ratio === null) { stateText = '暂无明显极值扩散'; stateCls = 'b-warn'; }
+  else if (ratio > 3) { stateText = '新高扩散占优'; stateCls = 'b-fire'; }
+  else if (ratio > 1.2) { stateText = '新高略占优'; stateCls = 'b-fire'; }
+  else if (ratio > 0.6) { stateText = '高低分化'; stateCls = 'b-warn'; }
+  else if (ratio > 0.3) { stateText = '新低略占优'; stateCls = 'b-ice'; }
+  else { stateText = '新低扩散占优'; stateCls = 'b-ice'; }
 
   var strong = 0, weak = 0;
   hRows.forEach(function(r) {
@@ -2329,37 +3555,49 @@ function generateBriefing() {
     if (h > l) strong++; else if (l > h) weak++;
   });
 
-  // Top3 新高/新低
-  var topH = hRows.slice().sort(function(a, b) { return (hMap[b.industry]||0) - (hMap[a.industry]||0); }).slice(0, 3);
-  var topL = lRows.slice().sort(function(a, b) { return (lMap[b.industry]||0) - (lMap[a.industry]||0); }).slice(0, 3);
+  // “扩散最强”按行业覆盖率排序，数量只用于同覆盖率时的次级排序。
+  var topH = hRows.filter(function(r) { return breadthValue(r, 'highs') > 0; }).sort(function(a, b) {
+    return breadthRate(b, 'highs') - breadthRate(a, 'highs') || breadthValue(b, 'highs') - breadthValue(a, 'highs');
+  }).slice(0, 3);
+  var topL = lRows.filter(function(r) { return breadthValue(r, 'lows') > 0; }).sort(function(a, b) {
+    return breadthRate(b, 'lows') - breadthRate(a, 'lows') || breadthValue(b, 'lows') - breadthValue(a, 'lows');
+  }).slice(0, 3);
   var topF = flowData.industries.filter(function(r) { return !r.is_total; }).sort(function(a,b){ return (b.turnover||0) - (a.turnover||0); }).slice(0, 3);
 
-  var anomalies = detectAnomalies();
+  var anomalies = isIntraday ? [] : detectAnomalies();
 
-  var dateStr = (highsData.dates || [])[0] || {};
-  var dateLabel = dateStr.full_label || '';
+  var dateLabel = heatDate.full_label || '';
 
   var lines = [];
   lines.push('<span class="b-title">市场简报 ' + dateLabel + '</span>');
   lines.push('');
-  lines.push('今日市场状态：<span class="' + stateCls + '">' + stateText + '</span>');
-  lines.push('新高/新低比：<strong>' + ratio.toFixed(1) + '</strong>（新高 ' + hi + ' vs 新低 ' + li + '）');
-  lines.push('强势行业 ' + strong + ' 个，弱势行业 ' + weak + ' 个');
-  lines.push('全市场成交 <strong>' + (flowNow/1e8).toFixed(0) + ' 亿</strong>（较前日 ' + (flowChg>0?'+':'') + flowChg.toFixed(1) + '%）');
+  lines.push((isIntraday ? '盘中' : '收盘') + '市场宽度：<span class="' + stateCls + '">' + stateText + '</span>');
+  if (isIntraday) {
+    lines.push('今日触及：新高 <strong>' + highTouched + '</strong> vs 新低 <strong>' + lowTouched + '</strong>');
+    lines.push('当前保持：新高 <strong>' + highStanding + '</strong> vs 新低 <strong>' + lowStanding + '</strong>（比值 ' + ratioText + '）');
+    lines.push('当前新高占优行业 ' + strong + ' 个，新低占优行业 ' + weak + ' 个');
+  } else {
+    lines.push('新高/新低比：<strong>' + ratioText + '</strong>（新高 ' + hi + ' vs 新低 ' + li + '）');
+    lines.push('新高占优行业 ' + strong + ' 个，新低占优行业 ' + weak + ' 个');
+  }
+  lines.push(turnoverLabel + ' <strong>' + (flowNow/1e8).toFixed(0) + ' 亿</strong>（' + turnoverCompareLabel + ' ' + (flowChg>0?'+':'') + flowChg.toFixed(1) + '%）');
   lines.push('');
-  lines.push('<span style="color:#e06c75">🔥 新高扩散最强：</span>');
+  lines.push('<span style="color:#e06c75">🔥 新高覆盖率 Top3：</span>');
   topH.forEach(function(r, i) {
-    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + (hMap[r.industry]||0) + ' 只');
+    var extra = isIntraday ? '，当前 ' + (r.standing_count || 0) + ' 只' : '';
+    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + breadthValue(r, 'highs') + ' 只（' + (breadthRate(r, 'highs') * 100).toFixed(1) + '%）' + extra);
   });
   lines.push('');
-  lines.push('<span style="color:#61afef">❄️ 新低扩散最强：</span>');
+  lines.push('<span style="color:#61afef">❄️ 新低覆盖率 Top3：</span>');
   topL.forEach(function(r, i) {
-    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + (lMap[r.industry]||0) + ' 只');
+    var extra = isIntraday ? '，当前 ' + (r.standing_count || 0) + ' 只' : '';
+    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + breadthValue(r, 'lows') + ' 只（' + (breadthRate(r, 'lows') * 100).toFixed(1) + '%）' + extra);
   });
   lines.push('');
-  lines.push('<span style="color:#d19a66">💰 成交额 Top3：</span>');
+  lines.push('<span style="color:#d19a66">💰 ' + (isIntraday && sameFlowDate ? '盘中成交额' : '成交额') + ' Top3' + (flowDate.label ? '（' + flowDate.label + '）' : '') + '：</span>');
   topF.forEach(function(r, i) {
-    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + (r.turnover/1e8).toFixed(0) + '亿（' + r.share.toFixed(1) + '%）');
+    var share = Number.isFinite(r.share) ? r.share : ((r.turnover || 0) / Math.max(flowNow, 1) * 100);
+    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + (r.turnover/1e8).toFixed(0) + '亿（' + share.toFixed(1) + '%）');
   });
   lines.push('');
   if (anomalies.length > 0) {
@@ -2369,6 +3607,7 @@ function generateBriefing() {
     });
     lines.push('');
   }
+  if (isIntraday) lines.push('<span class="b-warn">异动检测：等待收盘历史序列确认</span>');
   lines.push('数据更新于 ' + (highsData.updated_at || '?'));
   lines.push('—— 由行业热力图自动生成');
 
@@ -2389,5 +3628,6 @@ function copyBriefing() {
   }
 }
 </script>
+<script src="/page-guide.js" defer></script>
 </body>
 </html>

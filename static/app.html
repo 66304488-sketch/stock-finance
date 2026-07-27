@@ -9,11 +9,13 @@
     --bg: #1a1d23;
     --bg-tab: #21252b;
     --text: #abb2bf;
+    --text-dim: #6b717a;
     --accent: #61afef;
     --border: #333842;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; background: var(--bg); }
+  html, body { height: 100%; background: var(--bg); overflow: hidden; }
+  body { display: flex; flex-direction: column; }
 
   .tab-bar {
     display: flex;
@@ -21,9 +23,12 @@
     border-bottom: 1px solid var(--border);
     -webkit-app-region: drag;
     user-select: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex: 0 0 auto;
   }
   .tab-btn {
-    padding: 10px 20px;
+    padding: 10px 9px;
     color: var(--text);
     font-size: 0.9em;
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -33,15 +38,34 @@
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
     -webkit-app-region: no-drag;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
   .tab-btn:hover { color: #e5e5e5; }
   .tab-btn.active {
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
+  .tab-spacer { flex: 1; -webkit-app-region: drag; }
+  .app-status {
+    display: flex; align-items: center; gap: 7px; padding: 0 12px;
+    color: #6b717a; font: 11px -apple-system, "PingFang SC", sans-serif;
+    -webkit-app-region: no-drag;
+    flex: 0 0 auto;
+  }
+  .app-status button {
+    width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 4px;
+    background: transparent; color: var(--text); cursor: pointer; font-size: 16px; line-height: 1;
+  }
+  .app-status button:hover { color: var(--accent); border-color: var(--accent); }
+  .app-status button:disabled { opacity: 0.45; cursor: wait; }
+  .app-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #6b717a; }
+  .app-status-dot.ok { background: #98c379; }
+  .app-status-dot.stale { background: #e5c07b; }
 
   .tab-content {
-    height: calc(100% - 41px);
+    flex: 1 1 auto;
+    min-height: 0;
     position: relative;
   }
   .tab-panel {
@@ -53,6 +77,7 @@
   .tab-panel.active { display: block; }
 
   iframe {
+    display: block;
     width: 100%;
     height: 100%;
     border: none;
@@ -74,14 +99,21 @@
     overflow-y: auto;
   }
   .settings-nav-item {
+    display: block;
+    width: 100%;
     padding: 9px 16px;
     font-size: 0.85em;
+    font-family: inherit;
+    text-align: left;
     color: var(--text-dim);
+    background: transparent;
+    border: 0;
     cursor: pointer;
     transition: background 0.15s;
     border-left: 3px solid transparent;
   }
   .settings-nav-item:hover { background: #282c34; color: var(--text); }
+  .settings-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .settings-nav-item.active {
     background: #282c34;
     color: var(--accent);
@@ -115,6 +147,7 @@
     text-align: right;
   }
   .settings-row input[type="text"],
+  .settings-row input[type="password"],
   .settings-row select {
     padding: 8px 12px;
     background: #282c34;
@@ -150,25 +183,173 @@
   }
   .status-ok { background: #98c37922; color: #98c379; }
   .status-warn { background: #e5c07b22; color: #e5c07b; }
+
+  .guide-intro {
+    max-width: 980px;
+    margin: -4px 0 14px;
+    color: var(--text-dim);
+    font-size: 0.84em;
+    line-height: 1.7;
+  }
+  .guide-flow {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(110px, 1fr));
+    gap: 1px;
+    max-width: 980px;
+    margin-bottom: 18px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--border);
+  }
+  .guide-flow-step {
+    min-width: 0;
+    padding: 10px 12px;
+    background: #21252b;
+  }
+  .guide-flow-step span {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--accent);
+    font-size: 0.7em;
+    font-weight: 700;
+  }
+  .guide-flow-step strong {
+    display: block;
+    color: #e5e5e5;
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  .guide-flow-step small {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-dim);
+    font-size: 0.68em;
+    line-height: 1.45;
+  }
+  .guide-list {
+    max-width: 980px;
+    border-top: 1px solid var(--border);
+  }
+  .guide-details {
+    border-bottom: 1px solid var(--border);
+  }
+  .guide-details > summary {
+    position: relative;
+    padding: 12px 30px 12px 2px;
+    color: #d7dae0;
+    font-size: 0.88em;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+  .guide-details > summary::-webkit-details-marker { display: none; }
+  .guide-details > summary::after {
+    content: '+';
+    position: absolute;
+    right: 8px;
+    top: 10px;
+    color: var(--text-dim);
+    font-size: 1.15em;
+    font-weight: 400;
+  }
+  .guide-details[open] > summary { color: var(--accent); }
+  .guide-details[open] > summary::after { content: '\2212'; }
+  .guide-summary-note {
+    margin-left: 8px;
+    color: var(--text-dim);
+    font-size: 0.86em;
+    font-weight: 400;
+  }
+  .guide-body {
+    padding: 0 30px 14px 2px;
+    color: var(--text);
+    font-size: 0.82em;
+    line-height: 1.7;
+  }
+  .guide-body p { margin: 0 0 8px; }
+  .guide-body ul, .guide-body ol { margin: 2px 0 6px 18px; }
+  .guide-body li { margin: 3px 0; padding-left: 2px; }
+  .guide-body strong { color: #e5e5e5; }
+  .guide-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 28px;
+  }
+  .guide-note {
+    margin-top: 10px;
+    padding: 7px 10px;
+    border-left: 2px solid #e5c07b;
+    background: #e5c07b0d;
+    color: #c6b47b;
+  }
+  .guide-grid > .guide-note { grid-column: 1 / -1; }
+  .guide-formula {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    color: #98c379;
+  }
+
+  @media (max-width: 720px) {
+    .settings-wrap { flex-direction: column; }
+    .settings-sidebar {
+      display: flex;
+      width: 100%;
+      flex: 0 0 auto;
+      padding: 0;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .settings-nav-item {
+      flex: 0 0 auto;
+      padding: 9px 12px;
+      border-left: 0;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+    }
+    .settings-nav-item.active { border-left-color: transparent; border-bottom-color: var(--accent); }
+    .settings-content { min-width: 0; padding: 16px; }
+    .guide-flow { grid-template-columns: 1fr; }
+    .guide-grid { grid-template-columns: 1fr; }
+    .guide-summary-note { display: block; margin: 2px 0 0; }
+    .guide-body { padding-right: 8px; }
+  }
 </style>
 </head>
 <body>
 
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('heatmap')">🔥 热力图</button>
-  <button class="tab-btn" onclick="switchTab('report')">🤖 AI 日报</button>
-  <button class="tab-btn" onclick="switchTab('flow')">💰 资金流向</button>
+  <button class="tab-btn" onclick="switchTab('temp')">🌡️ 强度</button>
+  <button class="tab-btn" onclick="switchTab('constituents')">成分</button>
+  <button class="tab-btn" onclick="switchTab('crowding')">📊 拥挤风险</button>
+  <button class="tab-btn" onclick="switchTab('flow')">💰 成交动能</button>
   <button class="tab-btn" onclick="switchTab('mcap')">💎 市值</button>
-  <button class="tab-btn" onclick="switchTab('chat')">💬 AI 问答</button>
+  <button class="tab-btn" onclick="switchTab('etf')">🎯 ETF</button>
+  <button class="tab-btn" onclick="switchTab('momentum')">🚀 动量</button>
+  <button class="tab-btn" onclick="switchTab('backtest')">📈 回测</button>
   <button class="tab-btn" onclick="switchTab('settings')">⚙️ 设置</button>
+  <div class="tab-spacer"></div>
+  <div class="app-status" title="最近交易日数据状态">
+    <span class="app-status-dot" id="appStatusDot"></span>
+    <span id="appDataStatus">检查数据...</span>
+    <button id="quickRefreshBtn" onclick="quickRefresh()" title="更新最新交易日">↻</button>
+  </div>
 </div>
 
 <div class="tab-content">
   <div class="tab-panel active" id="panel-heatmap">
     <iframe src="/industry-heatmap.html"></iframe>
   </div>
-  <div class="tab-panel" id="panel-report">
-    <iframe src="/ai-report.html"></iframe>
+  <div class="tab-panel" id="panel-temp">
+    <iframe src="/market-temperature.html"></iframe>
+  </div>
+  <div class="tab-panel" id="panel-constituents">
+    <iframe src="/index-constituents.html"></iframe>
+  </div>
+  <div class="tab-panel" id="panel-crowding">
+    <iframe src="/crowding.html"></iframe>
   </div>
   <div class="tab-panel" id="panel-flow">
     <iframe src="/capital-flow.html"></iframe>
@@ -176,18 +357,24 @@
   <div class="tab-panel" id="panel-mcap">
     <iframe src="/market-cap.html"></iframe>
   </div>
-  <div class="tab-panel" id="panel-chat">
-    <iframe src="/ai-chat.html"></iframe>
+  <div class="tab-panel" id="panel-etf">
+    <iframe src="/etf-recommend.html"></iframe>
+  </div>
+  <div class="tab-panel" id="panel-momentum">
+    <iframe src="/momentum-etf.html"></iframe>
+  </div>
+  <div class="tab-panel" id="panel-backtest">
+    <iframe src="/etf-backtest.html"></iframe>
   </div>
   <div class="tab-panel" id="panel-settings">
     <div class="settings-wrap">
-      <div class="settings-sidebar" id="settingsSidebar">
-        <div class="settings-nav-item active" data-section="update">🔄 数据更新</div>
-        <div class="settings-nav-item" data-section="strategy">🧊 更新策略</div>
-        <div class="settings-nav-item" data-section="ai">🤖 AI 配置</div>
-        <div class="settings-nav-item" data-section="mcp">🔌 MCP 服务</div>
-        <div class="settings-nav-item" data-section="data">💾 数据管理</div>
-        <div class="settings-nav-item" data-section="guide">📖 使用说明</div>
+      <div class="settings-sidebar" id="settingsSidebar" role="tablist" aria-label="设置分类">
+        <button type="button" class="settings-nav-item active" data-section="update" role="tab" aria-selected="true" aria-controls="sec-update">🔄 数据更新</button>
+        <button type="button" class="settings-nav-item" data-section="strategy" role="tab" aria-selected="false" aria-controls="sec-strategy">🧊 更新策略</button>
+        <button type="button" class="settings-nav-item" data-section="ai" role="tab" aria-selected="false" aria-controls="sec-ai">🤖 AI 配置</button>
+        <button type="button" class="settings-nav-item" data-section="mcp" role="tab" aria-selected="false" aria-controls="sec-mcp">🔌 MCP 服务</button>
+        <button type="button" class="settings-nav-item" data-section="data" role="tab" aria-selected="false" aria-controls="sec-data">💾 数据管理</button>
+        <button type="button" class="settings-nav-item" data-section="guide" role="tab" aria-selected="false" aria-controls="sec-guide">📖 使用说明</button>
       </div>
       <div class="settings-content">
         <div class="settings-section active" id="sec-update">
@@ -203,7 +390,7 @@
             <label>快捷操作</label>
             <div style="display:flex;flex-wrap:wrap;gap:8px">
               <button onclick="runDataRefresh()" id="refreshBtn" class="btn-primary">🔄 批量更新</button>
-              <button onclick="runCapitalFlow()" id="flowBtn" class="btn-normal">💰 资金流向</button>
+              <button onclick="runCapitalFlow()" id="flowBtn" class="btn-normal">💰 成交动能</button>
               <button onclick="runMarketCap()" id="mcapBtn" class="btn-normal">💎 市值</button>
               <button onclick="runAiAnalysis()" id="analysisBtn" class="btn-normal">🤖 AI分析</button>
               <button onclick="runIntradayScan()" id="intradayBtn" class="btn-warn">📡 盘中扫描</button>
@@ -220,7 +407,8 @@
             <div style="display:flex;flex-wrap:wrap;gap:8px">
               <label class="cb-label"><input type="checkbox" class="dataset-check" value="highs" checked> 创新高</label>
               <label class="cb-label"><input type="checkbox" class="dataset-check" value="lows" checked> 创新低</label>
-              <label class="cb-label"><input type="checkbox" class="dataset-check" value="capital_flow" checked> 资金流向</label>
+              <label class="cb-label"><input type="checkbox" class="dataset-check" value="capital_flow" checked> 成交动能</label>
+              <label class="cb-label"><input type="checkbox" class="dataset-check" value="etf" checked> ETF 热点候选</label>
               <label class="cb-label"><input type="checkbox" class="dataset-check" value="market_cap"> 行业市值</label>
               <label class="cb-label"><input type="checkbox" class="dataset-check" value="standalone"> 独立HTML</label>
             </div>
@@ -253,11 +441,12 @@
           <div class="settings-row">
             <label id="apiKeyLabel">API Key</label>
             <div style="display:flex;gap:8px;flex:1">
-              <input type="text" id="apiKeyInput" placeholder="sk-..." style="flex:1">
+              <input type="password" id="apiKeyInput" placeholder="sk-..." autocomplete="off" style="flex:1">
               <button onclick="saveApiKey()" class="btn-primary">💾 保存</button>
             </div>
           </div>
           <div id="apiKeyHint" style="font-size:0.78em;color:var(--text-dim);margin-top:4px"></div>
+          <div id="aiStatus" style="display:none;margin-top:8px"></div>
         </div>
 
         <div class="settings-section" id="sec-mcp">
@@ -273,10 +462,19 @@
             <button onclick="addMcpServerRow()" class="btn-normal">➕ 添加</button>
             <button onclick="saveMcpSettings()" class="btn-primary">💾 保存 MCP</button>
           </div>
+          <div id="mcpStatus" style="display:none;margin-top:8px"></div>
         </div>
 
         <div class="settings-section" id="sec-data">
           <h3>数据管理</h3>
+          <div class="settings-row">
+            <label>数据库路径</label>
+            <div style="flex:1;min-width:0">
+              <div id="dbPathText" style="font-size:0.75em;color:#999;word-break:break-all;font-family:'SF Mono','Menlo',monospace">加载中…</div>
+              <div id="dataDirText" style="font-size:0.72em;color:#666;word-break:break-all;font-family:'SF Mono','Menlo',monospace;margin-top:3px"></div>
+            </div>
+            <button onclick="openDataDir()" id="openDataDirBtn" class="btn-normal" style="display:none">📂 打开</button>
+          </div>
           <div class="settings-row">
             <label>备份目录</label>
             <div style="display:flex;gap:8px;flex:1">
@@ -297,18 +495,157 @@
 
         <div class="settings-section" id="sec-guide">
           <h3>使用说明</h3>
-          <details style="font-size:0.88em;line-height:1.8;color:var(--text)">
-            <summary style="cursor:pointer;color:var(--accent);margin-bottom:10px;font-weight:600">如何利用行业新高/新低图发现交易机会</summary>
-            <p><strong>🎯 核心原理</strong><br>个股创新高/新低不是孤立事件——当一个行业里大量个股同时创新高，说明资金在涌入这个行业；反之大量创新低，说明资金在流出。</p>
-            <p><strong>🔥 看颜色</strong><br>颜色越红=创新高比例越高=强势。快速扫一眼，红色集中的行业就是主线。</p>
-            <p><strong>⏱️ 看周期</strong><br>20日新高：短期动量 · 60/120日：中期趋势 · 一年/历史：长期强势</p>
-            <p><strong>📈 操作信号</strong></p>
-            <table style="width:100%;border-collapse:collapse">
-              <tr style="color:#98c379"><td style="padding:4px 8px">✅ 流入</td><td>新高>5% 且 新低<5% → 资金共识做多</td></tr>
-              <tr style="color:#e5c07b"><td style="padding:4px 8px">⚠️ 分化</td><td>新高+新低同时高企 → 行业内轮动</td></tr>
-              <tr style="color:#be5046"><td style="padding:4px 8px">❌ 流出</td><td>新低>20% 且 新高<2% → 资金撤离</td></tr>
-            </table>
-          </details>
+          <p class="guide-intro">这套工具用于盘中观察市场宽度、行业变化、股指成分和 ETF 候选。建议按“环境 → 行业 → 个股/ETF → 历史验证”的顺序使用；任何单一分数都不应直接当作买卖指令。</p>
+
+          <div class="guide-flow" aria-label="建议观察顺序">
+            <div class="guide-flow-step"><span>01</span><strong>更新数据</strong><small>先确认最近交易日与盘中快照</small></div>
+            <div class="guide-flow-step"><span>02</span><strong>判断环境</strong><small>看参与强度与拥挤风险</small></div>
+            <div class="guide-flow-step"><span>03</span><strong>寻找方向</strong><small>看热力图、成交动能与市值</small></div>
+            <div class="guide-flow-step"><span>04</span><strong>下钻标的</strong><small>看股指成分与 ETF</small></div>
+            <div class="guide-flow-step"><span>05</span><strong>二次验证</strong><small>用动量与回测检查</small></div>
+          </div>
+
+          <div class="guide-list">
+            <details class="guide-details" open>
+              <summary>快速开始<span class="guide-summary-note">每天先看什么</span></summary>
+              <div class="guide-body">
+                <ol>
+                  <li><strong>收盘后：</strong>在“数据更新”运行批量更新；盘中需要即时观察时运行“盘中扫描”。</li>
+                  <li><strong>先看大盘：</strong>用市场参与强度判断上涨扩散、退潮或分化，再用拥挤风险确认成交是否集中、退出脆弱性是否得到独立证据支持。</li>
+                  <li><strong>再找行业：</strong>热力图看创新高/新低宽度，成交动能看成交活跃方向，市值页看行业规模变化。</li>
+                  <li><strong>最后看标的：</strong>成分页筛股指成分，ETF 页找潜伏或启动候选，动量页检查趋势质量，回测页查看历史风险。</li>
+                </ol>
+                <div class="guide-note">盘中数据仍在变化，收盘后可能修正。重要判断应结合价格位置、成交量、基本面和自身风险约束。</div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>热力图<span class="guide-summary-note">观察行业创新高/新低宽度</span></summary>
+              <div class="guide-body guide-grid">
+                <div>
+                  <p><strong>分类：</strong>支持申万一级、同花顺细分和申万三级；切换后整页按同一行业口径重算。</p>
+                  <p><strong>方向：</strong>创新高看强势扩散，创新低看弱势扩散，净强度同时比较两侧。</p>
+                  <p class="guide-formula">净强度 = (创新高家数 - 创新低家数) / 成分股总数</p>
+                </div>
+                <div>
+                  <p><strong>周期：</strong>20/60/120日对应短中期，一年和历史用于看长期位置，也可输入自定义交易日。</p>
+                  <p><strong>模式与工具：</strong>自动模式会按交易时段选择盘中或收盘数据；支持榜单、行业轮动象限、每日简报和 CSV 导出。</p>
+                  <p><strong>下钻：</strong>点击行业可查看成分股，并按股票、代码、价格和涨跌幅排序。</p>
+                </div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>市场参与强度<span class="guide-summary-note">判断上涨参与范围与变化速度</span></summary>
+              <div class="guide-body">
+                <p>参与强度为 0–100 的状态分数，主指标固定使用<strong>涨跌宽度和涨跌停</strong>的因果滚动分位，保证历史口径一致；新高新低、成交活跃、方向成交和市值只用于解释与交叉验证。</p>
+                <ul>
+                  <li>首屏同时展示较昨日变化、5 日状态、分档持续时间和数据置信度；历史曲线可切换 60/120/250 日或自定义区间。</li>
+                  <li>盘中三因子估算只在交易时段且日期匹配时作为当前值；收盘后自动切回稳定日线口径。</li>
+                  <li>指数同期走势与同尺度横向涨跌用于识别“指数上涨但参与度下降”等价格—宽度背离。</li>
+                </ul>
+                <div class="guide-note">参与强度描述环境，不预测下一日涨跌；极弱不等于抄底信号，极强也不等于卖出信号。</div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>股指成分<span class="guide-summary-note">用成分贡献确认股指期货趋势</span></summary>
+              <div class="guide-body guide-grid">
+                <div>
+                  <p><strong>期现总览：</strong>IH、IF、IC、IM 分别对应上证50、沪深300、中证500和中证1000；顶部同时观察现货、期货、基差、加权动能与数据新鲜度。</p>
+                  <p><strong>趋势证据：</strong>方向看成分权重贡献，广度看上涨与站上 VWAP 的权重占比，结构看贡献集中度，期现层用于识别确认或背离。</p>
+                </div>
+                <div>
+                  <p><strong>成分明细：</strong>默认按指数贡献点排序，支持同花顺、申万一级和申万三级分类，并保留搜索、行业筛选、估值与近期涨跌。</p>
+                  <p><strong>市值树图：</strong>面积可切换指数权重、绝对贡献或流通市值。状态标签只描述证据，不承诺后续涨跌；数据不足时会自动降级为不可判断。</p>
+                </div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>成交集中与拥挤风险<span class="guide-summary-note">区分集中、脆弱与去拥挤</span></summary>
+              <div class="guide-body">
+                <p><strong>成交集中：</strong>CR5、CR10、HHI 与 Top10/Top50 用于定位行业和个股注意力是否集中；这些指标来自成交额分布，不等于持仓或真实资金净流入。</p>
+                <p><strong>拥挤风险：</strong>只有在集中持续之外，又出现同向交易、内部宽度恶化、退出承载力下降或价格破坏时才升级。融资、ETF、机构持仓与盘口证据会分别显示来源日期和覆盖率，缺失不会按零值处理。</p>
+                <p><strong>行业口径：</strong>可切换同花顺、申万一级和申万三级；每套口径独立计算历史分位与 HHI，申万三级缺失时沿用热力图的二级、一级回退规则。</p>
+                <div class="guide-note">琥珀色表示集中观察，橙色表示脆弱性得到独立确认；红色仅表示去拥挤已经发生。任何状态都不等于行情必然反转。</div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>成交动能<span class="guide-summary-note">观察量价确认、内部扩散与衰竭风险</span></summary>
+              <div class="guide-body">
+                <p><strong>量价罗盘：</strong>横轴是标准化价格结果，纵轴是相对参与历史分位；气泡面积代表行业成交占比、红蓝颜色只表达涨跌方向，琥珀/橙/红外圈独立表达观察、警告与危险。四象限描述当下状态，不直接代表利多或利空。</p>
+                <p><strong>验证维度：</strong>相对参与用于识别行业相对自身常态的成交异常；方向压力、涨跌广度、有效参与、持续性、加速度与量价效率用于区分全面扩散、少数权重驱动、高量滞涨和流动性真空。有效参与是同向异常成交贡献按集中度折算的 N_eff，少数龙头独占时会显著低于普通参与家数。点击行业可在侧栏查看 20 日轨迹、风险证据和 Top5 成交贡献股票。</p>
+                <p><strong>行业口径：</strong>支持申万一级、同花顺和申万三级，三套分类独立计算历史分位；可按象限、状态和行业名称筛选，并按所有核心维度排序。</p>
+                <div class="guide-note">方向压力是根据日线个股涨跌和成交额构造的方向代理，<strong>不是逐笔主动买卖、主力净流入或真实资金流向</strong>。高成交本身不是危险，风险升级需要价格、广度、效率或持续性等独立证据共同确认。</div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>市值结构与行情归因<span class="guide-summary-note">区分权重价格、内部广度与规模集中</span></summary>
+              <div class="guide-body">
+                <p><strong>贡献与罗盘：</strong>行业贡献瀑布用 bp 表示各行业对市场价格结果的贡献；规模—广度罗盘横轴为市值加权（CW）收益、纵轴为等权（EW）收益，气泡面积是行业市值占比，外圈只提示内部市值集中。CW 上涨而 EW 下跌通常表示权重托举，并非全面扩散。</p>
+                <p><strong>结构：</strong>HHI、有效行业数、Top3/Top5 市值占比用于描述行业规模集中；大盘 Top100、中盘 Next400 与其余股票的收益、广度和市值占比用于识别大小盘分层。支持申万一级、同花顺、申万三级以及 1/5/20 日窗口。</p>
+                <p><strong>精确比较：</strong>表格展示贡献 bp、权重迁移、CW/EW、涨跌广度、Top5 贡献、有效股票数与相对强度；固定色标树图在同一窗口跨日期保持统一颜色阈值。点击行业可在侧栏查看 20–60 日轨迹、贡献股票和数据质量。</p>
+                <div class="guide-note">市值是价格、股本变化和样本进出的共同结果；贡献 bp 是行情归因，<strong>不是资金流入或净买入</strong>。没有历史时点股本时只展示价格代理，不伪造 Supply 供给效应；F022 只能称为<strong>A股流通市值代理</strong>，不等同于指数公司的自由流通口径。历史行业归属按当前分类回溯；停牌价格承接和时点股本覆盖不足会显示质量警示。</div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>ETF 热点候选与确认<span class="guide-summary-note">用可交易 ETF 验证扩散、需求与风险</span></summary>
+              <div class="guide-body guide-grid">
+                <div>
+                  <p><strong>预测单位：</strong>榜单以可交易 ETF 去重，不再把多个申万三级行业重复当成不同标的；行业分类只用于解释 ETF 背后的扩散来源。</p>
+                  <p><strong>证据链：</strong>市场环境允许承担风险后，再检查交易所 ETF 份额变化、成分行业扩散、相对宽基强弱、流动性与拥挤风险。</p>
+                </div>
+                <div>
+                  <p><strong>选择性出榜：</strong>确认、萌芽、观察、回避分别表达证据是否齐备；没有候选通过最低质量和风险门槛时会明确显示“今日无高质量信号”，不会强行填满 Top10。</p>
+                  <p><strong>概率与质量分离：</strong>命中概率只有经过滚动样本外校准后才显示；样本不足时标记“校准中”。数据可信度和 ETF 载体匹配度单独披露，不能冒充成功概率。</p>
+                </div>
+                <div class="guide-note">机会分是证据排序，不等于上涨概率。方向成交只是一种量价代理，不是真实资金净流入；交易所 ETF 份额变化才属于直接申赎证据，但也可能包含短期价格压力。页面会同时给出风险、失效条件和数据日期。</div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>动量 ETF<span class="guide-summary-note">验证趋势强度与稳定性</span></summary>
+              <div class="guide-body guide-grid">
+                <div>
+                  <p><strong>池子：</strong>中国池、动态池、全球池和合并视图。动态池自动读取 ETF 热点候选中的唯一 ETF；没有候选通过门槛时可以为空，中国池与动态池仍独立计算。</p>
+                  <p class="guide-formula">动量得分 = 年化收益 × R²</p>
+                  <p>年化收益衡量趋势速度，R²衡量趋势平滑度；页面还会检查量比、近 3 日跌幅和均线条件。</p>
+                </div>
+                <div>
+                  <p><strong>市场状态：</strong>正常期策略合并全球、中国和动态三池；走弱期策略目标仅从全球池选择，中国池和动态池仍持续计算供观察。</p>
+                  <p><strong>管理：</strong>在“池子与参数”中可增删全球池、中国池 ETF，修改阈值后选择保存或保存并重算。动态池由 ETF 榜单自动维护；点击 ETF 可打开同花顺。</p>
+                </div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>ETF 回测<span class="guide-summary-note">检查历史表现与风险</span></summary>
+              <div class="guide-body">
+                <p>回测按推荐日逐日回放（walk-forward），只使用当日及之前的数据，按下一交易日 <strong>T+1开盘</strong>入场，避免未来函数。</p>
+                <p>结果同时展示扣成本收益、相对沪深300 ETF 的超额收益、横截面热点命中、Precision@K、Rank IC 与按预测日聚类后的结果，并与简单相对强弱基线比较。</p>
+                <p><strong>盘中策略：</strong>日线数据无法在 14:50 无穿越地复原完整当日信号，因此旧 14:50 Top2 回测已停用；只有保存真实分钟级特征快照后才会重新启用。</p>
+                <div class="guide-note">概率校准要求足够多的独立预测日期，并把训练期与验证期按时间分开。样本不足时只显示“校准中”，不把短样本胜率包装成概率。</div>
+              </div>
+            </details>
+
+            <details class="guide-details">
+              <summary>数据更新与设置<span class="guide-summary-note">维护数据、模型与备份</span></summary>
+              <div class="guide-body guide-grid">
+                <div>
+                  <p><strong>数据更新：</strong>批量更新按所选范围刷新数据；快捷按钮可单独更新成交动能、市值或运行盘中扫描。顶部刷新按钮只更新最近交易日的核心数据。</p>
+                  <p><strong>更新策略：</strong>增量同步复用已有数据，只补缺失最保守，强制重建会覆盖所选数据集。修改后先保存策略。</p>
+                </div>
+                <div>
+                  <p><strong>AI 与 MCP：</strong>AI 配置用于选择模型并保存 API Key；远程 MCP 仅供 Claude 使用。这些可选功能不影响核心行情指标。</p>
+                  <p><strong>数据管理：</strong>可打开数据目录、设置备份目录、备份或还原数据。清空会删除本地数据且不可撤销，操作前应先备份。</p>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
       </div>
     </div>
@@ -318,12 +655,146 @@
 <script>
 // ── Tab 切换 ──
 function switchTab(name) {
-  var idx = {heatmap:1,report:2,flow:3,mcap:4,chat:5,settings:6}[name];
+  var idx = {heatmap:1,temp:2,constituents:3,crowding:4,flow:5,mcap:6,etf:7,momentum:8,backtest:9,settings:10}[name];
   if (idx === undefined) return;
   document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
   document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
   document.querySelectorAll('.tab-btn')[idx-1].classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
+}
+
+async function fetchJsonChecked(url, options) {
+  var resp = await fetch(url, options);
+  var data;
+  try {
+    data = await resp.json();
+  } catch (e) {
+    throw new Error('服务返回了无法识别的响应');
+  }
+  if (!resp.ok || data.status === 'error') {
+    throw new Error(data.detail || data.message || ('请求失败（HTTP ' + resp.status + '）'));
+  }
+  return data;
+}
+
+function shortTradeDate(value) {
+  value = String(value || '');
+  return value.length === 8 ? value.slice(4, 6) + '/' + value.slice(6, 8) : '';
+}
+
+async function loadHeaderDataStatus() {
+  var label = document.getElementById('appDataStatus');
+  var dot = document.getElementById('appStatusDot');
+  try {
+    var data = await fetchJsonChecked('/api/refresh-data/check');
+    var states = data.datasets || {};
+    var core = ['highs','lows','capital_flow','market_cap'];
+    var stale = core.some(function(k) {
+      return !states[k] || states[k].status !== 'up_to_date';
+    });
+    var expected = data.latest_trade_date || '';
+    var actualDates = core.map(function(k) { return states[k] && states[k].last_date; })
+      .filter(function(value) { return /^\d{8}$/.test(value || ''); })
+      .sort();
+    var actual = actualDates.length ? actualDates[0] : '';
+    if (stale) {
+      label.textContent = actual
+        ? '数据 ' + shortTradeDate(actual) + ' → ' + shortTradeDate(expected)
+        : '待更新 ' + shortTradeDate(expected);
+      label.title = actual
+        ? '受监控数据最早只到 ' + actual + '，应更新至 ' + expected
+        : '受监控数据尚未生成，应更新至 ' + expected;
+    } else {
+      label.textContent = expected ? '数据 ' + shortTradeDate(expected) : '数据状态未知';
+      label.title = expected ? '受监控数据已更新至 ' + expected : '数据状态未知';
+    }
+    dot.className = 'app-status-dot ' + (stale ? 'stale' : 'ok');
+  } catch (e) {
+    label.textContent = '数据状态未知';
+    label.title = e.message || '';
+    dot.className = 'app-status-dot';
+  }
+}
+
+var _quickPollFailures = 0;
+var _quickPollStartedAt = 0;
+
+async function quickRefresh() {
+  var btn = document.getElementById('quickRefreshBtn');
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    var result = await fetchJsonChecked('/api/refresh-data', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({days:1, datasets:['highs','lows','capital_flow'], mode:'auto'})
+    });
+    if (result.status !== 'started' && result.status !== 'already_running') throw new Error('启动失败');
+    _quickPollFailures = 0;
+    _quickPollStartedAt = Date.now();
+    pollQuickRefresh();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '↻';
+    document.getElementById('appDataStatus').textContent = '更新启动失败';
+  }
+}
+
+async function pollQuickRefresh() {
+  try {
+    var data = await fetchJsonChecked('/api/refresh-data/status');
+    _quickPollFailures = 0;
+    if (data.running) {
+      if (Date.now() - _quickPollStartedAt > 20 * 60 * 1000) {
+        throw new Error('更新超时，任务可能仍在后台运行');
+      }
+      document.getElementById('appDataStatus').textContent = data.current_step || '更新中...';
+      setTimeout(pollQuickRefresh, 1200);
+      return;
+    }
+    if (data.success) {
+      document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?_=' + Date.now();
+      var etfIframe = document.querySelector('#panel-etf iframe');
+      if (etfIframe) etfIframe.src = '/etf-recommend.html?_=' + Date.now();
+      var momIframe = document.querySelector('#panel-momentum iframe');
+      if (momIframe) momIframe.src = '/momentum-etf.html?_=' + Date.now();
+    }
+    document.getElementById('quickRefreshBtn').disabled = false;
+    document.getElementById('quickRefreshBtn').textContent = '↻';
+    loadHeaderDataStatus();
+  } catch (e) {
+    _quickPollFailures++;
+    if (_quickPollFailures < 5 && Date.now() - _quickPollStartedAt <= 20 * 60 * 1000) {
+      setTimeout(pollQuickRefresh, 2000);
+      return;
+    }
+    document.getElementById('quickRefreshBtn').disabled = false;
+    document.getElementById('quickRefreshBtn').textContent = '↻';
+    document.getElementById('appDataStatus').textContent = '无法确认更新状态';
+    document.getElementById('appDataStatus').title = e.message || '';
+  }
+}
+
+loadHeaderDataStatus();
+loadRuntimeInfo();
+
+// ── 数据路径展示 ──
+var _dataDir = '';
+async function loadRuntimeInfo() {
+  try {
+    var resp = await fetch('/api/runtime-info');
+    if (!resp.ok) return;
+    var info = await resp.json();
+    _dataDir = info.data_dir || '';
+    document.getElementById('dbPathText').textContent = info.db_path || '--';
+    document.getElementById('dataDirText').textContent = '数据目录: ' + (info.data_dir || '--') + ' · 配置目录: ' + (info.user_data_dir || '--');
+    if (window.electronAPI && window.electronAPI.openPath) {
+      document.getElementById('openDataDirBtn').style.display = '';
+    }
+  } catch(e) {}
+}
+async function openDataDir() {
+  if (!_dataDir || !(window.electronAPI && window.electronAPI.openPath)) return;
+  await window.electronAPI.openPath(_dataDir);
 }
 
 // ── Provider 切换 ──
@@ -393,20 +864,20 @@ async function loadSettings() {
 }
 
 async function saveMcpSettings() {
-  showStatus('apiStatus', 'warn', '⏳ 正在保存 MCP 设置...');
+  showStatus('mcpStatus', 'warn', '⏳ 正在保存 MCP 设置...');
   try {
     var resp = await fetch('/api/settings', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(collectSettingsPayload())
     });
     var data = await resp.json();
     if (resp.ok) {
-      showStatus('apiStatus', 'ok', '✅ MCP 设置已保存');
+      showStatus('mcpStatus', 'ok', '✅ MCP 设置已保存');
       loadSettings();
     } else {
-      showStatus('apiStatus', 'warn', '❌ MCP 保存失败: ' + (data.detail || resp.status));
+      showStatus('mcpStatus', 'warn', '❌ MCP 保存失败: ' + (data.detail || resp.status));
     }
   } catch(e) {
-    showStatus('apiStatus', 'warn', '❌ 网络错误: ' + e.message);
+    showStatus('mcpStatus', 'warn', '❌ 网络错误: ' + e.message);
   }
 }
 
@@ -414,9 +885,9 @@ async function saveMcpSettings() {
 async function saveApiKey() {
   var keyEl = document.getElementById('apiKeyInput');
   var key = keyEl.value.trim();
-  if (!key) { showStatus('apiStatus', 'warn', '⚠️ 输入框为空，请先粘贴 API Key'); return; }
+  if (!key) { showStatus('aiStatus', 'warn', '⚠️ 输入框为空，请先粘贴 API Key'); return; }
   var provider = document.getElementById('aiProvider').value;
-  showStatus('apiStatus', 'warn', '⏳ 正在保存...');
+  showStatus('aiStatus', 'warn', '⏳ 正在保存...');
   try {
     var resp = await fetch('/api/settings', {
       method: 'POST',
@@ -426,12 +897,12 @@ async function saveApiKey() {
     var data = await resp.json();
     if (resp.ok) {
       keyEl.value = '••••••••';
-      showStatus('apiStatus', 'ok', '✅ 已保存 (' + provider + ') — 可以点"重新分析"测试');
+      showStatus('aiStatus', 'ok', '✅ 已保存 (' + provider + ')');
     } else {
-      showStatus('apiStatus', 'warn', '❌ 保存失败: ' + (data.detail || resp.status));
+      showStatus('aiStatus', 'warn', '❌ 保存失败: ' + (data.detail || resp.status));
     }
   } catch(e) {
-    showStatus('apiStatus', 'warn', '❌ 网络错误: ' + e.message);
+    showStatus('aiStatus', 'warn', '❌ 网络错误: ' + e.message);
   }
 }
 
@@ -450,7 +921,10 @@ function collectUpdateConfig() {
       market_cap: 'sina_kline_cache',
       basics: 'akshare_excel'
     },
-    frozen: {}
+    frozen: {},
+    selected_datasets: getSelectedDatasets(),
+    update_mode: document.getElementById('updateMode').value,
+    refresh_days: getRefreshDays()
   };
 }
 async function saveUpdateConfig() {
@@ -470,7 +944,7 @@ async function saveUpdateConfig() {
   }
 }
 function datasetLabel(ds) {
-  return {highs:'创新高', lows:'创新低', capital_flow:'资金流向', market_cap:'行业市值', ai:'AI分析', standalone:'独立HTML'}[ds] || ds;
+  return {highs:'创新高', lows:'创新低', capital_flow:'成交动能', market_cap:'行业市值', ai:'AI分析', standalone:'独立HTML', etf:'ETF热点候选'}[ds] || ds;
 }
 function sourceLabel(src) {
   return {
@@ -486,7 +960,7 @@ function renderUpdateStatePanel(data) {
   var sources = cfg.sources || {};
   var frozen = cfg.frozen || {};
   var states = (data && data.datasets) || {};
-  var rows = ['highs','lows','capital_flow','market_cap','ai','standalone'];
+  var rows = ['highs','lows','capital_flow','market_cap','etf','ai','standalone'];
   var html = '<div style="background:#282c34;color:#e5e5e5;padding:8px 10px;font-weight:600">更新状态</div>';
   html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:#6b717a;background:#21252b">' +
           '<th style="text-align:left;padding:6px 8px">数据集</th><th>来源</th><th>状态</th><th>最近结果</th></tr></thead><tbody>';
@@ -512,15 +986,16 @@ async function loadUpdateConfig() {
     var resp = await fetch('/api/update-config');
     var data = await resp.json();
     var cfg = data.config || {};
-    var sources = cfg.sources || {};
-    var frozen = cfg.frozen || {};
-    if (sources.highs) document.getElementById('sourceHighs').value = sources.highs;
-    if (sources.lows) document.getElementById('sourceLows').value = sources.lows;
-    if (sources.capital_flow) document.getElementById('sourceFlow').value = sources.capital_flow;
-    if (sources.basics) document.getElementById('sourceBasics').value = sources.basics;
-    document.getElementById('freezeHighs').checked = !!frozen.highs;
-    document.getElementById('freezeLows').checked = !!frozen.lows;
-    document.getElementById('freezeFlow').checked = !!frozen.capital_flow;
+    var selected = cfg.selected_datasets || ['highs','lows','capital_flow'];
+    document.querySelectorAll('.dataset-check').forEach(function(el) {
+      el.checked = selected.indexOf(el.value) >= 0;
+    });
+    if (cfg.update_mode && document.querySelector('#updateMode option[value="'+cfg.update_mode+'"]')) {
+      document.getElementById('updateMode').value = cfg.update_mode;
+    }
+    if ([1,5,10,20].indexOf(Number(cfg.refresh_days)) >= 0) {
+      document.getElementById('refreshDays').value = String(cfg.refresh_days);
+    }
     renderUpdateStatePanel(data);
   } catch(e) {
     renderUpdateStatePanel({});
@@ -529,8 +1004,7 @@ async function loadUpdateConfig() {
 
 async function runDataRefresh() {
   var btn = document.getElementById('refreshBtn');
-  var daysEl = document.getElementById('refreshDays');
-  var days = parseInt(daysEl.value) || 1;
+  var days = getRefreshDays();
   var datasets = getSelectedDatasets();
   var mode = document.getElementById('updateMode').value;
   if (datasets.length === 0) { showStatus('refreshStatus', 'warn', '⚠️ 请至少选择一个数据集'); return; }
@@ -550,12 +1024,16 @@ async function runDataRefresh() {
     else { showStatus('refreshStatus', 'warn', '❌ 启动失败'); btnReset(); }
   } catch(e) { showStatus('refreshStatus', 'warn', '❌ '+e.message); btnReset(); }
 }
+function getRefreshDays() {
+  var value = parseInt(document.getElementById('refreshDays').value, 10);
+  return [1, 5, 10, 20].indexOf(value) >= 0 ? value : 1;
+}
 function btnReset() {
   ['refreshBtn','flowBtn','mcapBtn','analysisBtn','intradayBtn'].forEach(function(id) {
     var b = document.getElementById(id); if (b) b.disabled = false;
   });
   var rb = document.getElementById('refreshBtn'); if (rb) rb.textContent = '🔄 批量更新';
-  var fb = document.getElementById('flowBtn'); if (fb) fb.textContent = '💰 资金流向';
+  var fb = document.getElementById('flowBtn'); if (fb) fb.textContent = '💰 成交动能';
   var mb = document.getElementById('mcapBtn'); if (mb) mb.textContent = '💎 市值';
   var ab = document.getElementById('analysisBtn'); if (ab) ab.textContent = '🤖 AI分析';
   var ib = document.getElementById('intradayBtn'); if (ib) ib.textContent = '📡 盘中扫描';
@@ -564,12 +1042,13 @@ function btnReset() {
 // ── 市值单独更新 ──
 async function runMarketCap() {
   var btn = document.getElementById('mcapBtn');
+  var days = getRefreshDays();
   btn.disabled = true; btn.textContent = '⏳ 更新中...';
-  showStatus('refreshStatus', 'warn', '⏳ 正在更新行业市值...');
+  showStatus('refreshStatus', 'warn', '⏳ 正在更新行业市值 · 最近 ' + days + ' 个交易日');
   try {
     var resp = await fetch('/api/refresh-data', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({days:1, datasets:['market_cap'], mode: document.getElementById('updateMode').value})
+      body: JSON.stringify({days:days, datasets:['market_cap'], mode: document.getElementById('updateMode').value})
     });
     var data = await resp.json();
     if (data.status === 'started') { pollRefreshStatus(); }
@@ -600,26 +1079,29 @@ function pollRefreshStatus() {
         var needHeatmap = false;
         var needFlow = false;
         var needMcap = false;
-        var needReport = false;
+        var needEtf = false;
         for (var i = 0; i < steps.length; i++) {
           var ds = steps[i].dataset;
           if (ds === 'highs' || ds === 'lows') needHeatmap = true;
           if (ds === 'capital_flow') needFlow = true;
           if (ds === 'market_cap') needMcap = true;
-          if (ds === 'ai') needReport = true;
+          if (ds === 'etf') needEtf = true;
         }
         if (needHeatmap || steps.length === 0) {
           document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?_=' + Date.now();
         }
-        if (needFlow) {
+        if (needFlow || steps.length === 0) {
           document.querySelector('#panel-flow iframe').src = '/capital-flow.html?_=' + Date.now();
         }
         if (needMcap) {
           var mcapIframe = document.querySelector('#panel-mcap iframe');
           if (mcapIframe) mcapIframe.src = '/market-cap.html?_=' + Date.now();
         }
-        if (needReport) {
-          document.querySelector('#panel-report iframe').src = '/ai-report.html?_=' + Date.now();
+        if (needEtf) {
+          var etfIframe = document.querySelector('#panel-etf iframe');
+          if (etfIframe) etfIframe.src = '/etf-recommend.html?_=' + Date.now();
+          var momIframe = document.querySelector('#panel-momentum iframe');
+          if (momIframe) momIframe.src = '/momentum-etf.html?_=' + Date.now();
         }
       } else {
         showStatus('refreshStatus', 'warn', '❌ ' + (data.error || '更新失败'));
@@ -653,13 +1135,14 @@ function showProgress(id, pct) {
 // ── 资金流向 ──
 async function runCapitalFlow() {
   var btn = document.getElementById('flowBtn');
+  var days = getRefreshDays();
   await saveUpdateConfig();
   btn.disabled = true; btn.textContent = '⏳ 更新中...';
-  showStatus('refreshStatus', 'warn', '⏳ 正在拉取资金流向...');
+  showStatus('refreshStatus', 'warn', '⏳ 正在更新成交动能 · 最近 ' + days + ' 个交易日');
   try {
     var resp = await fetch('/api/refresh-data', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({days:1, datasets:['capital_flow'], mode:document.getElementById('updateMode').value})
+      body: JSON.stringify({days:days, datasets:['capital_flow'], mode:document.getElementById('updateMode').value})
     });
     var data = await resp.json();
     if (data.status === 'started') { pollRefreshStatus(); }
@@ -668,7 +1151,7 @@ async function runCapitalFlow() {
 }
 function resetFlowBtn() {
   var btn = document.getElementById('flowBtn');
-  btn.disabled = false; btn.textContent = '💰 更新资金流向';
+  btn.disabled = false; btn.textContent = '💰 成交动能';
 }
 
 // ── AI 分析 ──
@@ -676,12 +1159,13 @@ async function runAiAnalysis() {
   var btn = document.getElementById('analysisBtn');
   btn.disabled = true; btn.textContent = '⏳ 分析中...';
   try {
-    var resp = await fetch('/api/settings/run-analysis', {method: 'POST'});
-    if (resp.ok) {
-      showStatus('apiStatus', 'ok', '✅ AI 分析完成');
-      document.querySelector('#panel-report iframe').src = '/ai-report.html';
-    } else { showStatus('apiStatus', 'warn', '❌ 失败'); }
-  } catch(e) { showStatus('apiStatus', 'warn', '❌ '+e.message); }
+    var data = await fetchJsonChecked('/api/settings/run-analysis', {method: 'POST'});
+    if (data.analysis_source === 'llm') {
+      showStatus('refreshStatus', 'ok', '✅ AI 分析完成');
+    } else {
+      showStatus('refreshStatus', 'warn', '⚠️ AI 服务不可用，已生成规则简报');
+    }
+  } catch(e) { showStatus('refreshStatus', 'warn', '❌ '+e.message); }
   btn.disabled = false; btn.textContent = '🤖 重新分析';
 }
 
@@ -689,21 +1173,48 @@ async function runAiAnalysis() {
 async function runIntradayScan() {
   var btn = document.getElementById('intradayBtn');
   btn.disabled = true; btn.textContent = '⏳ 盘中扫描...';
-  showStatus('apiStatus', 'warn', '⏳ 正在扫描盘中新高/新低...');
+  showStatus('refreshStatus', 'warn', '⏳ 正在扫描盘中新高/新低...');
   try {
     var resp = await fetch('/api/intraday-scan', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({window:'all'})
     });
     var data = await resp.json();
-    if (resp.ok) {
-      showStatus('apiStatus', 'ok', '✅ 盘中扫描完成');
-      document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?mode=intraday&_=' + Date.now();
+    if (resp.ok && (data.status === 'started' || data.status === 'already_running')) {
+      showStatus('refreshStatus', 'warn', '⏳ 盘中扫描已启动');
+      pollIntradayStatus();
+      return;
     } else {
-      showStatus('apiStatus', 'warn', '❌ 盘中扫描失败: ' + (data.detail || ''));
+      showStatus('refreshStatus', 'warn', '❌ 盘中扫描失败: ' + (data.detail || ''));
     }
-  } catch(e) { showStatus('apiStatus', 'warn', '❌ '+e.message); }
+  } catch(e) { showStatus('refreshStatus', 'warn', '❌ '+e.message); }
   btn.disabled = false; btn.textContent = '📡 盘中扫描';
+}
+
+function pollIntradayStatus() {
+  setTimeout(async function() {
+    var btn = document.getElementById('intradayBtn');
+    try {
+      var resp = await fetch('/api/intraday-scan/status?_=' + Date.now());
+      var data = await resp.json();
+      if (data.running) {
+        showStatus('refreshStatus', 'warn', '⏳ 正在生成盘中快照...');
+        pollIntradayStatus();
+        return;
+      }
+      if (data.success) {
+        var coverage = data.coverage || {};
+        showStatus('refreshStatus', 'ok', '✅ 盘中快照完成 · 行情覆盖 ' + (coverage.spot || 0) + '/' + (coverage.active || 0));
+        document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?mode=auto&_=' + Date.now();
+      } else {
+        showStatus('refreshStatus', 'warn', '❌ 盘中扫描失败: ' + (data.error || '未知错误'));
+      }
+    } catch(e) {
+      showStatus('refreshStatus', 'warn', '❌ 无法读取盘中扫描状态: ' + e.message);
+    }
+    btn.disabled = false;
+    btn.textContent = '📡 盘中扫描';
+  }, 1200);
 }
 
 // ── 备份目录选择 ──
@@ -712,7 +1223,11 @@ async function selectBackupDir() {
     var dir = await window.electronAPI.selectDirectory();
     if (dir) {
       document.getElementById('backupDirInput').value = dir;
-      saveBackupDir(dir);
+      try {
+        await saveBackupDir(dir);
+      } catch (e) {
+        showStatus('dataStatus', 'warn', '❌ 备份目录保存失败: ' + e.message);
+      }
     }
   } else {
     alert('请在桌面 App 中使用此功能，或直接输入目录路径');
@@ -724,59 +1239,56 @@ function getBackupDir() {
 async function saveBackupDir(dir) {
   dir = dir || getBackupDir();
   if (!dir) return;
-  try {
-    await fetch('/api/backup/settings', {
+  return fetchJsonChecked('/api/backup/settings', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({backup_dir: dir})
     });
-  } catch(e) {}
 }
 document.getElementById('backupDirInput').addEventListener('change', function() {
-  saveBackupDir();
+  saveBackupDir().catch(function(e) {
+    showStatus('dataStatus', 'warn', '❌ 备份目录保存失败: ' + e.message);
+  });
 });
 
 // 加载备份目录设置
 (async function() {
   try {
-    var resp = await fetch('/api/backup/settings');
-    var data = await resp.json();
+    var data = await fetchJsonChecked('/api/backup/settings');
     document.getElementById('backupDirInput').value = data.backup_dir || '';
   } catch(e) {}
 })();
 
 // ── 备份 / 还原 / 清空 ──
 async function backupData() {
-  saveBackupDir();
   showStatus('dataStatus', 'warn', '⏳ 备份中...');
   try {
-    var resp = await fetch('/api/backup', {method:'POST'});
-    var data = await resp.json();
-    showStatus('dataStatus', 'ok', '✅ 已备份 ' + data.saved + ' 个文件');
+    await saveBackupDir();
+    var data = await fetchJsonChecked('/api/backup', {method:'POST'});
+    var snapshot = String(data.snapshot || '').split(/[\\/]/).pop();
+    showStatus('dataStatus', 'ok', '✅ 已备份 ' + data.saved + ' 个文件' + (snapshot ? ' · 快照 ' + snapshot : ''));
   } catch(e) { showStatus('dataStatus', 'warn', '❌ ' + e.message); }
 }
 async function restoreData() {
   if (!confirm('还原会覆盖当前所有数据，确定？')) return;
   showStatus('dataStatus', 'warn', '⏳ 还原中...');
   try {
-    var resp = await fetch('/api/restore', {method:'POST'});
-    var data = await resp.json();
+    var data = await fetchJsonChecked('/api/restore', {method:'POST'});
     showStatus('dataStatus', 'ok', '✅ 已还原 ' + data.restored + ' 个文件');
     var t = Date.now();
-    ['heatmap','flow','mcap'].forEach(function(id) {
+    ['heatmap','temp','constituents','crowding','flow','mcap','etf','momentum','backtest'].forEach(function(id) {
       var iframe = document.querySelector('#panel-'+id+' iframe');
       if (iframe) iframe.src = iframe.src.split('?')[0] + '?_=' + t;
     });
   } catch(e) { showStatus('dataStatus', 'warn', '❌ 还原失败: ' + e.message); }
 }
 async function clearAllData() {
-  if (!confirm('清空会删除所有数据文件，确定？\n\n清空后可以点"更新数据"重新拉取。')) return;
+  if (!confirm('清空会删除市场数据和缓存，确定？\n\nETF 池及行业匹配等策略配置会保留；清空后可以点“更新数据”重新拉取。')) return;
   showStatus('dataStatus', 'warn', '⏳ 清空中...');
   try {
-    var resp = await fetch('/api/clear-data', {method:'POST'});
-    var data = await resp.json();
+    var data = await fetchJsonChecked('/api/clear-data', {method:'POST'});
     showStatus('dataStatus', 'ok', '✅ 已清空 ' + data.deleted + ' 个文件');
     var t2 = Date.now();
-    ['heatmap','flow','mcap'].forEach(function(id) {
+    ['heatmap','temp','constituents','crowding','flow','mcap','etf','momentum','backtest'].forEach(function(id) {
       var iframe = document.querySelector('#panel-'+id+' iframe');
       if (iframe) iframe.src = iframe.src.split('?')[0] + '?_=' + t2;
     });
@@ -799,17 +1311,24 @@ function showStatus(id, type, msg) {
 document.addEventListener('DOMContentLoaded', function() {
   var t = Date.now();
   document.querySelector('#panel-heatmap iframe').src = '/industry-heatmap.html?_=' + t;
-  document.querySelector('#panel-report iframe').src = '/ai-report.html?_=' + t;
+  document.querySelector('#panel-temp iframe').src = '/market-temperature.html?_=' + t;
+  document.querySelector('#panel-crowding iframe').src = '/crowding.html?_=' + t;
   document.querySelector('#panel-flow iframe').src = '/capital-flow.html?_=' + t;
   document.querySelector('#panel-mcap iframe').src = '/market-cap.html?_=' + t;
-  document.querySelector('#panel-chat iframe').src = '/ai-chat.html?_=' + t;
+  document.querySelector('#panel-etf iframe').src = '/etf-recommend.html?_=' + t;
+  document.querySelector('#panel-momentum iframe').src = '/momentum-etf.html?_=' + t;
+  document.querySelector('#panel-backtest iframe').src = '/etf-backtest.html?_=' + t;
   // 设置页侧栏导航
   document.getElementById('settingsSidebar').addEventListener('click', function(e) {
     var item = e.target.closest('.settings-nav-item');
     if (!item) return;
     var section = item.getAttribute('data-section');
-    this.querySelectorAll('.settings-nav-item').forEach(function(el) { el.classList.remove('active'); });
+    this.querySelectorAll('.settings-nav-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-selected', 'false');
+    });
     item.classList.add('active');
+    item.setAttribute('aria-selected', 'true');
     document.querySelectorAll('.settings-section').forEach(function(el) { el.classList.remove('active'); });
     var sec = document.getElementById('sec-' + section);
     if (sec) sec.classList.add('active');

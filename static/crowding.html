@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成交集中与拥挤风险</title>
+<style>
+  :root {
+    --bg:#1a1d23; --panel:#21252b; --panel-2:#1c2027; --text:#abb2bf;
+    --strong:#e5e5e5; --muted:#737b88; --border:#333842; --blue:#61afef;
+    --green:#98c379; --amber:#e5c07b; --orange:#d9824b; --red:#e06c75;
+    --purple:#c678dd;
+  }
+  * { box-sizing:border-box; }
+  html, body {
+    min-height:100%; margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  button, input, select { font:inherit; }
+  button:focus-visible, input:focus-visible, select:focus-visible, tr:focus-visible {
+    outline:2px solid var(--blue); outline-offset:2px;
+  }
+  .container { max-width:1320px; margin:0 auto; padding:20px; }
+  .header { text-align:center; position:relative; margin-bottom:10px; }
+  .header h1 { margin:0; color:var(--strong); font-size:1.28em; }
+  .header .sub { margin-top:5px; color:#8b93a0; font-size:.78em; }
+  .scheme-select {
+    margin-left:8px; padding:3px 8px; color:var(--text);
+    border:1px solid var(--border); border-radius:5px; background:#282c34;
+    font-size:.65em; cursor:pointer; vertical-align:2px;
+  }
+  .refresh-btn {
+    position:absolute; right:0; top:0; padding:6px 13px; cursor:pointer;
+    color:var(--text); border:1px solid var(--border); border-radius:6px;
+    background:var(--panel);
+  }
+  .refresh-btn:hover { color:var(--strong); border-color:var(--blue); }
+  .refresh-btn:disabled { opacity:.55; cursor:default; }
+  .proxy-note {
+    margin:0 0 14px; padding:9px 12px; border:1px solid #425063;
+    border-radius:8px; background:#61afef0c; color:#9aa7b8; font-size:.77em;
+    line-height:1.55; text-align:center;
+  }
+  .proxy-note strong { color:#bfd7ef; }
+  .panel {
+    margin-bottom:16px; padding:14px 16px; border:1px solid var(--border);
+    border-radius:10px; background:var(--panel);
+  }
+  .section-title {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    margin-bottom:10px; color:var(--strong); font-size:.86em; font-weight:700;
+  }
+  .section-title .hint { color:var(--muted); font-size:.82em; font-weight:400; }
+  .section-title .spacer { flex:1; }
+
+  .hero { padding:16px 18px; }
+  .as-of {
+    display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    color:var(--muted); font-size:.72em; margin-bottom:12px;
+  }
+  .dual-state { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .state-card {
+    min-height:96px; padding:12px 14px; border:1px solid var(--border);
+    border-radius:9px; background:var(--panel-2);
+  }
+  .state-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .state-name { color:#8b93a0; font-size:.72em; }
+  .state-value { margin-top:8px; color:var(--strong); font-size:1.28em; font-weight:750; }
+  .state-detail { margin-top:4px; color:#8b93a0; font-size:.72em; line-height:1.45; }
+  .badge {
+    display:inline-flex; align-items:center; gap:4px; padding:3px 8px;
+    border:1px solid var(--border); border-radius:999px; white-space:nowrap;
+    font-size:.69em; font-weight:700;
+  }
+  .badge.normal { color:#8fc8ee; border-color:#31526b; background:#61afef10; }
+  .badge.watch { color:var(--amber); border-color:#665933; background:#e5c07b10; }
+  .badge.fragile { color:#efa36f; border-color:#70472f; background:#d9824b12; }
+  .badge.unwind { color:#f0909a; border-color:#713d45; background:#e06c7514; }
+  .badge.unknown { color:#969eaa; border-color:#49505a; background:#ffffff06; }
+  .conclusion {
+    margin-top:12px; padding:11px 13px; border-left:3px solid var(--blue);
+    border-radius:0 7px 7px 0; background:#61afef0b; color:#cbd2da;
+    font-size:.82em; line-height:1.65;
+  }
+  .meta-grid {
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px;
+    margin-top:11px;
+  }
+  .meta-item { padding:8px 10px; border-radius:7px; background:#1a1d23; min-width:0; }
+  .meta-label { color:#67707d; font-size:.65em; }
+  .meta-value {
+    margin-top:3px; color:#b8c0ca; font-size:.76em; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+  .evidence-strip {
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    margin-top:9px; color:#6f7885; font-size:.65em;
+  }
+  .evidence-chip {
+    padding:3px 7px; border:1px solid #39414c; border-radius:999px;
+    background:#181b20; color:#9099a6;
+  }
+  .evidence-chip.ok { color:#91c7a6; border-color:#355746; }
+  .evidence-chip.partial { color:#e5c07b; border-color:#665933; }
+  .evidence-chip.unavailable, .evidence-chip.unsupported {
+    color:#7f8792; border-color:#3b4149;
+  }
+
+  .metric-grid {
+    display:grid; grid-template-columns:repeat(5,minmax(150px,1fr)); gap:8px;
+  }
+  .metric-card {
+    padding:10px 10px 8px; border:1px solid var(--border);
+    border-radius:8px; background:#1a1d23; min-width:0;
+  }
+  .metric-head { display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
+  .metric-name { color:#9aa3af; font-size:.69em; }
+  .metric-now { color:var(--strong); font:700 .9em "SF Mono","Menlo",monospace; }
+  .metric-sub { min-height:1.3em; color:#68717e; font-size:.62em; margin-top:2px; }
+  .metric-card svg { display:block; width:100%; height:84px; margin-top:3px; }
+  svg text { font-family:"SF Mono","Menlo","Consolas",monospace; }
+
+  .analysis-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr); gap:16px; }
+  .matrix-wrap { position:relative; }
+  #riskMatrix { display:block; width:100%; height:390px; }
+  .matrix-legend {
+    display:flex; gap:11px; flex-wrap:wrap; margin-top:4px;
+    color:#7e8794; font-size:.67em;
+  }
+  .matrix-legend i {
+    display:inline-block; width:9px; height:9px; margin-right:4px;
+    border-radius:50%; vertical-align:-1px;
+  }
+  .hover-line {
+    min-height:1.4em; margin-top:7px; color:#d1d5db;
+    font:.72em "SF Mono","Menlo","Consolas",monospace;
+  }
+  .source-list { display:grid; gap:7px; }
+  .source-row {
+    width:100%; padding:7px 8px; color:inherit; text-align:left; cursor:pointer;
+    border:1px solid transparent; border-radius:7px; background:#1a1d23;
+  }
+  .source-row:hover, .source-row.active { border-color:#4a5565; background:#202630; }
+  .source-line { display:flex; align-items:center; gap:8px; }
+  .source-name { width:76px; color:var(--strong); font-size:.74em; overflow:hidden; text-overflow:ellipsis; }
+  .source-track { flex:1; height:8px; overflow:hidden; border-radius:4px; background:#292e37; }
+  .source-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#567ea4,#8db7d7); }
+  .source-num { width:50px; text-align:right; color:#bac2cc; font:.69em "SF Mono","Menlo",monospace; }
+  .source-sub { margin:4px 0 0 84px; color:#69727f; font-size:.62em; }
+  .source-foot { margin-top:8px; color:#68717e; font-size:.67em; line-height:1.5; }
+
+  .detail {
+    display:none; margin-top:12px; padding:12px; border:1px solid #3a4350;
+    border-radius:8px; background:#1b1f26;
+  }
+  .detail.visible { display:block; }
+  .detail-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .detail-head h3 { margin:0; color:var(--strong); font-size:.9em; }
+  .detail-grid {
+    display:grid; grid-template-columns:minmax(260px,.8fr) minmax(320px,1.2fr);
+    gap:14px; margin-top:9px;
+  }
+  .detail-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+  .fact { padding:7px 8px; border-radius:6px; background:#21262e; }
+  .fact span { display:block; color:#69727f; font-size:.62em; }
+  .fact strong { display:block; margin-top:3px; color:#c2c9d2; font-size:.73em; font-weight:600; }
+  .detail-reason { margin-top:8px; color:#aab2bd; font-size:.73em; line-height:1.55; }
+  #detailChart { display:block; width:100%; height:150px; }
+  .driver-list { margin:7px 0 0; padding-left:18px; color:#8993a0; font-size:.69em; line-height:1.6; }
+
+  .toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
+  .toolbar input, .toolbar select {
+    height:30px; padding:4px 8px; color:var(--text); border:1px solid var(--border);
+    border-radius:5px; background:#1a1d23; font-size:.72em;
+  }
+  .toolbar input { width:150px; }
+  .table-scroll { max-height:62vh; overflow:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.73em; }
+  th {
+    position:sticky; top:0; z-index:1; padding:7px 6px; color:#858e9b;
+    border-bottom:2px solid var(--border); background:var(--panel);
+    text-align:right; white-space:nowrap;
+  }
+  th:first-child, td:first-child, th:last-child, td:last-child { text-align:left; }
+  td {
+    padding:7px 6px; border-bottom:1px solid #292e37; text-align:right;
+    white-space:nowrap; vertical-align:middle;
+  }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover td, tbody tr.selected td { background:#252b34; }
+  .industry-name { color:var(--strong); font-weight:650; }
+  .muted { color:#6d7683; }
+  .reason-cell {
+    max-width:260px; overflow:hidden; color:#8f98a5;
+    text-overflow:ellipsis; white-space:nowrap;
+  }
+  .bar-inline { display:inline-block; width:44px; height:6px; margin-right:5px; background:#2c323b; border-radius:3px; vertical-align:1px; }
+  .bar-inline i { display:block; height:100%; border-radius:3px; background:#7899b6; }
+  .direction-up { color:#d9b96b; }
+  .direction-down { color:#81b5d8; }
+  .empty { padding:22px; color:#707987; text-align:center; }
+  .error {
+    display:none; margin-bottom:14px; padding:18px; color:#e58a94;
+    border:1px solid #603841; border-radius:8px; background:#e06c750a; text-align:center;
+  }
+  .method { color:#7c8592; font-size:.72em; line-height:1.65; }
+  .method summary { cursor:pointer; color:#aab4c0; font-weight:650; }
+  .method ul { margin:8px 0 0; padding-left:20px; }
+  .update { margin-top:12px; color:#59616d; font-size:.67em; text-align:center; }
+
+  @media (max-width:980px) {
+    .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .analysis-grid, .detail-grid { grid-template-columns:1fr; }
+    .meta-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:620px) {
+    .container { padding:12px; }
+    .header { padding-top:40px; }
+    .refresh-btn { left:50%; right:auto; transform:translateX(-50%); }
+    .dual-state, .meta-grid, .detail-facts { grid-template-columns:1fr; }
+    .metric-grid { grid-template-columns:1fr; }
+    .toolbar { width:100%; }
+    .toolbar input { flex:1; min-width:120px; }
+  }
+</style>
+</head>
+<body>
+<main class="container">
+  <header class="header">
+    <h1>📊 成交集中与拥挤风险
+      <select class="scheme-select" id="schemeSelect" aria-label="行业分类">
+        <option value="sw">申万一级</option>
+        <option value="ths">同花顺</option>
+        <option value="sw3">申万三级</option>
+      </select>
+    </h1>
+    <div class="sub">先识别成交集中，再用价格、宽度、内部集中与流动性确认退出危险</div>
+    <button class="refresh-btn" id="refreshBtn" type="button">🔄 刷新数据</button>
+  </header>
+
+  <div class="proxy-note">
+    <strong>口径提醒：</strong>本页以成交额分布识别集中线索，不代表持仓拥挤、资金净流入或必然反转。
+    若增强数据未提供独立危险证据，“退出危险”会保持未评估。
+  </div>
+  <div class="error" id="errorBox"></div>
+
+  <section class="panel hero" aria-labelledby="currentStateTitle">
+    <div class="as-of">
+      <span id="currentStateTitle">当前市场状态</span>
+      <span id="asOfText">读取数据中…</span>
+    </div>
+    <div class="dual-state">
+      <article class="state-card">
+        <div class="state-top">
+          <span class="state-name">成交集中</span>
+          <span class="badge unknown" id="concentrationBadge">等待数据</span>
+        </div>
+        <div class="state-value" id="concentrationValue">--</div>
+        <div class="state-detail" id="concentrationDetail">衡量行业与个股成交额是否集中。</div>
+      </article>
+      <article class="state-card">
+        <div class="state-top">
+          <span class="state-name">退出危险</span>
+          <span class="badge unknown" id="exitBadge">未评估</span>
+        </div>
+        <div class="state-value" id="exitValue">证据不足</div>
+        <div class="state-detail" id="exitDetail">危险需要价格、宽度、内部集中或流动性等独立信号确认。</div>
+      </article>
+    </div>
+    <div class="conclusion" id="conclusionText">正在生成基于现有字段的结论…</div>
+    <div class="meta-grid">
+      <div class="meta-item"><div class="meta-label">主要集中来源</div><div class="meta-value" id="sourceMeta">--</div></div>
+      <div class="meta-item"><div class="meta-label">数据日期</div><div class="meta-value" id="dateMeta">--</div></div>
+      <div class="meta-item"><div class="meta-label">样本覆盖</div><div class="meta-value" id="coverageMeta">未提供</div></div>
+      <div class="meta-item"><div class="meta-label">证据覆盖</div><div class="meta-value" id="confidenceMeta">--</div></div>
+    </div>
+    <div class="evidence-strip" id="evidenceStrip">外部证据来源读取中…</div>
+  </section>
+
+  <section class="panel" aria-labelledby="percentileTitle">
+    <div class="section-title" id="percentileTitle">
+      固定 0–100 历史分位
+      <span class="hint">每条线使用截至当日的最多 250 个交易日计算；分位高只表示集中异常，不自动等于危险</span>
+    </div>
+    <div class="metric-grid" id="metricGrid"></div>
+  </section>
+
+  <div class="analysis-grid">
+    <section class="panel" aria-labelledby="matrixTitle">
+      <div class="section-title" id="matrixTitle">
+        行业风险矩阵
+        <span class="hint">横轴为当日市场影响排名，纵轴为行业自身历史异常度</span>
+      </div>
+      <div class="matrix-wrap">
+        <svg id="riskMatrix" role="img" aria-label="行业市场影响和历史异常度矩阵"></svg>
+      </div>
+      <div class="matrix-legend">
+        <span><i style="background:#61afef"></i>普通</span>
+        <span><i style="background:#e5c07b"></i>集中观察</span>
+        <span><i style="background:#d9824b"></i>脆弱确认</span>
+        <span><i style="background:#e06c75"></i>去拥挤中</span>
+        <span><i style="background:#737b88"></i>未评估</span>
+        <span>气泡越大 = 行业内 Top5 成交越集中；空心 = 未提供</span>
+      </div>
+      <div class="hover-line" id="matrixHover">移动鼠标查看行业证据，点击查看详情</div>
+    </section>
+
+    <section class="panel" aria-labelledby="sourceTitle">
+      <div class="section-title" id="sourceTitle">
+        集中来源分解
+        <span class="hint">按行业对 HHI 的贡献排序</span>
+      </div>
+      <div class="source-list" id="sourceList"></div>
+      <div class="source-foot">
+        HHI 贡献用于区分“系统影响”和“自身异常”。大型行业的高成交占比可能是结构性现象，
+        仍需结合自身历史分位与危险确认。
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="detailTitle">
+    <div class="section-title" id="detailTitle">
+      行业明细
+      <span class="hint">默认优先显示已确认风险，再看市场影响与异常度</span>
+      <div class="toolbar">
+        <input id="industrySearch" type="search" placeholder="搜索行业" aria-label="搜索行业">
+        <select id="stateFilter" aria-label="按状态筛选">
+          <option value="all">全部状态</option>
+          <option value="unwind">去拥挤中</option>
+          <option value="fragile">脆弱确认</option>
+          <option value="watch">集中观察</option>
+          <option value="normal">普通</option>
+          <option value="unknown">未评估</option>
+        </select>
+        <select id="sortSelect" aria-label="行业排序方式">
+          <option value="risk">风险优先</option>
+          <option value="impact">市场影响</option>
+          <option value="pctile">自身异常</option>
+          <option value="persistence">持续天数</option>
+        </select>
+      </div>
+    </div>
+    <div class="detail" id="industryDetail" aria-live="polite">
+      <div class="detail-head">
+        <h3 id="detailName">--</h3>
+        <span class="badge unknown" id="detailBadge">未评估</span>
+      </div>
+      <div class="detail-grid">
+        <div>
+          <div class="detail-facts" id="detailFacts"></div>
+          <div class="detail-reason" id="detailReason"></div>
+          <ul class="driver-list" id="driverList"></ul>
+        </div>
+        <div>
+          <svg id="detailChart" role="img" aria-label="所选行业成交占比历史"></svg>
+          <div class="hover-line" id="detailChartNote">行业成交占比历史</div>
+        </div>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>行业</th>
+            <th>市场影响</th>
+            <th>自身异常</th>
+            <th>方向</th>
+            <th>宽度</th>
+            <th>内部 Top5</th>
+            <th>持续</th>
+            <th>状态</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody id="industryBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel method">
+    <details>
+      <summary>口径、降级与避免误读</summary>
+      <ul>
+        <li>旧版 JSON 只有成交额集中字段时，本页只给出“普通/集中观察”，不会推断脆弱或去拥挤。</li>
+        <li>CR5、CR10、HHI 属于同一行业集中域；Top10、Top50 属于同一个股集中域，不重复计为多项危险证据。</li>
+        <li>红色仅表示增强数据明确确认“去拥挤中”；橙色仅表示已有独立脆弱证据；高分位本身使用琥珀色。</li>
+        <li>融资与基金持仓按“披露规模 ÷ 行业当日成交额”换算为退出承载天数；覆盖不足时保持缺失，不用市场总市值替代行业分母。</li>
+        <li>北向逐股日频披露已停止，不参与评分；ETF、基金季报与五档盘口均显示各自数据日期和局限。</li>
+        <li>同花顺缺失分类时回退申万一级；申万三级缺失时依次回退二级、一级。三套口径分别计算历史分位与 HHI，不能横向混用排名。</li>
+        <li>行业之间不能只比较自身历史分位，还需同时查看市场影响、HHI 贡献和绝对成交占比。</li>
+        <li>页面刷新只检查接口中已生成的数据，不代表后台每分钟重新计算市场拥挤。</li>
+      </ul>
+    </details>
+  </section>
+
+  <div class="update" id="updateInfo"></div>
+</main>
+
+<script>
+let DATA = null;
+let MARKET = [];
+let INDUSTRIES = [];
+let METRIC_SERIES = {};
+let SELECTED_INDUSTRY = null;
+let RENDERED = false;
+let CURRENT_SCHEME = 'sw';
+let LOAD_GENERATION = 0;
+let SCHEME_SWITCHING = false;
+
+const NS = 'http://www.w3.org/2000/svg';
+const METRICS = [
+  {key:'cr5', label:'CR5 行业', rawLabel:'前5行业占比', color:'#61afef'},
+  {key:'cr10', label:'CR10 行业', rawLabel:'前10行业占比', color:'#7ca8cc'},
+  {key:'hhi', label:'HHI 行业', rawLabel:'行业分布集中度', color:'#9c8bd3'},
+  {key:'top10_stock_share', label:'Top10 个股', rawLabel:'前10个股占比', color:'#c678dd'},
+  {key:'top50_stock_share', label:'Top50 个股', rawLabel:'前50个股占比', color:'#b88ac5'},
+];
+const STATE_META = {
+  normal:{label:'普通', color:'#61afef', rank:1},
+  watch:{label:'集中观察', color:'#e5c07b', rank:2},
+  fragile:{label:'脆弱确认', color:'#d9824b', rank:3},
+  unwind:{label:'去拥挤中', color:'#e06c75', rank:4},
+  unknown:{label:'未评估', color:'#737b88', rank:0},
+};
+const SOURCE_LABELS = {
+  free_float:'国证自由流通', margin:'沪深两融', fund_holdings:'基金季报',
+  etf_shares:'ETF份额', order_book:'五档盘口', northbound:'北向逐股',
+};
+const SCHEME_META = {
+  sw:{label:'申万一级'}, ths:{label:'同花顺'}, sw3:{label:'申万三级'},
+};
+
+function el(tag, attrs={}, parent=null) {
+  const node = document.createElementNS(NS, tag);
+  Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+  if (parent) parent.appendChild(node);
+  return node;
+}
+function svgText(parent, x, y, value, attrs={}) {
+  const node = el('text', {x, y, 'font-size':10, fill:'#6f7885', ...attrs}, parent);
+  node.textContent = value;
+  return node;
+}
+function number(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function firstValue(...values) {
+  for (const value of values) {
+    if (value !== null && value !== undefined && value !== '') return value;
+  }
+  return null;
+}
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  })[char]);
+}
+function percentValue(value) {
+  const n = number(value);
+  if (n === null) return null;
+  return Math.abs(n) <= 1.000001 ? n * 100 : n;
+}
+function percentileValue(value) {
+  const n = number(value);
+  if (n === null) return null;
+  return n >= 0 && n <= 1 ? n * 100 : n;
+}
+function fmtPct(value, digits=1) {
+  const n = number(value);
+  return n === null ? '--' : `${n.toFixed(digits)}%`;
+}
+function fmtPp(value, digits=2) {
+  const n = number(value);
+  return n === null ? '--' : `${n >= 0 ? '+' : ''}${n.toFixed(digits)}pp`;
+}
+function fmtYi(value) {
+  const n = number(value);
+  return n === null ? '--' : `${(n / 1e8).toFixed(0)}亿`;
+}
+function fmtDate(value) {
+  const text = String(value || '');
+  return /^\d{8}$/.test(text)
+    ? `${text.slice(0,4)}-${text.slice(4,6)}-${text.slice(6,8)}`
+    : (text || '--');
+}
+function median(values) {
+  const clean = values.filter(v => number(v) !== null).map(Number).sort((a,b) => a-b);
+  if (!clean.length) return null;
+  const mid = Math.floor(clean.length / 2);
+  return clean.length % 2 ? clean[mid] : (clean[mid - 1] + clean[mid]) / 2;
+}
+function percentileOf(values, current) {
+  const cur = number(current);
+  const clean = values.filter(v => number(v) !== null).map(Number);
+  if (cur === null || !clean.length) return null;
+  return clean.filter(v => v <= cur).length / clean.length * 100;
+}
+function nested(obj, path) {
+  return path.split('.').reduce((value, key) => value && value[key] !== undefined ? value[key] : null, obj);
+}
+function rawMetric(row, key) {
+  const value = number(row && row[key]);
+  if (value === null) return null;
+  return key === 'hhi' ? value : percentValue(value);
+}
+function explicitMetricPercentile(row, key, index) {
+  const short = key.replace('_stock_share', '');
+  const candidates = [
+    row && row[`${key}_pctile`], row && row[`${key}_percentile`],
+    row && row[`${short}_pctile`], row && row[`${short}_percentile`],
+    row && row.percentiles && row.percentiles[key],
+    row && row.percentiles && row.percentiles[short],
+    index === MARKET.length - 1 && DATA && DATA.market_percentiles ? DATA.market_percentiles[key] : null,
+    index === MARKET.length - 1 && DATA && DATA.market_percentiles ? DATA.market_percentiles[short] : null,
+  ];
+  return percentileValue(firstValue(...candidates));
+}
+function buildMetricSeries(key) {
+  return MARKET.map((row, index) => {
+    const explicit = explicitMetricPercentile(row, key, index);
+    if (explicit !== null) return clamp(explicit, 0, 100);
+    const start = Math.max(0, index - 249);
+    const current = rawMetric(row, key);
+    const trailing = MARKET.slice(start, index + 1).map(item => rawMetric(item, key));
+    return percentileOf(trailing, current);
+  });
+}
+function rawMetricText(row, key) {
+  const value = rawMetric(row, key);
+  if (value === null) return '--';
+  return key === 'hhi' ? (value * 10000).toFixed(0) : `${value.toFixed(1)}%`;
+}
+
+function normalizeRisk(value, fallbackPctile=null, allowFallback=true) {
+  let raw = value;
+  if (raw && typeof raw === 'object') raw = firstValue(raw.key, raw.state, raw.level, raw.label);
+  const text = String(raw || '').trim().toLowerCase();
+  if (/去拥挤|unwind|de.?crowd|exit.?in.?progress/.test(text)) return 'unwind';
+  if (/脆弱|高风险|fragile|confirmed.?risk|danger|risk.?high/.test(text)) return 'fragile';
+  if (/观察|关注|持续|集中|拥挤|watch|attention|crowded|elevated/.test(text)) return 'watch';
+  if (/普通|正常|稳定|normal|stable|dispersed/.test(text)) return 'normal';
+  if (/未知|未评估|证据不足|unknown|insufficient|unavailable/.test(text)) return 'unknown';
+  if (allowFallback && number(fallbackPctile) !== null) return fallbackPctile >= 80 ? 'watch' : 'normal';
+  return 'unknown';
+}
+function badgeHtml(state, label=null) {
+  const meta = STATE_META[state] || STATE_META.unknown;
+  return `<span class="badge ${state}">${escapeHtml(label || meta.label)}</span>`;
+}
+function setBadge(id, state, label=null) {
+  const node = document.getElementById(id);
+  const meta = STATE_META[state] || STATE_META.unknown;
+  node.className = `badge ${state}`;
+  node.textContent = label || meta.label;
+}
+
+function rawDailyShares(row) {
+  const source = Array.isArray(row.daily_shares) ? row.daily_shares
+    : Array.isArray(row.share_history) ? row.share_history : [];
+  return source.map(number);
+}
+function dailySharesFor(row, scale) {
+  return rawDailyShares(row).map(value => value === null ? null : value * scale);
+}
+function fieldPercent(row, names) {
+  const value = firstValue(...names.map(name => nested(row, name)));
+  return percentValue(value);
+}
+function hhiContributionValue(row) {
+  const explicitPct = number(row && row.hhi_contribution_pct);
+  if (explicitPct !== null) return explicitPct;
+  return fieldPercent(row, ['hhi_contribution','market.hhi_contribution']);
+}
+function industryReasons(row, risk, share, pctile) {
+  const raw = firstValue(row.risk_reasons, row.reasons, row.reason, row.state_reason, row.risk_reason);
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  if (raw && typeof raw === 'object') return Object.values(raw).map(String).filter(Boolean);
+  if (raw) return [String(raw)];
+  if (risk === 'watch') return [
+    `自身历史异常度 ${pctile === null ? '--' : pctile.toFixed(0)} 分位`,
+    `当前市场成交占比 ${share === null ? '--' : share.toFixed(2)}%`,
+    '尚无独立退出危险证据',
+  ];
+  return ['当前仅有成交集中代理数据，未确认退出危险'];
+}
+function prepareIndustries(rows) {
+  const sourceRows = rows || [];
+  const currentRawShares = sourceRows.map(row => {
+    const explicit = number(firstValue(row.share, row.share_pct, row.current_share));
+    if (explicit !== null) return explicit;
+    return rawDailyShares(row).reverse().find(value => value !== null) ?? null;
+  });
+  const rawShareSum = currentRawShares.filter(value => value !== null).reduce((sum, value) => sum + value, 0);
+  // 旧 JSON 的行业 share 单位为百分比，即便小行业数值可能小于 1；用全行业合计判断单位。
+  const shareScale = rawShareSum > 0 && rawShareSum <= 1.5 ? 100 : 1;
+  const base = sourceRows.map((row, index) => {
+    const history = dailySharesFor(row, shareScale);
+    const rawShare = currentRawShares[index];
+    let share = rawShare === null ? null : rawShare * shareScale;
+    if (share === null) share = [...history].reverse().find(v => v !== null) ?? null;
+    const previous = history.slice(0, -1).reverse().find(v => v !== null);
+    const delta = number(firstValue(row.share_change_1d, row.share_delta_1d, row.delta_1d));
+    const shareDelta = delta === null ? (share !== null && previous !== undefined ? share - previous : null)
+      : delta * shareScale;
+    let pctile = percentileValue(firstValue(row.pctile, row.percentile, row.self_percentile, row.abnormality));
+    if (pctile === null && share !== null) pctile = percentileOf(history.slice(-250), share);
+    const internalTop5 = fieldPercent(row, [
+      'internal_top5_share', 'top5_internal_share', 'top5_stock_share',
+      'internal.top5_share', 'internal_concentration.top5_share'
+    ]);
+    const persistence = number(firstValue(
+      row.persistence_days, row.high_percentile_days, row.days_above_80,
+      row.persistence && row.persistence.days, row.persistence && row.persistence.high_days
+    ));
+    const explicitRisk = firstValue(
+      row.risk_state, row.danger_state, row.state,
+      row.assessment && row.assessment.risk_state
+    );
+    const risk = normalizeRisk(explicitRisk, pctile, true);
+    const breadth = firstValue(
+      row.breadth_label, row.breadth_state, row.breadth,
+      row.breadth && row.breadth.label, row.advance_ratio, row.breadth_score
+    );
+    const priceChange = number(firstValue(
+      row.price_change_pct, row.change_pct, row.return_1d,
+      row.direction && row.direction.change_pct
+    ));
+    const directionLabel = firstValue(
+      row.direction_label, row.price_direction,
+      typeof row.direction === 'string' ? row.direction : null
+    );
+    const amount = number(firstValue(row.amount, row.current_amount));
+    const reasons = industryReasons(row, risk, share, pctile);
+    const topStocks = firstValue(row.top_stocks, row.top5_stocks, row.drivers, row.internal && row.internal.top_stocks);
+    const external = row.external_evidence && typeof row.external_evidence === 'object'
+      ? row.external_evidence : {};
+    return {
+      raw:row, index, name:String(firstValue(row.industry, row.name, `行业${index + 1}`)),
+      history, share, amount, shareDelta, pctile, internalTop5, persistence,
+      risk, breadth, priceChange, directionLabel, reasons,
+      topStocks:Array.isArray(topStocks) ? topStocks : [],
+      marginDays:number(firstValue(row.margin_turnover_days, external.margin_turnover_days)),
+      marginCoverage:percentValue(firstValue(row.margin_coverage, external.margin_coverage)),
+      fundDays:number(firstValue(row.fund_turnover_days, external.fund_turnover_days)),
+      fundCoverage:percentValue(firstValue(row.fund_coverage, external.fund_coverage)),
+      etfChangePct:number(firstValue(row.etf_share_change_pct, external.etf_share_change_pct)),
+      orderBookBps:number(firstValue(row.bid_depth_to_amount_bps, external.bid_depth_to_amount_bps)),
+      directPositionScore:percentileValue(firstValue(row.direct_position_score, external.direct_position_score)),
+      externalFragilityScore:percentileValue(firstValue(row.external_fragility_score, external.external_fragility_score)),
+      avg5:number(firstValue(row.avg5, row.share_avg5)) === null
+        ? null : number(firstValue(row.avg5, row.share_avg5)) * shareScale,
+      hhiContribution:hhiContributionValue(row),
+      impactScore:percentileValue(firstValue(row.market_impact_score,row.market_impact_pctile,row.impact_percentile)),
+    };
+  });
+  const hhiBase = base.reduce((sum, item) => sum + (item.share === null ? 0 : Math.pow(item.share / 100, 2)), 0);
+  const validShares = base.map(item => item.share).filter(v => v !== null);
+  base.forEach(item => {
+    if (item.hhiContribution === null && item.share !== null && hhiBase > 0) {
+      item.hhiContribution = Math.pow(item.share / 100, 2) / hhiBase * 100;
+    }
+    if (item.impactScore === null && item.share !== null) {
+      item.impactScore = percentileOf(validShares, item.share);
+    }
+  });
+  return base;
+}
+
+function metricDomainScore(index, keys) {
+  return median(keys.map(key => METRIC_SERIES[key] && METRIC_SERIES[key][index]));
+}
+function derivedConcentrationState(score) {
+  if (score === null) return {state:'unknown', label:'未评估'};
+  if (score >= 95) return {state:'watch', label:'高度集中'};
+  if (score >= 80) return {state:'watch', label:'集中偏高'};
+  if (score >= 60) return {state:'normal', label:'略偏集中'};
+  return {state:'normal', label:'分布常态'};
+}
+function topAssessmentValue(...paths) {
+  for (const path of paths) {
+    const value = nested(DATA, path);
+    if (value !== null && value !== undefined && value !== '') return value;
+  }
+  return null;
+}
+function worstIndustryRisk() {
+  return INDUSTRIES.reduce((best, item) =>
+    (STATE_META[item.risk] || STATE_META.unknown).rank > (STATE_META[best] || STATE_META.unknown).rank
+      ? item.risk : best, 'unknown');
+}
+function formatCoverage() {
+  const latest = MARKET[MARKET.length - 1] || {};
+  const coverage = firstValue(
+    topAssessmentValue('coverage'), latest.coverage,
+    topAssessmentValue('data_quality.coverage')
+  );
+  if (coverage && typeof coverage === 'object') {
+    const covered = number(firstValue(coverage.covered, coverage.stocks, coverage.count));
+    const total = number(firstValue(coverage.total, coverage.universe, coverage.expected));
+    const ratio = percentValue(firstValue(coverage.ratio, coverage.pct, coverage.percent));
+    if (covered !== null && total !== null) {
+      const pct = ratio !== null ? ratio : covered / Math.max(total, 1) * 100;
+      return `${covered}/${total}（${pct.toFixed(1)}%）`;
+    }
+    if (ratio !== null) return `${ratio.toFixed(1)}%`;
+  }
+  const covered = number(firstValue(latest.stock_count, latest.covered_stocks, DATA.stock_count));
+  const total = number(firstValue(latest.total_stocks, DATA.total_stocks));
+  if (covered !== null && total !== null) return `${covered}/${total}（${(covered / Math.max(total,1) * 100).toFixed(1)}%）`;
+  if (covered !== null) return `${covered} 只`;
+  return '未提供';
+}
+function formatConfidence(exitState) {
+  const raw = topAssessmentValue('confidence','assessment.confidence','data_quality.confidence');
+  if (raw !== null) {
+    if (typeof raw === 'number') return raw <= 1 ? `${(raw * 100).toFixed(0)}%` : `${raw.toFixed(0)}%`;
+    if (typeof raw === 'object') return String(firstValue(raw.label, raw.value, raw.level, '已提供'));
+    return String(raw);
+  }
+  return exitState === 'unknown' ? '集中度可用 · 危险未评估' : '增强证据已提供';
+}
+function renderEvidenceStrip() {
+  const node = document.getElementById('evidenceStrip');
+  const sources = nested(DATA, 'external.sources');
+  const classification = nested(DATA, 'data_quality.classification');
+  let classificationChip = '';
+  if (classification && typeof classification === 'object') {
+    const direct = number(classification.direct);
+    const fallback = number(classification.fallback);
+    const total = number(classification.total);
+    classificationChip = `<span class="evidence-chip" title="${escapeHtml(firstValue(classification.note,''))}">` +
+      `分类覆盖 · 直接 ${direct === null ? '--' : direct}/${total === null ? '--' : total}` +
+      `${fallback ? ` · 回退 ${fallback}` : ''}</span>`;
+  }
+  if (!sources || typeof sources !== 'object' || !Object.keys(sources).length) {
+    node.innerHTML = classificationChip +
+      '<span>外部证据未提供；当前风险判断仅使用成交、价格与宽度代理。</span>';
+    return;
+  }
+  node.innerHTML = classificationChip + '<span>来源日期</span>' + Object.entries(sources).map(([key, source]) => {
+    const meta = source && typeof source === 'object' ? source : {};
+    const status = String(firstValue(meta.status, 'unavailable')).toLowerCase();
+    const statusLabel = {ok:'可用', partial:'部分', unavailable:'缺失', unsupported:'停用', skipped:'跳过'}[status] || status;
+    let date = '';
+    if (meta.source_dates && typeof meta.source_dates === 'object') {
+      const sourceDates = Object.entries(meta.source_dates).filter(([, value]) => value);
+      const uniqueDates = [...new Set(sourceDates.map(([, value]) => value))];
+      date = uniqueDates.length <= 1
+        ? (uniqueDates[0] ? fmtDate(uniqueDates[0]) : '')
+        : sourceDates.map(([name, value]) => `${name} ${fmtDate(value)}`).join(' / ');
+    }
+    if (!date && meta.as_of) {
+      date = fmtDate(meta.as_of);
+    }
+    return `<span class="evidence-chip ${escapeHtml(status)}" title="${escapeHtml(firstValue(meta.note,''))}">` +
+      `${escapeHtml(SOURCE_LABELS[key] || key)} · ${escapeHtml(statusLabel)}${date ? ` · ${escapeHtml(date)}` : ''}</span>`;
+  }).join('');
+}
+
+function renderHero() {
+  const latestIndex = MARKET.length - 1;
+  const latest = MARKET[latestIndex] || {};
+  const industryScore = metricDomainScore(latestIndex, ['cr5','cr10','hhi']);
+  const stockScore = metricDomainScore(latestIndex, ['top10_stock_share','top50_stock_share']);
+  const concentrationDomains = [industryScore, stockScore].filter(v => v !== null);
+  const overallScore = concentrationDomains.length
+    ? concentrationDomains.reduce((sum, value) => sum + value, 0) / concentrationDomains.length
+    : null;
+  const explicitConcentration = topAssessmentValue(
+    'concentration_state','assessment.concentration_state','summary.concentration_state'
+  );
+  const derived = derivedConcentrationState(overallScore);
+  const concentrationState = explicitConcentration
+    ? normalizeRisk(explicitConcentration, null, false) : derived.state;
+  const concentrationLabel = explicitConcentration && typeof explicitConcentration === 'object'
+    ? String(firstValue(explicitConcentration.label, explicitConcentration.state, derived.label))
+    : explicitConcentration ? String(explicitConcentration) : derived.label;
+  setBadge('concentrationBadge', concentrationState === 'fragile' || concentrationState === 'unwind' ? 'watch' : concentrationState, concentrationLabel);
+  document.getElementById('concentrationValue').textContent =
+    overallScore === null ? '--' : `${overallScore.toFixed(0)} 分位`;
+  document.getElementById('concentrationDetail').textContent =
+    `行业集中 ${industryScore === null ? '--' : industryScore.toFixed(0)} · 个股集中 ${stockScore === null ? '--' : stockScore.toFixed(0)}；同域指标不重复计票。`;
+
+  let exitRaw = topAssessmentValue(
+    'exit_risk_state','danger_state','assessment.exit_risk_state',
+    'assessment.danger_state','summary.exit_risk_state'
+  );
+  if (exitRaw === null) {
+    const worst = worstIndustryRisk();
+    if (worst === 'fragile' || worst === 'unwind') exitRaw = worst;
+  }
+  const exitState = normalizeRisk(exitRaw, null, false);
+  const exitLabel = exitRaw && typeof exitRaw === 'object'
+    ? String(firstValue(exitRaw.label, exitRaw.state, STATE_META[exitState].label))
+    : exitState === 'unknown' ? '未评估' : STATE_META[exitState].label;
+  setBadge('exitBadge', exitState, exitLabel);
+  const exitValueMap = {
+    normal:'未见危险确认', watch:'需要继续观察', fragile:'已见脆弱证据',
+    unwind:'退出压力已发生', unknown:'证据不足'
+  };
+  document.getElementById('exitValue').textContent = exitValueMap[exitState];
+  document.getElementById('exitDetail').textContent = exitState === 'unknown'
+    ? '当前字段只能确认成交集中，不能确认持仓一致、价格脆弱或退出困难。'
+    : String(firstValue(
+        topAssessmentValue('exit_risk_reason','assessment.exit_risk_reason','summary.exit_risk_reason'),
+        exitValueMap[exitState]
+      ));
+
+  const previousIndex = latestIndex - 1;
+  const previousIndustry = previousIndex >= 0 ? metricDomainScore(previousIndex, ['cr5','cr10','hhi']) : null;
+  const previousStock = previousIndex >= 0 ? metricDomainScore(previousIndex, ['top10_stock_share','top50_stock_share']) : null;
+  const previousDomains = [previousIndustry, previousStock].filter(v => v !== null);
+  const previousOverall = previousDomains.length
+    ? previousDomains.reduce((sum, value) => sum + value, 0) / previousDomains.length
+    : null;
+  const delta = overallScore !== null && previousOverall !== null ? overallScore - previousOverall : null;
+  const edge = delta === null ? '边际变化暂无可比数据'
+    : delta > 5 ? '集中度边际抬升'
+    : delta < -5 ? '集中度边际缓解' : '集中度边际变化有限';
+  const source = [...INDUSTRIES].sort((a,b) => (b.hhiContribution || 0) - (a.hhiContribution || 0))[0] || null;
+  const providedConclusion = topAssessmentValue('conclusion','summary.conclusion','assessment.conclusion');
+  document.getElementById('conclusionText').textContent = providedConclusion || (
+    `成交集中处于“${concentrationLabel}”，${edge}` +
+    (source ? `；主要集中来源为 ${source.name}（成交占比 ${fmtPct(source.share)}）` : '') +
+    `。${exitState === 'unknown' ? '现有数据尚不能判断退出危险。' : `退出危险状态为“${exitLabel}”。`}`
+  );
+
+  const date = firstValue(latest.date, DATA.trade_date, DATA.as_of);
+  document.getElementById('asOfText').textContent =
+    `${fmtDate(date)} · ${String(firstValue(DATA.scheme_label, DATA.scheme, '申万一级'))}`;
+  document.getElementById('sourceMeta').textContent = source
+    ? `${source.name} ${fmtPct(source.share)} · HHI贡献 ${fmtPct(source.hhiContribution)}`
+    : '--';
+  document.getElementById('dateMeta').textContent = fmtDate(date);
+  document.getElementById('coverageMeta').textContent = formatCoverage();
+  document.getElementById('confidenceMeta').textContent = formatConfidence(exitState);
+  renderEvidenceStrip();
+}
+
+function renderMetricCards() {
+  const latest = MARKET[MARKET.length - 1] || {};
+  document.getElementById('metricGrid').innerHTML = METRICS.map(metric => {
+    const series = METRIC_SERIES[metric.key] || [];
+    const current = series[series.length - 1];
+    const previous = series.length > 1 ? series[series.length - 2] : null;
+    const delta = current !== null && previous !== null ? current - previous : null;
+    return `<article class="metric-card">
+      <div class="metric-head">
+        <span class="metric-name">${escapeHtml(metric.label)}</span>
+        <span class="metric-now">${current === null ? '--' : current.toFixed(0)}分位</span>
+      </div>
+      <div class="metric-sub">${escapeHtml(metric.rawLabel)} ${rawMetricText(latest, metric.key)}${delta === null ? '' : ` · 分位${delta >= 0 ? '+' : ''}${delta.toFixed(0)}`}</div>
+      <svg id="mini-${metric.key}" role="img" aria-label="${escapeHtml(metric.label)}历史分位"></svg>
+    </article>`;
+  }).join('');
+  requestAnimationFrame(() => METRICS.forEach(metric => drawMiniChart(metric)));
+}
+function drawMiniChart(metric) {
+  const svg = document.getElementById(`mini-${metric.key}`);
+  if (!svg) return;
+  svg.innerHTML = '';
+  const series = (METRIC_SERIES[metric.key] || []).slice(-120);
+  const W = svg.clientWidth || 180, H = 84, L = 2, R = 2, T = 5, B = 5;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const x = index => L + (W - L - R) * (series.length <= 1 ? .5 : index / (series.length - 1));
+  const y = value => T + (H - T - B) * (1 - value / 100);
+  [80, 50].forEach(value => {
+    el('line', {
+      x1:L, x2:W-R, y1:y(value), y2:y(value), stroke:value === 80 ? '#6b6040' : '#303640',
+      'stroke-width':.7, 'stroke-dasharray':value === 80 ? '3 3' : '2 4'
+    }, svg);
+  });
+  let path = '';
+  series.forEach((value, index) => {
+    if (value === null) { path += ' '; return; }
+    path += `${path.trim() && !path.endsWith(' ') ? 'L' : 'M'}${x(index).toFixed(1)} ${y(value).toFixed(1)} `;
+  });
+  if (path.trim()) el('path', {d:path.trim(), fill:'none', stroke:metric.color, 'stroke-width':1.6}, svg);
+  const current = series[series.length - 1];
+  if (current !== null && current !== undefined) {
+    el('circle', {cx:x(series.length - 1), cy:y(current), r:2.6, fill:metric.color}, svg);
+  }
+}
+
+function riskColor(state) { return (STATE_META[state] || STATE_META.unknown).color; }
+function renderMatrix() {
+  const svg = document.getElementById('riskMatrix');
+  svg.innerHTML = '';
+  const W = svg.clientWidth || 760, H = 390, L = 46, R = 18, T = 18, B = 40;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const x = value => L + (W - L - R) * clamp(value || 0, 0, 100) / 100;
+  const y = value => T + (H - T - B) * (1 - clamp(value || 0, 0, 100) / 100);
+  el('rect', {x:x(80), y:y(100), width:x(100)-x(80), height:y(80)-y(100), fill:'#e5c07b08'}, svg);
+  for (let value = 0; value <= 100; value += 20) {
+    el('line', {x1:L, x2:W-R, y1:y(value), y2:y(value), stroke:'#2d333d', 'stroke-width':.7}, svg);
+    el('line', {x1:x(value), x2:x(value), y1:T, y2:H-B, stroke:'#2d333d', 'stroke-width':.7}, svg);
+    svgText(svg, 13, y(value)+3, value, {});
+    svgText(svg, x(value)-6, H-20, value, {});
+  }
+  el('line', {x1:L, x2:W-R, y1:y(80), y2:y(80), stroke:'#75673e', 'stroke-dasharray':'4 4'}, svg);
+  el('line', {x1:x(80), x2:x(80), y1:T, y2:H-B, stroke:'#4a5563', 'stroke-dasharray':'4 4'}, svg);
+  svgText(svg, (L+W-R)/2, H-4, '市场影响相对排名（当日）', {'text-anchor':'middle', fill:'#8a93a0'});
+  const yLabel = svgText(svg, 11, (T+H-B)/2, '自身历史异常度', {'text-anchor':'middle', fill:'#8a93a0'});
+  yLabel.setAttribute('transform', `rotate(-90 11 ${(T+H-B)/2})`);
+  svgText(svg, W-R-4, T+12, '系统影响高 / 自身异常高', {'text-anchor':'end', fill:'#8c805c', 'font-size':9});
+
+  INDUSTRIES.forEach(industry => {
+    if (industry.impactScore === null || industry.pctile === null) return;
+    const hasInternal = industry.internalTop5 !== null;
+    const radius = hasInternal ? clamp(5 + Math.sqrt(Math.max(industry.internalTop5, 0)) * 1.25, 6, 18) : 6;
+    const circle = el('circle', {
+      cx:x(industry.impactScore), cy:y(industry.pctile), r:radius,
+      fill:hasInternal ? riskColor(industry.risk) : '#1a1d23',
+      'fill-opacity':hasInternal ? .78 : 1,
+      stroke:riskColor(industry.risk), 'stroke-width':industry.name === SELECTED_INDUSTRY ? 2.5 : 1.3,
+      'stroke-dasharray':hasInternal ? '' : '3 2', tabindex:0, role:'button',
+      'aria-label':`${industry.name}，市场影响${industry.impactScore.toFixed(0)}，自身异常${industry.pctile.toFixed(0)}`
+    }, svg);
+    const description = `${industry.name} · 市场占比 ${fmtPct(industry.share,2)} · 自身异常 ${industry.pctile.toFixed(0)}分位 · ${STATE_META[industry.risk].label}`;
+    circle.addEventListener('mouseenter', () => { document.getElementById('matrixHover').textContent = description; });
+    circle.addEventListener('focus', () => { document.getElementById('matrixHover').textContent = description; });
+    circle.addEventListener('click', () => selectIndustry(industry.name));
+    circle.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectIndustry(industry.name); }
+    });
+    const title = el('title', {}, circle);
+    title.textContent = description;
+  });
+  svg.addEventListener('mouseleave', () => {
+    document.getElementById('matrixHover').textContent = '移动鼠标查看行业证据，点击查看详情';
+  });
+}
+
+function renderSources() {
+  const rows = [...INDUSTRIES]
+    .filter(item => item.hhiContribution !== null)
+    .sort((a,b) => b.hhiContribution - a.hhiContribution)
+    .slice(0, 8);
+  const maxValue = Math.max(...rows.map(item => item.hhiContribution || 0), 1);
+  const node = document.getElementById('sourceList');
+  if (!rows.length) {
+    node.innerHTML = '<div class="empty">增强或旧版数据均未提供可用行业占比</div>';
+    return;
+  }
+  node.innerHTML = rows.map(item => `
+    <button type="button" class="source-row ${item.name === SELECTED_INDUSTRY ? 'active' : ''}" data-industry="${escapeHtml(item.name)}">
+      <div class="source-line">
+        <span class="source-name">${escapeHtml(item.name)}</span>
+        <span class="source-track"><span class="source-fill" style="width:${clamp(item.hhiContribution / maxValue * 100, 1, 100)}%"></span></span>
+        <span class="source-num">${fmtPct(item.hhiContribution)}</span>
+      </div>
+      <div class="source-sub">市场占比 ${fmtPct(item.share,2)} · 自身 ${item.pctile === null ? '--' : item.pctile.toFixed(0)}分位</div>
+    </button>`).join('');
+  node.querySelectorAll('.source-row').forEach(button => {
+    button.addEventListener('click', () => selectIndustry(button.dataset.industry));
+  });
+}
+
+function formatBreadth(industry) {
+  const value = industry.breadth;
+  if (value === null || value === undefined || value === '') return '--';
+  if (typeof value === 'object') {
+    const label = firstValue(value.label, value.state, value.text);
+    const score = percentValue(firstValue(value.value, value.ratio, value.score));
+    return label ? String(label) : score === null ? '--' : fmtPct(score);
+  }
+  if (typeof value === 'number') return fmtPct(percentValue(value));
+  return String(value);
+}
+function formatDirection(industry) {
+  if (industry.directionLabel) return String(industry.directionLabel);
+  if (industry.priceChange !== null) {
+    return `${industry.priceChange >= 0 ? '价格↑' : '价格↓'} ${industry.priceChange >= 0 ? '+' : ''}${industry.priceChange.toFixed(2)}%`;
+  }
+  if (industry.shareDelta !== null) {
+    return `占比${industry.shareDelta >= 0 ? '↑' : '↓'} ${fmtPp(industry.shareDelta)}`;
+  }
+  return '--';
+}
+function reasonText(industry) { return industry.reasons.filter(Boolean).join('；'); }
+function renderTable() {
+  const query = document.getElementById('industrySearch').value.trim().toLowerCase();
+  const filter = document.getElementById('stateFilter').value;
+  const sort = document.getElementById('sortSelect').value;
+  let rows = INDUSTRIES.filter(item =>
+    (!query || item.name.toLowerCase().includes(query)) &&
+    (filter === 'all' || item.risk === filter)
+  );
+  rows.sort((a,b) => {
+    if (sort === 'risk') {
+      const riskDiff = STATE_META[b.risk].rank - STATE_META[a.risk].rank;
+      return riskDiff || (b.impactScore || 0) - (a.impactScore || 0);
+    }
+    if (sort === 'impact') return (b.impactScore || 0) - (a.impactScore || 0);
+    if (sort === 'pctile') return (b.pctile || 0) - (a.pctile || 0);
+    return (b.persistence || 0) - (a.persistence || 0);
+  });
+  const body = document.getElementById('industryBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="9" class="empty">没有符合条件的行业</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(industry => {
+    const direction = formatDirection(industry);
+    const directionClass = industry.shareDelta === null ? '' : industry.shareDelta >= 0 ? 'direction-up' : 'direction-down';
+    return `<tr tabindex="0" data-industry="${escapeHtml(industry.name)}" class="${industry.name === SELECTED_INDUSTRY ? 'selected' : ''}">
+      <td class="industry-name">${escapeHtml(industry.name)}</td>
+      <td title="当日市场成交占比 ${fmtPct(industry.share,2)}">${fmtPct(industry.share,2)}<br><span class="muted">影响${industry.impactScore === null ? '--' : industry.impactScore.toFixed(0)}</span></td>
+      <td><span class="bar-inline"><i style="width:${clamp(industry.pctile || 0,0,100)}%"></i></span>${industry.pctile === null ? '--' : industry.pctile.toFixed(0)}</td>
+      <td class="${directionClass}">${escapeHtml(direction)}</td>
+      <td>${escapeHtml(formatBreadth(industry))}</td>
+      <td>${industry.internalTop5 === null ? '<span class="muted">未提供</span>' : fmtPct(industry.internalTop5)}</td>
+      <td>${industry.persistence === null ? '<span class="muted">--</span>' : `${industry.persistence.toFixed(0)}日`}</td>
+      <td>${badgeHtml(industry.risk)}</td>
+      <td class="reason-cell" title="${escapeHtml(reasonText(industry))}">${escapeHtml(reasonText(industry))}</td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('tr[data-industry]').forEach(row => {
+    row.addEventListener('click', () => selectIndustry(row.dataset.industry));
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectIndustry(row.dataset.industry); }
+    });
+  });
+}
+
+function driverLabel(driver) {
+  if (typeof driver === 'string') return driver;
+  if (!driver || typeof driver !== 'object') return '';
+  const name = firstValue(driver.name, driver.stock_name, driver.code, '未命名');
+  const share = percentValue(firstValue(driver.share, driver.internal_share, driver.turnover_share));
+  const change = number(firstValue(driver.change_pct, driver.return_1d));
+  return `${name}${share === null ? '' : ` · 内部成交 ${fmtPct(share)}`}${change === null ? '' : ` · 涨跌 ${change >= 0 ? '+' : ''}${change.toFixed(2)}%`}`;
+}
+function selectIndustry(name) {
+  const industry = INDUSTRIES.find(item => item.name === name);
+  if (!industry) return;
+  SELECTED_INDUSTRY = name;
+  const detail = document.getElementById('industryDetail');
+  detail.classList.add('visible');
+  document.getElementById('detailName').textContent = industry.name;
+  setBadge('detailBadge', industry.risk);
+  const facts = [
+    ['市场成交占比', fmtPct(industry.share,2)],
+    ['HHI 贡献', fmtPct(industry.hhiContribution)],
+    ['自身历史异常', industry.pctile === null ? '--' : `${industry.pctile.toFixed(0)} 分位`],
+    ['占比日变化', fmtPp(industry.shareDelta)],
+    ['行业内部 Top5', industry.internalTop5 === null ? '未提供' : fmtPct(industry.internalTop5)],
+    ['高位持续', industry.persistence === null ? '未提供' : `${industry.persistence.toFixed(0)} 日`],
+    ['方向', formatDirection(industry)],
+    ['宽度', formatBreadth(industry)],
+    ['融资余额 / 日成交', industry.marginDays === null ? '未覆盖' :
+      `${industry.marginDays.toFixed(2)} 天 · 覆盖 ${fmtPct(industry.marginCoverage)}`],
+    ['基金持仓 / 日成交', industry.fundDays === null ? '未覆盖' :
+      `${industry.fundDays.toFixed(2)} 天 · 覆盖 ${fmtPct(industry.fundCoverage)}`],
+    ['ETF 份额日变化', industry.etfChangePct === null ? '未映射' :
+      `${industry.etfChangePct >= 0 ? '+' : ''}${industry.etfChangePct.toFixed(2)}%`],
+    ['五档买盘 / 日成交', industry.orderBookBps === null ? '未覆盖' :
+      `${industry.orderBookBps.toFixed(2)} bp`],
+    ['直接持仓证据', industry.directPositionScore === null ? '未评估' :
+      `${industry.directPositionScore.toFixed(0)} 分位`],
+    ['外部退出承载', industry.externalFragilityScore === null ? '未评估' :
+      `${industry.externalFragilityScore.toFixed(0)} 分位`],
+  ];
+  document.getElementById('detailFacts').innerHTML = facts.map(([label,value]) =>
+    `<div class="fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+  document.getElementById('detailReason').textContent = `判断依据：${reasonText(industry)}`;
+  const driverList = document.getElementById('driverList');
+  const drivers = industry.topStocks.map(driverLabel).filter(Boolean).slice(0,5);
+  driverList.innerHTML = drivers.length
+    ? drivers.map(item => `<li>${escapeHtml(item)}</li>`).join('')
+    : '<li>行业内部个股来源未提供；不能据此判断是否依赖少数股票。</li>';
+  renderSources();
+  renderTable();
+  renderMatrix();
+  requestAnimationFrame(() => drawDetailChart(industry));
+}
+function drawDetailChart(industry) {
+  const svg = document.getElementById('detailChart');
+  svg.innerHTML = '';
+  const values = industry.history.slice(-120);
+  const clean = values.filter(v => v !== null);
+  const W = svg.clientWidth || 560, H = 150, L = 34, R = 10, T = 12, B = 22;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  if (!clean.length) {
+    svgText(svg, W/2, H/2, '暂无行业历史占比', {'text-anchor':'middle', fill:'#68717e', 'font-size':12});
+    return;
+  }
+  const maxValue = Math.max(...clean) * 1.08 || 1;
+  const x = index => L + (W-L-R) * (values.length <= 1 ? .5 : index / (values.length - 1));
+  const y = value => T + (H-T-B) * (1 - value / maxValue);
+  [0, .5, 1].forEach(fraction => {
+    const value = maxValue * fraction;
+    el('line', {x1:L, x2:W-R, y1:y(value), y2:y(value), stroke:'#2e343e', 'stroke-width':.7}, svg);
+    svgText(svg, 2, y(value)+3, `${value.toFixed(1)}%`);
+  });
+  let path = '';
+  values.forEach((value,index) => {
+    if (value === null) { path += ' '; return; }
+    path += `${path.trim() && !path.endsWith(' ') ? 'L' : 'M'}${x(index).toFixed(1)} ${y(value).toFixed(1)} `;
+  });
+  el('path', {d:path.trim(), fill:'none', stroke:riskColor(industry.risk), 'stroke-width':1.7}, svg);
+  const current = values[values.length - 1];
+  if (current !== null) el('circle', {cx:x(values.length-1), cy:y(current), r:3, fill:riskColor(industry.risk)}, svg);
+  document.getElementById('detailChartNote').textContent =
+    `最近 ${values.length} 个有效位置 · 当前 ${fmtPct(industry.share,2)} · 5日均值 ${industry.avg5 === null ? '--' : fmtPct(industry.avg5,2)}`;
+}
+
+function showError(message) {
+  const node = document.getElementById('errorBox');
+  if (!message) { node.style.display = 'none'; node.textContent = ''; return; }
+  node.style.display = 'block';
+  node.textContent = RENDERED
+    ? `刷新失败：${message}。页面保留上一次成功数据。`
+    : `无法加载拥挤数据：${message}。请先在设置中运行数据更新。`;
+}
+function renderAll() {
+  METRIC_SERIES = Object.fromEntries(METRICS.map(metric => [metric.key, buildMetricSeries(metric.key)]));
+  INDUSTRIES = prepareIndustries(DATA.industries || []);
+  renderHero();
+  renderMetricCards();
+  renderMatrix();
+  renderSources();
+  renderTable();
+  const updated = String(firstValue(DATA.updated_at, DATA.generated_at, '') || '');
+  document.getElementById('updateInfo').textContent =
+    `${String(firstValue(DATA.scheme_label, SCHEME_META[CURRENT_SCHEME].label))} · ` +
+    `${updated && updated !== 'auto' ? `数据生成于 ${updated}` : '数据由最近一次批量更新生成'} · 页面每 60 秒检查已生成数据，不代表实时重算`;
+}
+async function load() {
+  const generation = ++LOAD_GENERATION;
+  const requestedScheme = CURRENT_SCHEME;
+  try {
+    const response = await fetch(
+      `/api/crowding?scheme=${encodeURIComponent(requestedScheme)}`,
+      {cache:'no-store'}
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    const payload = await response.json();
+    if (generation !== LOAD_GENERATION || requestedScheme !== CURRENT_SCHEME) return false;
+    if (payload.scheme && payload.scheme !== requestedScheme) {
+      throw new Error(`分类口径不匹配：请求 ${requestedScheme}，返回 ${payload.scheme}`);
+    }
+    DATA = payload;
+    MARKET = Array.isArray(DATA.market) ? [...DATA.market].sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')) ) : [];
+    if (!MARKET.length) throw new Error('市场集中度序列为空');
+    SELECTED_INDUSTRY = null;
+    document.getElementById('industryDetail').classList.remove('visible');
+    renderAll();
+    RENDERED = true;
+    showError(null);
+    return true;
+  } catch (error) {
+    if (generation !== LOAD_GENERATION) return false;
+    showError(error.message || String(error));
+    return false;
+  }
+}
+
+async function switchScheme(nextScheme) {
+  if (!SCHEME_META[nextScheme] || nextScheme === CURRENT_SCHEME) return;
+  const previousScheme = CURRENT_SCHEME;
+  const select = document.getElementById('schemeSelect');
+  const refresh = document.getElementById('refreshBtn');
+  CURRENT_SCHEME = nextScheme;
+  SCHEME_SWITCHING = true;
+  select.disabled = true;
+  refresh.disabled = true;
+  const success = await load();
+  if (!success) {
+    CURRENT_SCHEME = previousScheme;
+    select.value = previousScheme;
+  }
+  select.disabled = false;
+  refresh.disabled = false;
+  SCHEME_SWITCHING = false;
+}
+
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  const button = document.getElementById('refreshBtn');
+  button.disabled = true;
+  button.textContent = '⏳ 检查中';
+  await load();
+  button.disabled = false;
+  button.textContent = '🔄 刷新数据';
+});
+document.getElementById('industrySearch').addEventListener('input', renderTable);
+document.getElementById('stateFilter').addEventListener('change', renderTable);
+document.getElementById('sortSelect').addEventListener('change', renderTable);
+document.getElementById('schemeSelect').addEventListener('change', event => {
+  switchScheme(event.target.value);
+});
+window.addEventListener('resize', () => {
+  if (!DATA) return;
+  METRICS.forEach(drawMiniChart);
+  renderMatrix();
+  if (SELECTED_INDUSTRY) {
+    const industry = INDUSTRIES.find(item => item.name === SELECTED_INDUSTRY);
+    if (industry) drawDetailChart(industry);
+  }
+});
+
+load();
+setInterval(() => {
+  if (!SCHEME_SWITCHING) load();
+}, 60000);
+</script>
+<script src="/page-guide.js" defer></script>
+</body>
+</html>

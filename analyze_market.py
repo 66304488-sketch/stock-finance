@@ -8,7 +8,9 @@
 import json
 import os
 
-STATIC = os.path.join(os.path.dirname(__file__), "static")
+from runtime_paths import DATA_DIR
+
+STATIC = DATA_DIR
 TYPES = ["month", "60d", "120d", "1year", "alltime"]
 TYPE_CN = {"month": "20日", "60d": "60日", "120d": "120日", "1year": "一年", "alltime": "历史/近7年"}
 
