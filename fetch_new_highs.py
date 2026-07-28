@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import argparse
+import tempfile
 import warnings
 
 import akshare as ak
@@ -27,6 +28,25 @@ from kline_cache import (
 )
 
 warnings.filterwarnings("ignore")
+
+
+def _atomic_json_dump(data, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        with open(tmp, "r", encoding="utf-8") as f:
+            json.load(f)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 # =========================================================================
@@ -248,8 +268,7 @@ def _run_single(args, dates, active_codes, industry_map, type_labels,
             item["ratio"] = row["ratio"]
         counts_output["industries"].append(item)
 
-    with open(data_file, "w", encoding="utf-8") as f:
-        json.dump(counts_output, f, ensure_ascii=False, indent=2)
+    _atomic_json_dump(counts_output, data_file)
     print(f"[4/4] counts 已保存: {data_file}")
 
     # 明细文件
@@ -257,8 +276,7 @@ def _run_single(args, dates, active_codes, industry_map, type_labels,
     for row in output["industries"]:
         details_output[row["industry"]] = row["daily_details"]
 
-    with open(details_file, "w", encoding="utf-8") as f:
-        json.dump(details_output, f, ensure_ascii=False, indent=2)
+    _atomic_json_dump(details_output, details_file)
     print(f"[4/4] details 已保存: {details_file}")
 
     # 打印摘要

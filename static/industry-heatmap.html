@@ -1887,7 +1887,7 @@ function renderLeaderboard() {
   var htmlTop = '';
   top.forEach(function(r, i) {
     var chgStr = Number(r.chg) > 0 ? '<span class="chg-up">↑' + r.chg + '%</span>' : (Number(r.chg) < 0 ? '<span class="chg-down">↓' + Math.abs(r.chg) + '%</span>' : '');
-    htmlTop += '<li><span class="ind-name">' + r.industry + '</span> <span class="val">' + r.highs + '只(' + r.hRate.toFixed(1) + '%)</span> ' + chgStr + '</li>';
+    htmlTop += '<li><span class="ind-name">' + escapeHtml(r.industry) + '</span> <span class="val">' + r.highs + '只(' + r.hRate.toFixed(1) + '%)</span> ' + chgStr + '</li>';
   });
   if (!htmlTop) htmlTop = '<li style="color:var(--text-dim)">今日无显著新高扩散</li>';
   document.getElementById('lbTop').innerHTML = htmlTop;
@@ -1896,7 +1896,7 @@ function renderLeaderboard() {
   var bot = rows.filter(function(r) { return r.lows >= 3; }).sort(function(a, b) { return b.lRate - a.lRate; }).slice(0, 10);
   var htmlBot = '';
   bot.forEach(function(r) {
-    htmlBot += '<li><span class="ind-name">' + r.industry + '</span> <span class="val">' + r.lows + '只(' + r.lRate.toFixed(1) + '%)</span></li>';
+    htmlBot += '<li><span class="ind-name">' + escapeHtml(r.industry) + '</span> <span class="val">' + r.lows + '只(' + r.lRate.toFixed(1) + '%)</span></li>';
   });
   if (!htmlBot) htmlBot = '<li style="color:var(--text-dim)">今日无显著新低扩散</li>';
   document.getElementById('lbBottom').innerHTML = htmlBot;
@@ -1905,7 +1905,7 @@ function renderLeaderboard() {
   var streakers = rows.filter(function(r) { return r.streak >= 3; }).sort(function(a, b) { return b.streak - a.streak; });
   var htmlStr = '';
   streakers.slice(0, 8).forEach(function(r) {
-    htmlStr += '<li><span class="ind-name">' + r.industry + '</span> 连续 <span class="val">' + r.streak + '</span> 天扩散</li>';
+    htmlStr += '<li><span class="ind-name">' + escapeHtml(r.industry) + '</span> 连续 <span class="val">' + r.streak + '</span> 天扩散</li>';
   });
   if (!htmlStr) htmlStr = '<li style="color:var(--text-dim)">暂无连续走强行业</li>';
   document.getElementById('lbStreak').innerHTML = htmlStr;
@@ -1915,7 +1915,7 @@ function renderLeaderboard() {
     .sort(function(a, b) { return (b.hRate + b.lRate) - (a.hRate + a.lRate); });
   var htmlDiv = '';
   diverge.slice(0, 8).forEach(function(r) {
-    htmlDiv += '<li><span class="ind-name">' + r.industry + '</span> 新高<span class="val">' + r.hRate.toFixed(1) + '%</span> 新低<span class="val">' + r.lRate.toFixed(1) + '%</span></li>';
+    htmlDiv += '<li><span class="ind-name">' + escapeHtml(r.industry) + '</span> 新高<span class="val">' + r.hRate.toFixed(1) + '%</span> 新低<span class="val">' + r.lRate.toFixed(1) + '%</span></li>';
   });
   if (!htmlDiv) htmlDiv = '<li style="color:var(--text-dim)">暂无高分歧行业</li>';
   document.getElementById('lbDiverge').innerHTML = htmlDiv;
@@ -1969,7 +1969,7 @@ function renderFlowLinkage(rows) {
   var html = '';
   linked.slice(0, 10).forEach(function(r) {
     var flowStr = r.flowChg !== null ? (parseFloat(r.flowChg) > 0 ? '<span class="chg-up">↑' + r.flowChg + '%</span>' : '<span class="chg-down">↓' + Math.abs(r.flowChg) + '%</span>') : '—';
-    html += '<li><span class="ind-name">' + r.industry + '</span> 净' + (r.net > 0 ? '+' : '') + r.net + ' ' + flowStr + ' <span class="val">' + r.sig + '</span></li>';
+    html += '<li><span class="ind-name">' + escapeHtml(r.industry) + '</span> 净' + (r.net > 0 ? '+' : '') + r.net + ' ' + flowStr + ' <span class="val">' + r.sig + '</span></li>';
   });
   if (!html) html = '<li style="color:var(--text-dim)">暂无联动数据</li>';
   lbEl.innerHTML = html;
@@ -2205,8 +2205,10 @@ function renderTable(options) {
     advInds = advInds.slice().sort(function(a, b) {
       var av = (a.daily_counts || [])[sortIndex] || 0;
       var bv = (b.daily_counts || [])[sortIndex] || 0;
-      var avRate = av / Math.max(a.total || 0, 1);
-      var bvRate = bv / Math.max(b.total || 0, 1);
+      // net 视图 daily_counts 已是 (高-低)/总数*100 的百分比率，直接比较；
+      // 其余视图是原始家数，需除以成分股数得到可比比率
+      var avRate = isNet ? av : av / Math.max(a.total || 0, 1);
+      var bvRate = isNet ? bv : bv / Math.max(b.total || 0, 1);
       var diff = (avRate - bvRate) * sortFactor;
       return diff !== 0 ? diff : String(a.industry).localeCompare(String(b.industry), 'zh-CN');
     });
@@ -2242,7 +2244,7 @@ function renderTable(options) {
   advInds.forEach(function(row) {
     tableHtml += '<tr>';
     var badge = isNet ? '' : trendBadge(row.daily_counts, row.total);
-    tableHtml += '<td>' + row.industry + badge + '</td>';
+    tableHtml += '<td>' + escapeHtml(row.industry) + badge + '</td>';
 
     row.daily_counts.forEach(function(count, di) {
       var currentDateKey = dateKey((data.dates[di] || {}).full_label || (data.dates[di] || {}).label);
@@ -2256,7 +2258,9 @@ function renderTable(options) {
         var prev = row.daily_counts[1] || 0;
         var diff = count - prev;
         if (diff !== 0) {
-          chgHtml = '<span class="chg-nudge ' + (diff > 0 ? 'chg-up' : 'chg-down') + '">' + (diff > 0 ? '↑' : '↓') + Math.abs(diff) + '</span>';
+          // net 视图 diff 是浮点百分数，保留 1 位小数；其余视图为整数家数
+          var diffText = isNet ? Math.abs(diff).toFixed(1) : Math.abs(diff);
+          chgHtml = '<span class="chg-nudge ' + (diff > 0 ? 'chg-up' : 'chg-down') + '">' + (diff > 0 ? '↑' : '↓') + diffText + '</span>';
         }
       }
       if (isNet && highsData && lowsData && count !== 0) {
@@ -2264,8 +2268,8 @@ function renderTable(options) {
         var cls = count > 0 ? 'net-pos' : 'net-neg';
         var dateLabel = data.dates[di].label;
         tableHtml += '<td class="heat-cell ' + cls + '" style="background:' + c.bg + ';color:' + c.text + '"' +
-          ' data-industry="' + row.industry + '"' +
-          ' data-date="' + dateLabel + '"' +
+          ' data-industry="' + escapeHtml(row.industry) + '"' +
+          ' data-date="' + escapeHtml(dateLabel) + '"' +
           ' data-count="' + count + '">' + (count > 0 ? '+' : '') + count.toFixed(1) + '%' + chgHtml + '</td>';
       } else if (count > 0) {
         var percentile = rawCellPercentile(row.daily_counts, di);
@@ -2273,16 +2277,16 @@ function renderTable(options) {
         var dateLabel2 = data.dates[di].label;
         var rate2 = count / Math.max(row.total || 0, 1) * 100;
         tableHtml += '<td class="heat-cell" style="background:' + c2.bg + ';color:' + c2.color + '"' +
-          ' data-industry="' + row.industry + '"' +
-          ' data-date="' + dateLabel2 + '"' +
+          ' data-industry="' + escapeHtml(row.industry) + '"' +
+          ' data-date="' + escapeHtml(dateLabel2) + '"' +
           ' data-count="' + count + '">' + count + chgHtml +
           '<span class="cell-rate">' + rate2.toFixed(1) + '% · P' + percentile.toFixed(0) + '</span></td>';
       } else if (count < 0 && isNet) {
         var c3 = netHeatColor(count, colorMaxAbs);
         var dateLabel3 = data.dates[di].label;
         tableHtml += '<td class="heat-cell net-neg" style="background:' + c3.bg + ';color:' + c3.text + '"' +
-          ' data-industry="' + row.industry + '"' +
-          ' data-date="' + dateLabel3 + '"' +
+          ' data-industry="' + escapeHtml(row.industry) + '"' +
+          ' data-date="' + escapeHtml(dateLabel3) + '"' +
           ' data-count="' + count + '">' + count.toFixed(1) + '%' + chgHtml + '</td>';
       } else {
         tableHtml += '<td class="heat-cell no-data" style="background:rgba(75,82,99,0.18);color:#8b929d">0<span class="cell-rate">有效零值</span></td>';
@@ -2324,7 +2328,7 @@ function renderTable(options) {
         var dateLabel4 = data.dates[di].label;
         tableHtml += '<td class="heat-cell ' + (count > 0 ? 'net-pos' : 'net-neg') + '" style="background:' + c4.bg + ';color:' + c4.text + '"' +
           ' data-industry="全市场"' +
-          ' data-date="' + dateLabel4 + '"' +
+          ' data-date="' + escapeHtml(dateLabel4) + '"' +
           ' data-count="' + count + '">' + (count > 0 ? '+' : '') + count.toFixed(1) + '%</td>';
       } else if (count > 0) {
         var marketDenominator = Math.max(Number(totalRow.total || 0), advInds.reduce(function(sum,row){return sum + (row.total || 0);},0), 1);
@@ -2333,14 +2337,14 @@ function renderTable(options) {
         var dateLabel5 = data.dates[di].label;
         tableHtml += '<td class="heat-cell" style="background:' + c5.bg + ';color:' + c5.color + '"' +
           ' data-industry="全市场"' +
-          ' data-date="' + dateLabel5 + '"' +
+          ' data-date="' + escapeHtml(dateLabel5) + '"' +
           ' data-count="' + count + '">' + count + '<span class="cell-rate">' + marketRate.toFixed(1) + '%</span></td>';
       } else if (count < 0 && isNet) {
         var c6 = netHeatColor(count, Math.max(colorMaxAbs * 2, Math.abs(count)));
         var dateLabel6 = data.dates[di].label;
         tableHtml += '<td class="heat-cell net-neg" style="background:' + c6.bg + ';color:' + c6.text + '"' +
           ' data-industry="全市场"' +
-          ' data-date="' + dateLabel6 + '"' +
+          ' data-date="' + escapeHtml(dateLabel6) + '"' +
           ' data-count="' + count + '">' + count.toFixed(1) + '%</td>';
       } else {
         tableHtml += '<td class="heat-cell no-data" style="background:rgba(45,58,45,0.3);color:#8aaa8a">0</td>';
@@ -2485,7 +2489,9 @@ async function loadPeData() {
     var resp = await fetch('/stock_pe.json?_=' + Date.now());
     if (resp.ok) { peCache = await resp.json(); return peCache; }
   } catch(e) {}
-  return {};
+  // 失败（含独立版 404）也缓存空结果，避免每次打开弹窗重复请求
+  peCache = {};
+  return peCache;
 }
 
 // ── 多周期新高/新低次数统计（从预计算轻量文件加载）──
@@ -2502,7 +2508,9 @@ async function loadMultiPeriodCounts(direction) {
     return data;
   } catch(e) {
     console.error('loadMultiPeriod error:', e);
-    return {};
+    // 失败（含独立版 404）也缓存空结果，避免每次打开弹窗重复请求
+    multiPeriodCache[direction] = {};
+    return multiPeriodCache[direction];
   }
 }
 
@@ -2607,11 +2615,19 @@ function formatMcap(value) {
   return number ? (number / 1e8).toFixed(1) + '亿' : '—';
 }
 
+// null/undefined/非数字显示 "—"，避免对抓取数据直接 toFixed 抛错
+function fmtFixed(value, digits) {
+  var number = Number(value);
+  return value === null || value === undefined || !isFinite(number) ? '—' : number.toFixed(digits);
+}
+
 function renderStockRows(stocks) {
   var html = '';
   stocks.forEach(function(s, i) {
-    var changeCls = s.change_pct >= 0 ? 'change-up' : 'change-down';
-    var sign = s.change_pct >= 0 ? '+' : '';
+    var changeNum = Number(s.change_pct);
+    var changeValid = s.change_pct !== null && s.change_pct !== undefined && isFinite(changeNum);
+    var changeCls = changeNum >= 0 ? 'change-up' : 'change-down';
+    var sign = changeNum >= 0 ? '+' : '';
     var cnt = s._mp || [0,0,0,0];
     var peVal = peCache && peCache[s.code] ? Number(peCache[s.code]) : NaN;
     var pe = !isNaN(peVal) && peVal > 0 ? peVal.toFixed(1) : '—';
@@ -2621,10 +2637,10 @@ function renderStockRows(stocks) {
     var resRow = resonant >= 3 ? ' style="background:rgba(229,192,123,0.08)"' : '';
     html += '<tr' + resRow + '>' +
       '<td class="col-idx">' + (i + 1) + '</td>' +
-      '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + s.code + '/" target="_blank">' + s.code + '</a></td>' +
-      '<td class="col-name">' + s.name + resTag + '</td>' +
-      '<td class="col-price">' + s.price.toFixed(2) + '</td>' +
-      '<td class="col-chg ' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+      '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + encodeURIComponent(s.code) + '/" target="_blank">' + escapeHtml(s.code) + '</a></td>' +
+      '<td class="col-name">' + escapeHtml(s.name) + resTag + '</td>' +
+      '<td class="col-price">' + fmtFixed(s.price, 2) + '</td>' +
+      '<td class="col-chg ' + (changeValid ? changeCls : '') + '">' + (changeValid ? sign + changeNum.toFixed(2) + '%' : '—') + '</td>' +
       '<td class="col-mp">' + cnt[0] + '</td>' +
       '<td class="col-mp">' + cnt[1] + '</td>' +
       '<td class="col-mp">' + cnt[2] + '</td>' +
@@ -2665,7 +2681,7 @@ function renderStockTable(stocks, sortState) {
 var _openDetailToken = 0;
 async function openDetail(industry, dateLabel, count) {
   var token = ++_openDetailToken;
-  document.getElementById('modalTitle').innerHTML = '<span class="ind-name">' + industry + '</span> ' + dateLabel;
+  document.getElementById('modalTitle').innerHTML = '<span class="ind-name">' + escapeHtml(industry) + '</span> ' + escapeHtml(dateLabel);
   document.getElementById('modalSub').innerHTML = '';
   document.getElementById('modalBody').innerHTML = '<div class="loading">加载明细中...</div>';
   document.getElementById('modalBody').onclick = null;
@@ -2722,7 +2738,7 @@ async function openDetail(industry, dateLabel, count) {
 
   var titleSuffix = isNet ? ' · 净强度 ' + (count > 0 ? '+' : '') + count : '';
   document.getElementById('modalTitle').innerHTML =
-    '<span class="ind-name">' + industry + '</span> ' + dateLabel + titleSuffix;
+    '<span class="ind-name">' + escapeHtml(industry) + '</span> ' + escapeHtml(dateLabel) + titleSuffix;
   document.getElementById('modalSub').innerHTML =
     typeLabel + ' · <strong>' + rawStocks.length + '</strong> 只 · 占比 <strong>' + ratio + '%</strong> · 行业共 ' + total + ' 只' +
     (effectiveMode === 'intraday' ? ' · 触及 <strong>' + rawStocks.filter(function(s){return s.touched;}).length + '</strong> · 当前站上/破位 <strong>' + rawStocks.filter(function(s){return s.standing;}).length + '</strong>' : '') +
@@ -2767,8 +2783,10 @@ function renderStockTableNet(stocks, sortState) {
   if (effectiveMode === 'intraday') html += '<th>状态</th><th>突破</th><th>回撤</th>' + sortableStockHeader('市值', 'mcap', '', sortState);
   html += '</tr></thead><tbody>';
   sorted.forEach(function(s, i) {
-    var changeCls = s.change_pct >= 0 ? 'change-up' : 'change-down';
-    var sign = s.change_pct >= 0 ? '+' : '';
+    var changeNum = Number(s.change_pct);
+    var changeValid = s.change_pct !== null && s.change_pct !== undefined && isFinite(changeNum);
+    var changeCls = changeNum >= 0 ? 'change-up' : 'change-down';
+    var sign = changeNum >= 0 ? '+' : '';
     var cnt = s._mp || [0,0,0,0];
     var peVal = peCache && peCache[s.code] ? Number(peCache[s.code]) : NaN;
     var pe = !isNaN(peVal) && peVal > 0 ? peVal.toFixed(1) : '—';
@@ -2776,10 +2794,10 @@ function renderStockTableNet(stocks, sortState) {
     var netTag = isHigh ? '<span style="color:#e06c75">🟢新高</span>' : '<span style="color:#61afef">🔴新低</span>';
     html += '<tr>' +
       '<td class="col-idx">' + (i + 1) + '</td>' +
-      '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + s.code + '/" target="_blank">' + s.code + '</a></td>' +
-      '<td class="col-name">' + s.name + '</td>' +
-      '<td class="col-price">' + s.price.toFixed(2) + '</td>' +
-      '<td class="col-chg ' + changeCls + '">' + sign + s.change_pct.toFixed(2) + '%</td>' +
+      '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + encodeURIComponent(s.code) + '/" target="_blank">' + escapeHtml(s.code) + '</a></td>' +
+      '<td class="col-name">' + escapeHtml(s.name) + '</td>' +
+      '<td class="col-price">' + fmtFixed(s.price, 2) + '</td>' +
+      '<td class="col-chg ' + (changeValid ? changeCls : '') + '">' + (changeValid ? sign + changeNum.toFixed(2) + '%' : '—') + '</td>' +
       '<td class="col-mp">' + cnt[0] + '</td>' +
       '<td class="col-mp">' + cnt[1] + '</td>' +
       '<td class="col-mp">' + cnt[2] + '</td>' +
@@ -2797,7 +2815,7 @@ function renderStockTableNet(stocks, sortState) {
 }
 
 async function openTotalDetail(dateLabel, count) {
-  document.getElementById('modalTitle').innerHTML = '<span class="ind-name">全市场</span> ' + dateLabel;
+  document.getElementById('modalTitle').innerHTML = '<span class="ind-name">全市场</span> ' + escapeHtml(dateLabel);
   document.getElementById('modalSub').innerHTML = '';
   document.getElementById('modalBody').innerHTML = '<div class="loading">加载明细中...</div>';
   document.getElementById('modalBody').onclick = null;
@@ -2830,7 +2848,7 @@ async function openTotalDetail(dateLabel, count) {
   var entries = Object.entries(byIndustry).sort(function(a, b) { return b[1].length - a[1].length; });
 
   document.getElementById('modalTitle').innerHTML =
-    '<span class="ind-name">全市场</span> ' + dateLabel;
+    '<span class="ind-name">全市场</span> ' + escapeHtml(dateLabel);
   document.getElementById('modalSub').innerHTML =
     typeLabel + ' · <strong>' + rawStocks.length + '</strong> 只 · <strong>' + entries.length + '</strong> 个行业';
 
@@ -3098,6 +3116,8 @@ async function exportToExcel(dateLabel) {
 (function() {
   var params = new URLSearchParams(window.location.search);
   var requestedMode = params.get('mode');
+  // 独立收盘快照没有盘中接口，忽略 mode=intraday，避免静态文件 404 进错误页
+  if (window.STANDALONE_MODE && requestedMode === 'intraday') requestedMode = 'auto';
   if (['auto','daily','intraday'].indexOf(requestedMode) >= 0) {
     currentMode = requestedMode;
     // 更新模式切换按钮状态
@@ -3113,6 +3133,8 @@ applyLeaderboardVisibility();
 loadData();
 
 async function scheduledRefreshTick() {
+  // 独立收盘快照是静态文件，没有实时会话；保留生成时的新鲜度徽标不被覆盖
+  if (window.STANDALONE_MODE) return;
   if (scheduledSessionCheckInProgress || loadInProgress || (currentMode !== 'auto' && currentMode !== 'intraday')) return;
   scheduledSessionCheckInProgress = true;
   try {
@@ -3126,8 +3148,13 @@ async function scheduledRefreshTick() {
     }
     var freshness = document.getElementById('freshnessBadge');
     if (freshness && currentMode === 'auto') {
-      freshness.textContent = '自动已暂停 · 非交易时段';
+      // 保留数据日期与质量标签，只追加暂停说明
+      var pausedDate = (tableData && tableData.updated_at) ||
+        (tableData && tableData.dates && tableData.dates.length ? tableData.dates[0].full_label : '') ||
+        '日期未知';
+      freshness.textContent = '自动已暂停 · 非交易时段 · ' + pausedDate;
       freshness.classList.remove('stale');
+      freshness.classList.remove('danger');
     }
   } catch(e) {
     // 会话状态检查失败时保持当前画面，不触发全量数据刷新。
@@ -3457,7 +3484,7 @@ function renderAnomalies() {
   var html = '';
   anomalies.forEach(function(a) {
     var icon = a.type === 'surge' ? '<span class="anomaly-dot surge"></span>' : (a.type === 'diverge' ? '<span class="anomaly-dot diverge"></span>' : '<span class="anomaly-dot breakout"></span>');
-    html += '<li>' + icon + ' <span class="ind-name">' + a.industry + '</span> ' + a.msg + '</li>';
+    html += '<li>' + icon + ' <span class="ind-name">' + escapeHtml(a.industry) + '</span> ' + escapeHtml(a.msg) + '</li>';
   });
   if (!html) {
     var unavailable = effectiveMode === 'intraday' ||
@@ -3471,12 +3498,19 @@ function renderAnomalies() {
   var table = document.getElementById('heatmapTable');
   if (!table) return;
   table.querySelectorAll('.anomaly-marker').forEach(function(el) { el.classList.remove('anomaly-marker'); });
+  // 两侧用同一归一化规则比对（"IT服务Ⅲ" 与单元格文本都剥掉非汉字字符），
+  // 否则含字母/罗马数字的申万三级行业永远匹配不上
+  var normalizeIndName = function(name) { return String(name || '').replace(/[^一-龥]/g,''); };
   var anomalyInds = {};
-  anomalies.forEach(function(a) { anomalyInds[a.industry] = true; });
+  anomalies.forEach(function(a) { anomalyInds[normalizeIndName(a.industry)] = true; });
   var rows = table.querySelectorAll('tbody tr');
   rows.forEach(function(row) {
     var td = row.children[0];
-    if (td && anomalyInds[td.textContent.replace(/[^一-龥]/g,'')]) {
+    if (!td) return;
+    // 首格第一个文本节点才是行业名，趋势角标文本不参与匹配
+    var nameNode = td.firstChild;
+    var tdName = nameNode && nameNode.nodeType === 3 ? nameNode.nodeValue : td.textContent;
+    if (anomalyInds[normalizeIndName(tdName)]) {
       td.style.position = 'relative';
       var dot = document.createElement('span');
       dot.className = 'anomaly-dot surge';
@@ -3569,7 +3603,7 @@ function generateBriefing() {
   var dateLabel = heatDate.full_label || '';
 
   var lines = [];
-  lines.push('<span class="b-title">市场简报 ' + dateLabel + '</span>');
+  lines.push('<span class="b-title">市场简报 ' + escapeHtml(dateLabel) + '</span>');
   lines.push('');
   lines.push((isIntraday ? '盘中' : '收盘') + '市场宽度：<span class="' + stateCls + '">' + stateText + '</span>');
   if (isIntraday) {
@@ -3585,30 +3619,30 @@ function generateBriefing() {
   lines.push('<span style="color:#e06c75">🔥 新高覆盖率 Top3：</span>');
   topH.forEach(function(r, i) {
     var extra = isIntraday ? '，当前 ' + (r.standing_count || 0) + ' 只' : '';
-    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + breadthValue(r, 'highs') + ' 只（' + (breadthRate(r, 'highs') * 100).toFixed(1) + '%）' + extra);
+    lines.push('  ' + (i+1) + '. ' + escapeHtml(r.industry) + ' ' + breadthValue(r, 'highs') + ' 只（' + (breadthRate(r, 'highs') * 100).toFixed(1) + '%）' + extra);
   });
   lines.push('');
   lines.push('<span style="color:#61afef">❄️ 新低覆盖率 Top3：</span>');
   topL.forEach(function(r, i) {
     var extra = isIntraday ? '，当前 ' + (r.standing_count || 0) + ' 只' : '';
-    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + breadthValue(r, 'lows') + ' 只（' + (breadthRate(r, 'lows') * 100).toFixed(1) + '%）' + extra);
+    lines.push('  ' + (i+1) + '. ' + escapeHtml(r.industry) + ' ' + breadthValue(r, 'lows') + ' 只（' + (breadthRate(r, 'lows') * 100).toFixed(1) + '%）' + extra);
   });
   lines.push('');
   lines.push('<span style="color:#d19a66">💰 ' + (isIntraday && sameFlowDate ? '盘中成交额' : '成交额') + ' Top3' + (flowDate.label ? '（' + flowDate.label + '）' : '') + '：</span>');
   topF.forEach(function(r, i) {
     var share = Number.isFinite(r.share) ? r.share : ((r.turnover || 0) / Math.max(flowNow, 1) * 100);
-    lines.push('  ' + (i+1) + '. ' + r.industry + ' ' + (r.turnover/1e8).toFixed(0) + '亿（' + share.toFixed(1) + '%）');
+    lines.push('  ' + (i+1) + '. ' + escapeHtml(r.industry) + ' ' + (r.turnover/1e8).toFixed(0) + '亿（' + share.toFixed(1) + '%）');
   });
   lines.push('');
   if (anomalies.length > 0) {
     lines.push('<span class="b-warn">⚠️ 异动提醒：</span>');
     anomalies.slice(0, 5).forEach(function(a) {
-      lines.push('  · ' + a.industry + '：' + a.msg);
+      lines.push('  · ' + escapeHtml(a.industry) + '：' + escapeHtml(a.msg));
     });
     lines.push('');
   }
   if (isIntraday) lines.push('<span class="b-warn">异动检测：等待收盘历史序列确认</span>');
-  lines.push('数据更新于 ' + (highsData.updated_at || '?'));
+  lines.push('数据更新于 ' + escapeHtml(highsData.updated_at || '?'));
   lines.push('—— 由行业热力图自动生成');
 
   document.getElementById('briefingDate').textContent = dateLabel;

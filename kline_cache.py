@@ -9,6 +9,7 @@
 import json
 import os
 import pickle
+import re
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -153,12 +154,18 @@ def fetch_klines_sina(codes, datalen=80, max_workers=25):
 # 新浪实时行情批量更新（仅最新一天）
 # ======================================================================
 
+class NotTradingDayError(RuntimeError):
+    """新浪行情报文日期与目标日期全部不一致，目标日大概率不是交易日"""
+
+
 def fetch_spot(codes, target_date_str):
     """用 hq.sinajs.cn 批量获取最新一天 OHLCV"""
     target_dt = pd.Timestamp(
         f"{target_date_str[:4]}-{target_date_str[4:6]}-{target_date_str[6:8]}"
     )
     spot_map = {}
+    stale_dated = 0  # 报文自带日期有效但与目标日期不一致的行数（节假日会返回上一交易日数据）
+    matched = 0
     batch_size = 800
     total_batches = (len(codes) + batch_size - 1) // batch_size
 
@@ -192,8 +199,18 @@ def fetch_spot(codes, target_date_str):
                     low_p = float(fields[5]) if fields[5] else 0.0
                     # 新浪 hq 接口的成交量字段已经是“股”，与日 K 接口口径一致。
                     volume = float(fields[8]) if fields[8] else 0.0
+                    # 报文自带行情日期（字段 30，如 2026-07-24）。节假日/停牌时新浪
+                    # 返回的是上一交易日数据，不能打上 target_dt 的日期戳污染缓存。
+                    quote_dt = None
+                    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", fields[30].strip()):
+                        quote_dt = pd.Timestamp(fields[30].strip())
+                    if quote_dt is not None and quote_dt != target_dt:
+                        stale_dated += 1
+                        continue
                     change_pct = round((close_p - prev_close) / prev_close * 100, 2) if prev_close > 0 else 0.0
                     if code and close_p > 0:
+                        if quote_dt is not None:
+                            matched += 1
                         spot_map[code] = {
                             "date": target_dt,
                             "name": name,
@@ -210,6 +227,12 @@ def fetch_spot(codes, target_date_str):
         except Exception as e:
             print(f"  新浪行情批次 {batch_i + 1}/{total_batches} 失败: {e}")
 
+    if stale_dated:
+        print(f"  新浪行情: 跳过 {stale_dated} 条非 {target_date_str} 的过期行情")
+    if not spot_map and stale_dated and not matched:
+        raise NotTradingDayError(
+            f"新浪行情日期均为历史日期，{target_date_str} 不是交易日"
+        )
     return spot_map
 
 
@@ -364,7 +387,12 @@ class KlineCache:
             spot_candidates = list(dict.fromkeys(spot_candidates + same_day_codes))
         if spot_candidates and update_live:
             print(f"[cache] 用新浪实时行情快速更新 {len(spot_candidates)} 只...")
-            spots = fetch_spot(spot_candidates, target_date_str)
+            try:
+                spots = fetch_spot(spot_candidates, target_date_str)
+            except NotTradingDayError as e:
+                # 目标日不是交易日，保留旧缓存，等下一个交易日再增量
+                print(f"[cache] {e}，跳过实时行情更新")
+                spots = {}
             updated = 0
             for code, row in spots.items():
                 df = cached_data[code]
@@ -384,21 +412,23 @@ class KlineCache:
         # 只补真正缺失的新股/缺股；对已经有缓存但今天没拉到的股票，保留旧缓存，避免全量回补卡住。
         if missing:
             print(f"[cache] 补齐 {len(missing)} 只新/缺失股票...")
-            fetched = fetch_klines_sina(missing, datalen=MAX_WINDOW_DAYS)
+            # 与 _init_full 相同下载长历史，才能正确计算窗口之前的 alltime 边界；
+            # 只拉 MAX_WINDOW_DAYS 行时无法判断历史是否被截断，会丢失边界误报“创历史新高”。
+            fetched = fetch_klines_sina(missing, datalen=COLD_START_DAYS)
             for code, df in fetched.items():
                 if df is None or df.empty:
                     continue
-                old_df = cached_data.get(code)
-                if old_df is not None and not old_df.empty:
-                    # 把即将被替换掉的旧窗口合并进 alltime 边界，避免历史极值丢失
-                    old_high = float(old_df["close"].max())
-                    old_low = float(old_df["close"].min())
-                    high_before[code] = max(high_before.get(code, old_high), old_high)
-                    low_before[code] = min(low_before.get(code, old_low), old_low)
-                cached_data[code] = df
-                if len(df) <= MAX_WINDOW_DAYS:
+                if len(df) > MAX_WINDOW_DAYS:
+                    before = df.iloc[:-MAX_WINDOW_DAYS]
+                    window = df.iloc[-MAX_WINDOW_DAYS:].copy()
+                    high_before[code] = float(before["close"].max())
+                    low_before[code] = float(before["close"].min())
+                else:
+                    window = df.copy()
+                    # 没有窗口之前的历史，清除可能残留的边界
                     high_before.pop(code, None)
                     low_before.pop(code, None)
+                cached_data[code] = window.reset_index(drop=True)
 
         skipped_stale = [c for c in stale if c not in spot_updated]
         if skipped_stale:

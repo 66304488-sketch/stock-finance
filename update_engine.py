@@ -21,8 +21,13 @@ import pandas as pd
 import numpy as np
 
 
+_ind_map_cache = {}
+
+
 def _load_ind_map(scheme="sw"):
-    """加载行业映射"""
+    """加载行业映射（进程内缓存，避免每次重复请求股票列表/读文件）"""
+    if scheme in _ind_map_cache:
+        return _ind_map_cache[scheme]
     active_codes = get_active_codes()
     if scheme == "ths":
         ths_path = resource_path("industry_map_ths.json")
@@ -33,13 +38,15 @@ def _load_ind_map(scheme="sw"):
             if c in ths_map: result[c] = ths_map[c]
             elif c in sw_map: result[c] = sw_map[c]
             else: result[c] = "其他"
-        return result
-    if scheme == "citic":
+    elif scheme == "citic":
         sw_map = load_industry_map(active_codes)
-        return {c: _citic_industry(None, sw_map.get(c)) or "其他" for c in active_codes}
-    if scheme == "sw3":
-        return _load_sw_detail_map(active_codes)
-    return load_industry_map(active_codes)
+        result = {c: _citic_industry(None, sw_map.get(c)) or "其他" for c in active_codes}
+    elif scheme == "sw3":
+        result = _load_sw_detail_map(active_codes)
+    else:
+        result = load_industry_map(active_codes)
+    _ind_map_cache[scheme] = result
+    return result
 
 
 def _close_data_ready(now=None):
@@ -266,7 +273,7 @@ def build_custom_heatmap_snapshot(window_days, scheme="sw", target_dates=None, n
 
 
 def update_highs_lows(target_dates=None, schemes=None, periods=None, directions=None,
-                      force_refresh=False, min_coverage=0.9):
+                      force_refresh=False, min_coverage=0.9, cache=None):
     """计算新高/新低，直接写入 SQLite。同时输出 SW + THS。"""
     target_dates = target_dates or _get_trade_dates(20)
     schemes = schemes or ["sw", "ths", "sw3"]
@@ -281,11 +288,22 @@ def update_highs_lows(target_dates=None, schemes=None, periods=None, directions=
     active_codes = get_active_codes()
     name_df = ak.stock_info_a_code_name()
     name_map = dict(zip(name_df["code"].astype(str).str.zfill(6), name_df["name"]))
+    try:
+        with open(data_path("stock_shares.json"), encoding="utf-8") as handle:
+            share_payload = json.load(handle)
+            shares = (
+                share_payload.get("total_shares") or {}
+                if isinstance(share_payload, dict)
+                and share_payload.get("version") == 3
+                else {}
+            )
+    except (OSError, json.JSONDecodeError):
+        shares = {}
 
     results = {"highs": {}, "lows": {}}
 
     # K-line data does not depend on the industry scheme. Load and validate it once.
-    cache = KlineCache(force_refresh=force_refresh)
+    cache = cache or KlineCache(force_refresh=force_refresh)
     all_data = cache.ensure_dates(active_codes, target_dates)
     coverage = _validate_date_coverage(all_data, active_codes, target_dates, min_coverage)
     covered = round(coverage * len(active_codes))
@@ -325,11 +343,16 @@ def update_highs_lows(target_dates=None, schemes=None, periods=None, directions=
                 for code, ind in industry_map.items():
                     ind_totals[ind] = ind_totals.get(ind, 0) + 1
 
-                # 确定主行业列表
+                # 确定主行业列表（与 legacy fetch_new_highs 一致，排除“综合”）
                 if scheme == "sw":
-                    main = list(dict.fromkeys(SW2021_INDUSTRY_MAP.values()))
+                    main = list(dict.fromkeys(
+                        ind for ind in SW2021_INDUSTRY_MAP.values() if ind != "综合"
+                    ))
                 else:
-                    main = sorted(set(industry_map.values()), key=lambda x: -ind_totals.get(x, 0))
+                    main = sorted(
+                        set(industry_map.values()) - {"综合"},
+                        key=lambda x: -ind_totals.get(x, 0),
+                    )
                 if ind_totals.get("其他", 0) and "其他" not in main:
                     main.append("其他")
 
@@ -360,12 +383,20 @@ def update_highs_lows(target_dates=None, schemes=None, periods=None, directions=
                 detail_records = []
                 for ds, stocks in daily_stocks.items():
                     for stock in stocks:
+                        share_count = shares.get(stock["code"])
+                        try:
+                            mcap = (
+                                round(float(stock["price"]) * int(share_count))
+                                if share_count else None
+                            )
+                        except (TypeError, ValueError):
+                            mcap = None
                         detail_records.append({
                             "date": ds, "direction": direction, "period": period,
                             "scheme": scheme, "industry": stock["industry"],
                             "code": stock["code"], "name": stock["name"],
                             "price": stock["price"], "change_pct": stock["change_pct"],
-                            "mcap": None,
+                            "mcap": mcap,
                         })
                 slices.append({
                     "records": records, "detail_records": detail_records,
@@ -382,7 +413,7 @@ def update_highs_lows(target_dates=None, schemes=None, periods=None, directions=
 
 # ==================== 资金流向计算 ====================
 
-def update_capital_flow(target_dates=None, schemes=None, min_coverage=0.9):
+def update_capital_flow(target_dates=None, schemes=None, min_coverage=0.9, cache=None):
     """计算资金流向，直接写入 SQLite"""
     target_dates = target_dates or _get_trade_dates(20)
     schemes = schemes or ["sw", "ths", "sw3"]
@@ -391,12 +422,14 @@ def update_capital_flow(target_dates=None, schemes=None, min_coverage=0.9):
 
     all_records = []
     dates_by_scheme = {}
+    cache = cache or KlineCache(force_refresh=False)
     for scheme in schemes:
         print(f"[{scheme}] 资金流向...")
         ind_map = _load_ind_map(scheme)
-        codes = [c for c in ind_map if c in ind_map]  # all mapped codes
+        # 全市场成交额不应随行业分类覆盖变化。未进入行业映射的 active 股票
+        # （如新股）仍需计入市场并暂归“其他”，否则全市场口径系统性偏小。
+        codes = list(get_active_codes())
 
-        cache = KlineCache(force_refresh=False)
         all_data = cache.ensure_dates(codes, target_dates)
         _validate_date_coverage(all_data, codes, target_dates, min_coverage)
 
@@ -406,24 +439,19 @@ def update_capital_flow(target_dates=None, schemes=None, min_coverage=0.9):
         ind_stocks = {}
 
         for code, df in all_data.items():
-            ind = ind_map.get(code)
-            if not ind or df is None or df.empty:
+            if df is None or df.empty:
                 continue
-            date_strs = df["date"].dt.strftime("%Y%m%d")
-            subset = df[date_strs.isin(target_set)]
-            if subset.empty:
-                continue
-
-            closes = {}
-            for _, row in df.iterrows():
-                closes[row["date"].strftime("%Y%m%d")] = float(row["close"])
-
-            for _, row in subset.iterrows():
-                ds = row["date"].strftime("%Y%m%d")
-                turnover = float(row["close"]) * float(row["volume"])
-                cur_close = float(row["close"])
-                prev_dates = sorted([d for d in closes if d < ds])
-                prev_close = closes.get(prev_dates[-1], 0) if prev_dates else 0
+            ind = ind_map.get(code) or "其他"
+            frame = df.sort_values("date").reset_index(drop=True)
+            date_strs = frame["date"].dt.strftime("%Y%m%d").to_numpy()
+            closes = frame["close"].astype(float).to_numpy()
+            volumes = frame["volume"].astype(float).to_numpy()
+            # 前收 = 同一股票按日期排序后的上一行收盘（平盘时净流为 0，与原逻辑一致）
+            for idx in np.nonzero(np.isin(date_strs, list(target_set)))[0]:
+                ds = date_strs[idx]
+                cur_close = float(closes[idx])
+                turnover = cur_close * float(volumes[idx])
+                prev_close = float(closes[idx - 1]) if idx > 0 else 0
                 net = turnover if (prev_close and prev_close > 0 and cur_close > prev_close) else \
                       (-turnover if prev_close and cur_close < prev_close else 0)
 
@@ -549,6 +577,7 @@ def _load_share_snapshot(codes, as_of_date=None):
             circulating_shares = {}
 
     refreshed = 0
+    failed_batches = 0
     for i in range(0, len(codes), 100):
         batch = codes[i:i+100]
         codes_str = ",".join(f"{'sh' if c.startswith(('6','9')) else 'sz'}{c}" for c in batch)
@@ -573,7 +602,15 @@ def _load_share_snapshot(codes, as_of_date=None):
                                     circulating)
                         except (TypeError, ValueError):
                             pass
-        except Exception: pass
+        except Exception as exc:
+            failed_batches += 1
+            print(f"[shares] 腾讯股本批次 {i // 100 + 1} 拉取失败: {exc}")
+    total_batches = (len(codes) + 99) // 100
+    if failed_batches:
+        print(
+            f"[shares] 警告: {failed_batches}/{total_batches} 个股本批次拉取失败，"
+            "股本快照可能不完整"
+        )
     if refreshed:
         payload = {
             "version": 3,
@@ -592,27 +629,35 @@ def _load_share_snapshot(codes, as_of_date=None):
         os.replace(tmp, shares_file)
         updated_at = payload["updated_at"]
     snapshot_time = _snapshot_datetime(updated_at)
+    stale = (
+        not updated_at
+        or (
+            bool(as_of_date)
+            and (
+                snapshot_time is None
+                or snapshot_time.strftime("%Y%m%d")
+                < str(as_of_date)
+            )
+        )
+    )
+    if stale:
+        print(
+            f"[shares] 警告: 股本快照过期 "
+            f"(updated_at={updated_at or '无'}, as_of={as_of_date or '无'}, "
+            f"失败批次={failed_batches})，市值数据可能不准确"
+        )
     return {
         "version": 3,
         "updated_at": updated_at,
         "total_shares": total_shares,
         "circulating_shares": circulating_shares,
         "legacy_invalid": not bool(total_shares),
+        "failed_batches": failed_batches,
         "snapshot_asof": (
             snapshot_time.strftime("%Y%m%d")
             if snapshot_time else None
         ),
-        "stale": (
-            not updated_at
-            or (
-                bool(as_of_date)
-                and (
-                    snapshot_time is None
-                    or snapshot_time.strftime("%Y%m%d")
-                    < str(as_of_date)
-                )
-            )
-        ),
+        "stale": stale,
     }
 
 
@@ -706,6 +751,7 @@ def update_market_cap(
     schemes=None,
     min_coverage=0.9,
     share_min_coverage=MIN_TOTAL_SHARE_COVERAGE,
+    cache=None,
 ):
     """计算行业市值，直接写入 SQLite。
 
@@ -728,6 +774,12 @@ def update_market_cap(
     active_codes = get_active_codes()
     current_share_snapshot = _load_share_snapshot(
         active_codes, as_of_date=target_dates[-1])
+    if current_share_snapshot.get("stale"):
+        print(
+            f"[shares] 警告: 股本快照过期 "
+            f"(snapshot_asof={current_share_snapshot.get('snapshot_asof')}, "
+            f"估值日={target_dates[-1]})，市值数据可能不准确"
+        )
     current_shares = current_share_snapshot["total_shares"]
     current_circulating_shares = current_share_snapshot[
         "circulating_shares"]
@@ -769,6 +821,7 @@ def update_market_cap(
     all_records = []
     all_details = []
     dates_by_scheme = {}
+    cache = cache or KlineCache(force_refresh=False)
     for scheme in schemes:
         print(f"[{scheme}] 市值...")
         ind_map = _load_ind_map(scheme)
@@ -776,7 +829,6 @@ def update_market_cap(
         # 仍需计入市场并暂归“其他”，否则三套分类的总市值会不一致。
         codes = list(active_codes)
 
-        cache = KlineCache(force_refresh=False)
         all_data = cache.ensure_dates(codes, target_dates)
         _validate_date_coverage(all_data, codes, target_dates, min_coverage)
         _validate_total_share_coverage(
@@ -894,25 +946,43 @@ def update_market_cap(
 # ==================== 一键更新 ====================
 
 def run_all(datasets=None, days=20, force_refresh=False):
-    """运行全部更新并导出 JSON"""
+    """运行全部更新并导出 JSON。单个数据集失败不阻断其他数据集与导出。"""
     datasets = datasets or ["highs", "lows", "capital_flow", "market_cap", "etf", "temperature"]
     target_dates = _get_trade_dates(max(days, 20))
     print(f"目标日期: {len(target_dates)}天 ({target_dates[0]} ~ {target_dates[-1]})")
 
     t0 = time.time()
+    status = {}
+    # 共享一个 KlineCache 实例，避免每个数据集重复 pickle.load 整个缓存
+    cache = KlineCache(force_refresh=force_refresh)
 
     if "highs" in datasets or "lows" in datasets:
-        result = update_highs_lows(target_dates, force_refresh=force_refresh)
-        record_count = sum(sum(group.values()) for key, group in result.items() if key in ("highs", "lows"))
-        print(f"新高/新低完成: {record_count} 条")
+        try:
+            result = update_highs_lows(target_dates, force_refresh=force_refresh, cache=cache)
+            record_count = sum(sum(group.values()) for key, group in result.items() if key in ("highs", "lows"))
+            print(f"新高/新低完成: {record_count} 条")
+            status["highs_lows"] = "ok"
+        except Exception as e:
+            status["highs_lows"] = f"failed: {e}"
+            print(f"新高/新低失败: {e}")
 
     if "capital_flow" in datasets:
-        update_capital_flow(target_dates)
-        print("资金流完成")
+        try:
+            update_capital_flow(target_dates, cache=cache)
+            print("资金流完成")
+            status["capital_flow"] = "ok"
+        except Exception as e:
+            status["capital_flow"] = f"failed: {e}"
+            print(f"资金流失败: {e}")
 
     if "market_cap" in datasets:
-        update_market_cap(target_dates)
-        print("市值完成")
+        try:
+            update_market_cap(target_dates, cache=cache)
+            print("市值完成")
+            status["market_cap"] = "ok"
+        except Exception as e:
+            status["market_cap"] = f"failed: {e}"
+            print(f"市值失败: {e}")
 
     if "etf" in datasets:
         try:
@@ -958,10 +1028,20 @@ def run_all(datasets=None, days=20, force_refresh=False):
         except Exception as e:
             print(f"动量ETF同步失败(不影响主流程): {e}")
 
-    # 导出 JSON
-    from export_json import export_all
-    export_all()
+    # 导出 JSON：即使部分数据集失败，也把已成功写入 SQLite 的数据导出，
+    # 避免 SQLite 与 JSON 长期脱钩
+    try:
+        from export_json import export_all
+        export_all()
+        status["export"] = "ok"
+    except Exception as e:
+        status["export"] = f"failed: {e}"
+        print(f"JSON 导出失败: {e}")
+    failed = {k: v for k, v in status.items() if v != "ok"}
+    if failed:
+        print(f"\n⚠️ 部分步骤失败: {failed}")
     print(f"\n✅ 全部完成 ({time.time()-t0:.1f}s)")
+    return status
 
 
 if __name__ == "__main__":

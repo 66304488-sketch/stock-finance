@@ -9,9 +9,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getBaseUrl: () => "http://localhost:8001",
 
   /** 监听数据更新完成事件 */
-  onDataUpdated: (callback: () => void) => {
-    ipcRenderer.on("data-updated", callback);
-    return () => ipcRenderer.removeListener("data-updated", callback);
+  onDataUpdated: (callback: (payload?: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
+    ipcRenderer.on("data-updated", listener);
+    return () => ipcRenderer.removeListener("data-updated", listener);
   },
 
   /** 获取 app 版本 */

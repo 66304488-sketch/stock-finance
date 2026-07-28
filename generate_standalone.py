@@ -23,6 +23,14 @@ DATA_PREFIXES = (
     "new_highs_details",
     "new_lows_details",
 )
+# 明细弹窗的辅助数据：多周期新高/新低计数与市盈率。
+# 不分分类/窗口，各自单文件内嵌（合计约 170KB，体积可接受），
+# 否则独立版弹窗中多周期计数与 PE 列恒为 0 且无任何提示。
+EXTRA_FILES = (
+    "highs_period_counts.json",
+    "lows_period_counts.json",
+    "stock_pe.json",
+)
 
 
 def _read_json(filename: str) -> Any:
@@ -35,8 +43,11 @@ def _read_json(filename: str) -> Any:
 
 
 def _json_for_script(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace(
-        "</", "<\\/"
+    # 内嵌进 <script> 的 JSON 不能出现 "</"（提前闭合脚本）或 "<!--"（进入注释状态）
+    return (
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        .replace("</", "<\\/")
+        .replace("<!--", "<\\!--")
     )
 
 
@@ -63,6 +74,10 @@ def _embedded_payloads() -> tuple[dict[str, Any], dict[str, Any]]:
         flow = _read_json(flow_name)
         if flow is not None:
             assets[f"/{flow_name}"] = flow
+    for filename in EXTRA_FILES:
+        payload = _read_json(filename)
+        if payload is not None:
+            assets[f"/{filename}"] = payload
     return assets, opportunities
 
 
@@ -70,6 +85,7 @@ def _fetch_adapter(assets: dict[str, Any], opportunities: dict[str, Any]) -> str
     return """
 <script>
 // === 独立收盘快照：内嵌数据与只读请求适配器 ===
+window.STANDALONE_MODE = true;
 var STANDALONE_ASSETS = %s;
 var STANDALONE_OPPORTUNITIES = %s;
 function standaloneResponse(payload, status) {
@@ -108,6 +124,14 @@ window.fetch = function(input) {
 """ % (_json_for_script(assets), _json_for_script(opportunities))
 
 
+def _replace_required(html: str, old: str, new: str, count: int = -1) -> str:
+    """精确替换并要求命中；模板文案变化导致未命中时直接报错退出，
+    避免静默生成出与预期不符的独立版。"""
+    if old not in html:
+        raise SystemExit(f"模板替换未命中，请检查 industry-heatmap.html 是否已改动: {old!r}")
+    return html.replace(old, new, count)
+
+
 def main() -> None:
     template_path = os.path.join(RESOURCE_STATIC_DIR, "industry-heatmap.html")
     with open(template_path, encoding="utf-8") as handle:
@@ -115,26 +139,33 @@ def main() -> None:
     guide_path = os.path.join(RESOURCE_STATIC_DIR, "page-guide.js")
     with open(guide_path, encoding="utf-8") as handle:
         guide_script = handle.read()
-    html = html.replace(
+    html = _replace_required(
+        html,
         '<script src="/page-guide.js" defer></script>',
         "<script>\n" + guide_script + "\n</script>",
     )
 
     assets, opportunities = _embedded_payloads()
-    html = html.replace("</head>", _fetch_adapter(assets, opportunities) + "\n</head>", 1)
-    html = html.replace(
+    html = _replace_required(
+        html, "</head>", _fetch_adapter(assets, opportunities) + "\n</head>", 1
+    )
+    html = _replace_required(
+        html,
         '<button class="toggle-btn active" data-mode="auto">自动</button>',
         '<button class="toggle-btn active" data-mode="auto">独立收盘快照</button>',
     )
-    html = html.replace(
+    html = _replace_required(
+        html,
         '<button class="toggle-btn" data-mode="intraday">📡 盘中实时</button>',
         "",
     )
-    html = html.replace(
+    html = _replace_required(
+        html,
         '<button class="toggle-btn" data-type="custom">自定义</button>',
         "",
     )
-    html = html.replace(
+    html = _replace_required(
+        html,
         '<label class="custom-window-control" title="自定义回看交易日，范围5至250日">',
         '<label class="custom-window-control" style="display:none" '
         'title="独立版不提供自定义窗口">',

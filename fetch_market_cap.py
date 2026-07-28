@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import re
+import tempfile
 import time
 import warnings
 
@@ -29,6 +30,25 @@ warnings.filterwarnings("ignore")
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 SHARES_FILE = os.path.join(STATIC, "stock_shares.json")
 MAX_DATES = 20
+
+
+def _atomic_json_dump(data, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        with open(tmp, "r", encoding="utf-8") as f:
+            json.load(f)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def parse_args():
@@ -114,11 +134,7 @@ def load_shares(codes):
                     payload["total_shares"] = existing_total
                     payload["circulating_shares"] = existing_circulating
                     payload["updated_at"] = refreshed["updated_at"]
-                    json.dump(
-                        payload,
-                        open(SHARES_FILE, "w", encoding="utf-8"),
-                        ensure_ascii=False,
-                    )
+                    _atomic_json_dump(payload, SHARES_FILE)
                 return existing_total
             # Legacy plain/v2 cache came from field72 and is invalid for total
             # market cap; fall through to a complete field73 refresh.
@@ -126,11 +142,7 @@ def load_shares(codes):
             pass
     print(f"[shares] 首次获取 {len(codes)} 只股本...")
     payload = fetch_share_snapshot(codes)
-    json.dump(
-        payload,
-        open(SHARES_FILE, "w", encoding="utf-8"),
-        ensure_ascii=False,
-    )
+    _atomic_json_dump(payload, SHARES_FILE)
     return payload["total_shares"]
 
 
@@ -198,7 +210,6 @@ def aggregate_dates(target_dates, shares, force_refresh=False, scheme="sw"):
     print(f"  完成: {len(all_data)} 只 ({time.time()-t0:.1f}s)")
 
     print("[3/4] 计算个股市值并聚合行业...")
-    target_set = set(target_dates)
     # 行业汇总 + 个股明细
     ind_by_date = {}        # {industry: {date: total_mcap}}
     ind_stocks = {}         # {industry_date: [{code,name,mcap,chg}]}
@@ -208,18 +219,23 @@ def aggregate_dates(target_dates, shares, force_refresh=False, scheme="sw"):
         sh = shares.get(code)
         if not ind or df is None or df.empty or not sh:
             continue
-        date_strs = df["date"].dt.strftime("%Y%m%d")
-        subset = df[date_strs.isin(target_set)]
-        if subset.empty:
+        # 估值日前最后收盘价前向承接：停牌日无 K 线时沿用最近收盘价，
+        # 避免停牌日个股缺席导致行业市值假性缩水（参照 update_engine）
+        frame = df.sort_values("date").reset_index(drop=True)
+        asof_closes = {}
+        for ds in target_dates:
+            position = frame["date"].searchsorted(pd.Timestamp(ds), side="right") - 1
+            if position < 0:
+                continue  # 该估值日尚未上市
+            asof_closes[ds] = float(frame.iloc[position]["close"])
+        if not asof_closes:
             continue
         # 构建 close 映射用于计算 change_pct
         close_map = {}
-        for _, r2 in df.iterrows():
+        for _, r2 in frame.iterrows():
             close_map[r2["date"].strftime("%Y%m%d")] = float(r2["close"])
-        for _, row in subset.iterrows():
-            date_str = row["date"].strftime("%Y%m%d")
-            mcap = row["close"] * sh
-            close_val = float(row["close"])
+        for date_str, close_val in asof_closes.items():
+            mcap = close_val * sh
             # 计算当日涨跌幅：从 close_map 中找前一交易日收盘价
             prev_dates = sorted([d for d in close_map.keys() if d < date_str])
             prev_close = close_map.get(prev_dates[-1]) if prev_dates else 0
@@ -388,19 +404,24 @@ def main():
     output = partial if should_rebuild else merge_industry(existing, partial)
 
     # Attach latest date stock details
-    latest_key = compute[-1]
+    # latest_key 取合并后全序列的实际最大日期；若最新日来自 existing
+    # （本次只补中间缺失日），stocks 明细从该行的 stocks_by_date 取
+    merged_keys = sorted(existing_date_keys(output))
+    latest_key = merged_keys[-1] if merged_keys else compute[-1]
+    latest_label = format_date_short(latest_key)
     for row in output.get("industries", []):
         if row.get("is_total"):
             continue
         key = f"{row['industry']}|{latest_key}"
         stocks = ind_stocks.get(key, [])
+        if not stocks:
+            stocks = list(row.get("stocks_by_date", {}).get(latest_label, []))
         stocks.sort(key=lambda x: -x["mcap"])
         # Add name from spot cache if available
         # For now keep code+mcap
         row["stocks"] = stocks[:50]  # top 50 per industry
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+    _atomic_json_dump(output, out_path)
 
     print(f"\n[4/4] 已保存: {out_path}")
     print(f"\n全市场总市值: {output.get('total_mcap', 0)/1e8:.0f} 亿")

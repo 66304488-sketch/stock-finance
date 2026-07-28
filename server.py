@@ -11,10 +11,12 @@ import math
 import os
 import logging
 import re
+import secrets
 import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 import uvicorn
@@ -110,7 +112,7 @@ async def fetch_quote(code: str) -> dict:
             # 提取 ~ 分隔的值
             m = re.search(r'"(.+)"', raw)
             if not m:
-                return {}
+                raise RuntimeError("行情响应格式异常")
             parts = m.group(1).split("~")
 
         def _f(i):
@@ -164,7 +166,7 @@ async def fetch_quote(code: str) -> dict:
         }
     except Exception as e:
         logger.error("fetch_quote(%s): %s", code, e)
-        return {}
+        raise
 
 
 # ======================================================================
@@ -239,6 +241,7 @@ async def fetch_kline_sina(code: str, limit: int = 300) -> list[dict]:
                 ]
     except Exception as e:
         logger.error("fetch_kline_sina(%s): %s", code, e)
+        raise
     return []
 
 
@@ -387,7 +390,7 @@ async def fetch_shareholders(code: str) -> dict:
             return {}
     except Exception as e:
         logger.error("fetch_shareholders(%s): %s", code, e)
-        return {}
+        raise
 
 
 # ======================================================================
@@ -441,13 +444,28 @@ async def get_stock_all(code: str):
     if not code or not code.isdigit():
         raise HTTPException(400, "请输入6位股票代码")
 
-    quote, fin, sh, fc, tech = await asyncio.gather(
+    upstream_names = ["quote", "financials", "shareholders", "forecast", "technicals"]
+    results = await asyncio.gather(
         fetch_quote(code),
         fetch_financials(code),
         fetch_shareholders(code),
         fetch_forecast(code),
         calc_technicals(code),
+        return_exceptions=True,
     )
+    errors = []
+    values = []
+    for name, result in zip(upstream_names, results):
+        if isinstance(result, Exception):
+            logger.error("%s 上游失败(%s): %s", name, code, result)
+            errors.append(name)
+            values.append(
+                dict(indicators=[], income=[], balance=[], cashflow=[])
+                if name == "financials" else {}
+            )
+        else:
+            values.append(result)
+    quote, fin, sh, fc, tech = values
     dupont = calc_dupont(fin)
     return {
         "code": code,
@@ -457,6 +475,7 @@ async def get_stock_all(code: str):
         "shareholders": sh,
         "forecast": fc,
         "technicals": tech,
+        "errors": errors,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -473,6 +492,9 @@ async def health():
 CONFIG_DIR = USER_DATA_DIR
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
+# 保护 config.json / update_manifest.json 的写，避免 pipeline 线程与 HTTP 处理并发互踩
+_state_file_lock = threading.Lock()
+
 
 def _load_config():
     if os.path.exists(CONFIG_FILE):
@@ -487,26 +509,72 @@ def _load_config():
 
 def _save_config(cfg):
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    fd, temporary = __import__("tempfile").mkstemp(prefix=".config-", dir=CONFIG_DIR)
-    try:
-        os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(temporary, CONFIG_FILE)
-        os.chmod(CONFIG_FILE, 0o600)
-    finally:
-        if os.path.exists(temporary):
-            os.remove(temporary)
+    with _state_file_lock:
+        fd, temporary = __import__("tempfile").mkstemp(prefix=".config-", dir=CONFIG_DIR)
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temporary, CONFIG_FILE)
+            os.chmod(CONFIG_FILE, 0o600)
+        finally:
+            if os.path.exists(temporary):
+                os.remove(temporary)
+
+
+# 本机客户端令牌：破坏性接口（清空/还原/改备份目录）必须在 X-SF-Token 头中携带。
+# 仅监听 127.0.0.1 且 CORS 限定 localhost，因此 GET /api/client-token 只会发给本机前端。
+_CLIENT_TOKEN = secrets.token_hex(16)
+
+
+@app.get("/api/client-token")
+async def client_token():
+    """返回本实例的客户端令牌，供前端在破坏性请求头 X-SF-Token 中携带。"""
+    return {"token": _CLIENT_TOKEN}
+
+
+def _require_client_token(request: Request):
+    if request.headers.get("x-sf-token") != _CLIENT_TOKEN:
+        raise HTTPException(403, "缺少或无效的 X-SF-Token 头")
+
+
+_PROVIDER_ENV_VARS = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
+
+def _resolve_api_key(cfg: dict, provider: str) -> str:
+    """按 provider 取密钥，绝不把 A 服务商的 key 发给 B 服务商。
+
+    优先级：对应服务商的环境变量 → cfg["api_keys"][provider]
+    → 向后兼容旧的单一 cfg["api_key"]（仅当它属于当前 provider）。
+    """
+    env_var = _PROVIDER_ENV_VARS.get(provider)
+    if env_var:
+        key = os.environ.get(env_var)
+        if key:
+            return key
+    key = (cfg.get("api_keys") or {}).get(provider)
+    if key:
+        return key
+    if provider == cfg.get("ai_provider", "anthropic"):
+        return cfg.get("api_key", "") or ""
+    return ""
 
 
 @app.get("/api/settings")
 async def settings_get():
     cfg = _load_config()
+    provider = cfg.get("ai_provider", "anthropic")
     return {
-        "ai_provider": cfg.get("ai_provider", "anthropic"),
-        "api_key_configured": bool(cfg.get("api_key")),
+        "ai_provider": provider,
+        "api_key_configured": bool(
+            cfg.get("api_key") or (cfg.get("api_keys") or {}).get(provider)
+        ),
         "mcp_enabled": bool(cfg.get("mcp_enabled", False)),
         "mcp_servers": sanitize_mcp_servers(cfg.get("mcp_servers") or []),
     }
@@ -521,7 +589,8 @@ async def settings_save(req: dict):
     cfg = _load_config()
     cfg["ai_provider"] = provider
     if key and key != MCP_TOKEN_MASK:
-        cfg["api_key"] = key
+        cfg.setdefault("api_keys", {})[provider] = key
+        cfg["api_key"] = key  # 兼容旧读取方：始终镜像当前 provider 的 key
     if "mcp_enabled" in req:
         cfg["mcp_enabled"] = bool(req.get("mcp_enabled"))
     if "mcp_servers" in req:
@@ -600,8 +669,16 @@ def _latest_trade_date_from_file(filename):
     return _normalize_date_label(dates[0].get("full_label", "")) if dates else None
 
 
+_SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
+
+
+def _now_shanghai():
+    """交易时段判断统一用 Asia/Shanghai，与 Electron 调度器一致。"""
+    return datetime.now(_SHANGHAI_TZ)
+
+
 def _session_phase(now=None):
-    now = now or datetime.now()
+    now = now or _now_shanghai()
     if now.weekday() >= 5:
         return "closed"
     minutes = now.hour * 60 + now.minute
@@ -617,7 +694,7 @@ def _session_phase(now=None):
 
 
 def _is_continuous_trading(now=None):
-    now = now or datetime.now()
+    now = now or _now_shanghai()
     if now.weekday() >= 5:
         return False
     minutes = now.hour * 60 + now.minute
@@ -637,30 +714,40 @@ def _intraday_paths(window, scheme):
     )
 
 
-def _run_intraday_scan(windows, schemes):
-    from scan_intraday import run_scan
+def _try_begin_intraday_scan():
+    """锁内 check-and-set：同一时刻只有一个调用方能启动盘中扫描。"""
     with _intraday_lock:
+        if _intraday_status["running"]:
+            return False
         _intraday_status.update({
             "running": True, "success": None, "error": None,
             "started_at": datetime.now().isoformat(timespec="seconds"),
             "finished_at": None,
         })
-        try:
-            result = run_scan(windows=windows, schemes=schemes, output_dir=DATA_DIR)
-            _intraday_status.update({
-                "running": False, "success": True, "error": None,
-                "finished_at": datetime.now().isoformat(timespec="seconds"),
-                "scan_time": result.get("scan_time"),
-                "coverage": result.get("coverage"),
-            })
-            return result
-        except Exception as exc:
-            logger.exception("盘中扫描失败")
+        return True
+
+
+def _run_intraday_scan(windows, schemes):
+    """执行盘中扫描。调用前必须先通过 _try_begin_intraday_scan 占位。"""
+    from scan_intraday import run_scan
+    try:
+        result = run_scan(windows=windows, schemes=schemes, output_dir=DATA_DIR)
+    except Exception as exc:
+        logger.exception("盘中扫描失败")
+        with _intraday_lock:
             _intraday_status.update({
                 "running": False, "success": False, "error": str(exc),
                 "finished_at": datetime.now().isoformat(timespec="seconds"),
             })
-            raise
+        raise
+    with _intraday_lock:
+        _intraday_status.update({
+            "running": False, "success": True, "error": None,
+            "finished_at": datetime.now().isoformat(timespec="seconds"),
+            "scan_time": result.get("scan_time"),
+            "coverage": result.get("coverage"),
+        })
+    return result
 
 
 def _parse_intraday_request(req):
@@ -674,7 +761,7 @@ def _parse_intraday_request(req):
         windows = [parse_window(raw)]
     scheme = req.get("scheme", "all")
     if scheme not in ("sw", "ths", "sw3", "citic", "all"):
-        raise ValueError("scheme must be sw, ths, sw3 or all")
+        raise ValueError("scheme must be sw, ths, sw3, citic or all")
     schemes = ["sw", "ths", "sw3"] if scheme == "all" else [scheme]
     return windows, schemes
 
@@ -687,12 +774,9 @@ async def intraday_scan(req: dict = None):
         windows, schemes = _parse_intraday_request(req)
     except (TypeError, ValueError) as exc:
         raise HTTPException(400, str(exc))
-    if _intraday_status["running"] or _intraday_lock.locked():
-        return {"status": "already_running", **_intraday_status}
-    _intraday_status.update({
-        "running": True, "success": None, "error": None,
-        "started_at": datetime.now().isoformat(timespec="seconds"),
-    })
+    if not _try_begin_intraday_scan():
+        with _intraday_lock:
+            return {"status": "already_running", **_intraday_status}
 
     def runner():
         try:
@@ -711,7 +795,7 @@ async def intraday_scan_status():
 
 @app.get("/api/market-session")
 async def market_session():
-    now = datetime.now()
+    now = _now_shanghai()
     today = now.strftime("%Y%m%d")
     phase = _session_phase(now)
     daily_latest = _latest_trade_date_from_file("new_highs_data_month.json")
@@ -1073,19 +1157,15 @@ async def intraday_snapshot(window: int = 20, scheme: str = "sw", refresh: bool 
     except (TypeError, ValueError) as exc:
         raise HTTPException(400, str(exc))
     if scheme not in ("sw", "ths", "sw3", "citic"):
-        raise HTTPException(400, "scheme must be sw, ths or sw3")
+        raise HTTPException(400, "scheme must be sw, ths, sw3 or citic")
     high_path, low_path = _intraday_paths(window, scheme)
     existing = os.path.exists(high_path) and os.path.exists(low_path)
     newest_mtime = min(os.path.getmtime(high_path), os.path.getmtime(low_path)) if existing else 0
     stale = time.time() - newest_mtime > 75
     should_refresh = refresh and _session_phase() == "trading" and (stale or not existing)
     refresh_error = None
-    if should_refresh and not _intraday_status["running"] and not _intraday_lock.locked():
+    if should_refresh and _try_begin_intraday_scan():
         if existing:
-            _intraday_status.update({
-                "running": True, "success": None, "error": None,
-                "started_at": datetime.now().isoformat(timespec="seconds"),
-            })
             def refresh_in_background():
                 try:
                     _run_intraday_scan([window], [scheme])
@@ -1184,7 +1264,7 @@ async def custom_heatmap(window: int = 20, scheme: str = "sw"):
     if not 5 <= window <= 250:
         raise HTTPException(400, "window must be between 5 and 250")
     if scheme not in ("sw", "ths", "sw3", "citic"):
-        raise HTTPException(400, "scheme must be sw, ths or sw3")
+        raise HTTPException(400, "scheme must be sw, ths, sw3 or citic")
     latest = _latest_trade_date_from_file("new_highs_data_month.json") or "unknown"
     key = (window, scheme, latest)
     cached = _custom_snapshot_cache.get(key)
@@ -1219,6 +1299,7 @@ _refresh_status = {
     "error": None,
     "progress": None,
     "steps": [],
+    "warnings": [],
 }
 _refresh_lock = threading.Lock()
 
@@ -1317,11 +1398,12 @@ def _load_update_manifest():
 
 def _save_update_manifest(manifest):
     os.makedirs(data_dir, exist_ok=True)
-    manifest["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    tmp = _manifest_path() + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, _manifest_path())
+    with _state_file_lock:
+        manifest["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        tmp = _manifest_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, _manifest_path())
 
 
 def _append_update_history(event):
@@ -1772,6 +1854,7 @@ async def refresh_data(req: dict = None):
             "error": None,
             "progress": None,
             "steps": [],
+            "warnings": [],
         })
 
     def run_pipeline():
@@ -1780,6 +1863,8 @@ async def refresh_data(req: dict = None):
         frozen = cfg.setdefault("frozen", {})
         sources = cfg.setdefault("sources", {})
         steps = []
+        failures = []
+        warnings = []
         try:
             date_args = _get_trade_date_args(days)
             types = ["month", "60d", "120d", "1year", "alltime"]
@@ -1870,9 +1955,12 @@ async def refresh_data(req: dict = None):
                     steps.append({"dataset": dataset, "label": label, "status": "failed", "error": err})
                     if dataset == "etf":
                         # ETF 推荐依赖外部行情接口，失败不阻断主流程
+                        warnings.append(f"{label} 失败: {err}")
                         continue
-                    _set_refresh_status(error=f"{label} 失败: {err}", success=False, running=False, steps=steps)
-                    return
+                    # 单数据集失败不中断流水线：记录后继续，最后仍导出 JSON，
+                    # 避免 SQLite 已更新而前端 JSON 永远停在旧数据。
+                    failures.append(f"{label}: {err}")
+                    continue
 
             # 导出 JSON 供前端读取
             _set_refresh_status(current_step="发布前端数据...")
@@ -1908,10 +1996,22 @@ async def refresh_data(req: dict = None):
                     _update_dataset_success(manifest, "ai", "local_metrics", date_args, mode, note="随收盘数据自动重建")
                     steps.append({"dataset": "ai", "label": "每日市场简报", "status": "success"})
                 else:
-                    raise RuntimeError(f"每日市场简报失败: {err}")
-            _set_refresh_status(success=True, current_step="完成", running=False, steps=steps)
+                    # 简报失败降级为 warning，不影响数据更新本身的成功状态
+                    logger.warning("每日市场简报失败(降级为警告): %s", err)
+                    warnings.append(f"每日市场简报失败: {err}")
+                    steps.append({"dataset": "ai", "label": "每日市场简报", "status": "warning", "error": err})
+            if failures:
+                _set_refresh_status(
+                    success=False, running=False, steps=steps, warnings=warnings,
+                    current_step="完成(部分数据集失败)",
+                    error="部分数据集失败: " + "; ".join(failures),
+                )
+            else:
+                _set_refresh_status(success=True, current_step="完成", running=False,
+                                    steps=steps, warnings=warnings)
         except Exception as e:
-            _set_refresh_status(error=f"流水线异常: {str(e)}", success=False, running=False, steps=steps)
+            _set_refresh_status(error=f"流水线异常: {str(e)}", success=False,
+                                running=False, steps=steps, warnings=warnings)
         finally:
             _invalidate_missing_info_cache()
 
@@ -1935,6 +2035,7 @@ async def refresh_data_status():
         "error": r.get("error"),
         "progress": r.get("progress"),
         "steps": r.get("steps", []),
+        "warnings": r.get("warnings", []),
         "manifest": _load_update_manifest(),
         "missing": missing,
         "message": "数据更新完成" if r["success"] else (r.get("error") or ""),
@@ -2039,6 +2140,18 @@ def _backup_data_sync():
         raise
 
 
+def _reset_db_safely():
+    """关闭并丢弃全局 DB 连接；若 db 实例带实例锁则在锁内执行。"""
+    import db as _db_module
+    instance = getattr(_db_module, "_db", None)
+    lock = getattr(instance, "lock", None) if instance is not None else None
+    if lock is None:
+        reset_db()
+    else:
+        with lock:
+            reset_db()
+
+
 def _restore_data_sync():
     import shutil
     backup_dir = _latest_backup_snapshot()
@@ -2049,7 +2162,7 @@ def _restore_data_sync():
         if _is_backup_file(name) and os.path.isfile(os.path.join(backup_dir, name))
     ]
     if "data.db" in files:
-        reset_db()
+        _reset_db_safely()
     restored = []
     for name in files:
         source = os.path.join(backup_dir, name)
@@ -2068,7 +2181,7 @@ def _restore_data_sync():
 
 def _clear_data_sync():
     import glob
-    reset_db()
+    _reset_db_safely()
     deleted = []
     for pattern in DATA_GLOB + ["data.db", "data.db-wal", "data.db-shm"]:
         for path in glob.glob(os.path.join(data_dir, pattern)):
@@ -2093,8 +2206,9 @@ async def backup_settings():
 
 
 @app.post("/api/backup/settings")
-async def backup_settings_save(req: dict):
+async def backup_settings_save(req: dict, request: Request):
     """保存备份目录"""
+    _require_client_token(request)
     path = (req or {}).get("backup_dir", "").strip()
     if not path:
         raise HTTPException(400, "路径不能为空")
@@ -2120,8 +2234,9 @@ async def backup_data():
 
 
 @app.post("/api/restore")
-async def restore_data():
+async def restore_data(request: Request):
     """从最近备份还原数据文件"""
+    _require_client_token(request)
     _ensure_data_idle()
     if not _latest_backup_snapshot():
         raise HTTPException(404, "没有找到可还原的备份快照")
@@ -2139,8 +2254,9 @@ async def restore_data():
 
 
 @app.post("/api/clear-data")
-async def clear_data():
+async def clear_data(request: Request):
     """清空所有数据文件（新高/新低/AI报告/K线缓存）"""
+    _require_client_token(request)
     _ensure_data_idle()
     deleted = await asyncio.to_thread(_clear_data_sync)
     _invalidate_missing_info_cache()
@@ -2174,7 +2290,7 @@ async def capital_flow(scheme: str = "sw"):
     """返回行业成交动能数据。scheme=sw(申万一级)/ths(同花顺细分)/sw3(申万三级)"""
     import json as _json
     if scheme not in ("sw", "ths", "sw3", "citic"):
-        raise HTTPException(400, "scheme must be sw, ths or sw3")
+        raise HTTPException(400, "scheme must be sw, ths, sw3 or citic")
     suffix = "" if scheme == "sw" else f"_{scheme}"
     candidates = (
         [f"capital_flow_v2{suffix}.json", f"capital_flow{suffix}.json"]
@@ -2202,7 +2318,7 @@ async def market_cap(scheme: str = "sw"):
     """返回行业市值变化数据。scheme=sw(申万一级)/ths(同花顺细分)/sw3(申万三级)"""
     import json as _json
     if scheme not in ("sw", "ths", "sw3", "citic"):
-        raise HTTPException(400, "scheme must be sw, ths or sw3")
+        raise HTTPException(400, "scheme must be sw, ths, sw3 or citic")
     suffix = "" if scheme == "sw" else f"_{scheme}"
     candidates = (
         [f"market_cap_v2{suffix}.json", f"market_cap{suffix}.json"]
@@ -2228,30 +2344,8 @@ async def market_cap(scheme: str = "sw"):
 # 大盘冷热(市场温度)端点
 # ======================================================================
 
-@app.get("/api/market-temperature")
-async def market_temperature():
-    """历史日度温度(market_temperature.json) + 盘中实时温度(intraday_temperature.json)"""
-    import json as _json
-    history = None
-    hist_path = os.path.join(data_dir, "market_temperature.json")
-    if os.path.exists(hist_path):
-        with open(hist_path, "r", encoding="utf-8") as f:
-            history = _json.load(f)
-    if not history or not history.get("rows"):
-        raise HTTPException(404, "市场温度数据尚未生成，请先运行数据更新")
-    # 交易时段内盘中温度过期(>75s)则后台触发一次盘中扫描(复用现有锁,scan 会顺带重建温度)
-    intraday_path = os.path.join(data_dir, "intraday_temperature.json")
-    stale = not os.path.exists(intraday_path) or time.time() - os.path.getmtime(intraday_path) > 75
-    if stale and _session_phase() == "trading" and not _intraday_status["running"] and not _intraday_lock.locked():
-        def refresh_temperature_in_background():
-            try:
-                _run_intraday_scan([20, 60, 120, 250], ["sw", "ths", "sw3"])
-            except Exception:
-                pass
-        threading.Thread(target=refresh_temperature_in_background, daemon=True).start()
-    intraday = _json_file("intraday_temperature.json", None)
-    intraday_history = _json_file("intraday_temperature_history.json", None)
-    from market_temperature import DAILY_WEIGHTS, INTRADAY_WEIGHTS, INDEX_SYMBOLS
+def _market_temperature_quality(history):
+    """读取温度数据源时间戳（含阻塞 SQLite 读，须放到工作线程执行）。"""
     quality = {"source_dates": {}}
     try:
         db = get_db()
@@ -2275,6 +2369,34 @@ async def market_temperature():
         quality["history_updated_at"] = actual_updated
     except Exception as exc:
         logger.warning("市场强度质量信息读取失败: %s", exc)
+    return quality
+
+
+@app.get("/api/market-temperature")
+async def market_temperature():
+    """历史日度温度(market_temperature.json) + 盘中实时温度(intraday_temperature.json)"""
+    import json as _json
+    history = None
+    hist_path = os.path.join(data_dir, "market_temperature.json")
+    if os.path.exists(hist_path):
+        with open(hist_path, "r", encoding="utf-8") as f:
+            history = _json.load(f)
+    if not history or not history.get("rows"):
+        raise HTTPException(404, "市场温度数据尚未生成，请先运行数据更新")
+    # 交易时段内盘中温度过期(>75s)则后台触发一次盘中扫描(复用现有锁,scan 会顺带重建温度)
+    intraday_path = os.path.join(data_dir, "intraday_temperature.json")
+    stale = not os.path.exists(intraday_path) or time.time() - os.path.getmtime(intraday_path) > 75
+    if stale and _session_phase() == "trading" and _try_begin_intraday_scan():
+        def refresh_temperature_in_background():
+            try:
+                _run_intraday_scan([20, 60, 120, 250], ["sw", "ths", "sw3"])
+            except Exception:
+                pass
+        threading.Thread(target=refresh_temperature_in_background, daemon=True).start()
+    intraday = _json_file("intraday_temperature.json", None)
+    intraday_history = _json_file("intraday_temperature_history.json", None)
+    from market_temperature import DAILY_WEIGHTS, INTRADAY_WEIGHTS, INDEX_SYMBOLS
+    quality = await asyncio.to_thread(_market_temperature_quality, history)
     return {
         "history": history,
         "intraday": intraday,
@@ -2479,13 +2601,12 @@ async def ai_chat(req: dict):
         messages = [{"role": "user", "content": question}]
 
         cfg = _load_config()
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or cfg.get("api_key", "")
+        provider = cfg.get("ai_provider", "anthropic")
+        api_key = _resolve_api_key(cfg, provider)
         if not api_key:
             yield f"data: {_json.dumps({'error': '未设置 API Key，请在设置页面配置'})}\n\n"
             yield "data: [DONE]\n\n"
             return
-
-        provider = cfg.get("ai_provider", "anthropic")
 
         try:
             if provider == "deepseek":

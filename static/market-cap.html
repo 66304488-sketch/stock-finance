@@ -1084,8 +1084,12 @@ function historyMetrics(row) {
   var previousDate=activeDate,previousWindow=windowDays,result=[];
   var dates=orderedDates().filter(function(d){return dateKey(machineDate(d))<=dateKey(previousDate);}).slice(0,60).reverse();
   windowDays=1;metricCache.clear();
-  dates.forEach(function(d){activeDate=machineDate(d);result.push({date:displayDate(d),metric:industryMetric(row)});});
-  activeDate=previousDate;windowDays=previousWindow;metricCache.clear();
+  try {
+    dates.forEach(function(d){activeDate=machineDate(d);result.push({date:displayDate(d),metric:industryMetric(row)});});
+  } finally {
+    // 异常也必须恢复全局状态与缓存，否则后续渲染停留在错误的日期/窗口
+    activeDate=previousDate;windowDays=previousWindow;metricCache.clear();
+  }
   return result;
 }
 function linePath(values,x,y) {
@@ -1249,6 +1253,8 @@ async function loadScheme(scheme) {
   var generation=++requestGeneration;if(activeController)activeController.abort();activeController=new AbortController();
   document.getElementById('schemeSelect').disabled=true;document.getElementById('reloadBtn').disabled=true;
   showLoading(scheme);
+  var timedOut=false;
+  var timeoutId=setTimeout(function(){timedOut=true;activeController.abort();},20000);
   try {
     var response=await fetch('/api/market-cap?scheme='+encodeURIComponent(scheme)+'&_='+Date.now(),{signal:activeController.signal,cache:'no-store'});
     if(!response.ok)throw new Error(response.status===404?'该分类数据尚未生成':'HTTP '+response.status);
@@ -1260,9 +1266,14 @@ async function loadScheme(scheme) {
     document.getElementById('quadrantFilter').value='all';document.getElementById('industrySearch').value='';
     renderAll();return true;
   } catch(error) {
-    if(error.name==='AbortError'||generation!==requestGeneration)return false;
+    if(generation!==requestGeneration)return false;
+    if(error.name==='AbortError'){
+      if(timedOut)showError('后端响应超时，请稍后重试或重启服务');
+      return false;
+    }
     showError(error.message);return false;
   } finally {
+    clearTimeout(timeoutId);
     if(generation===requestGeneration){document.getElementById('schemeSelect').disabled=false;document.getElementById('reloadBtn').disabled=false;}
   }
 }

@@ -268,7 +268,10 @@ let pipelineRunning = false;
 
 async function runDataPipeline(days = 1, interactive = false): Promise<void> {
   if (pipelineRunning) {
-    notify("数据更新", "已有刷新任务在运行中");
+    const message = "已有刷新任务在运行中";
+    notify("数据更新", message);
+    // 定时调度需要识别 busy：抛出让 scheduler 照常安排 18:30/20:00 重试
+    if (!interactive) throw new Error(message);
     return;
   }
   if (!pythonManager.isRunning()) {
@@ -289,7 +292,13 @@ async function runDataPipeline(days = 1, interactive = false): Promise<void> {
     const status = await pollRefreshStatus(1200000);
     if (status.success) {
       notify("数据更新", "✅ 数据更新完成");
-      mainWindow?.webContents.reload();
+      mainWindow?.webContents.send("data-updated", { days, finishedAt: Date.now() });
+      // 设置是 app.html 内的标签页，URL 无法区分；app.html 由页面监听 data-updated
+      // 自行决定刷新（避免设置页未保存输入被整页 reload 冲掉），其余页面直接 reload
+      const currentUrl = mainWindow?.webContents.getURL() || "";
+      if (!currentUrl.includes("app.html")) {
+        mainWindow?.webContents.reload();
+      }
     } else if (status.pollTimedOut) {
       const message = status.running
         ? "数据仍在后台更新，完成后页面会自动读取最新结果"
@@ -327,6 +336,9 @@ app.whenReady().then(async () => {
     return result.canceled ? null : result.filePaths[0];
   });
 
+  // IPC: 获取 app 版本
+  ipcMain.handle("get-version", () => app.getVersion());
+
   // IPC: 在 Finder 中打开路径（打包版只允许 app 自己的 userData 目录）
   ipcMain.handle("open-path", async (_e, target: string) => {
     const resolved = path.resolve(String(target || ""));
@@ -350,6 +362,7 @@ app.whenReady().then(async () => {
     dataDir,
     userDataDir: app.isPackaged ? userDataDir : path.join(process.env.HOME || userDataDir, ".stock-finance"),
   });
+  pythonManager.onNotify = notify;
   const startResult = await pythonManager.start(PYTHON_PORT);
   if (!startResult.success) {
     const msg = startResult.error || (app.isPackaged

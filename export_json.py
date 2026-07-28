@@ -147,14 +147,16 @@ def _make_heatmap(db, direction, period, scheme, prefix, suffix, output_dir=None
 
 def _make_capital_flow(db, scheme, suffix, output_dir=None):
     output_dir = output_dir or STATIC
+    # The capital-flow timeline consumes dates from oldest to newest,
+    # same convention as market_cap (latest at [-1]).
     source_scheme = _source_scheme(scheme)
-    dates = _dates(db, "daily_capital_flow", 20, source_scheme)
+    dates = list(reversed(_dates(db, "daily_capital_flow", 20, source_scheme)))
     if not dates: return
-    
+
     rows = db.conn.execute(
         f"SELECT industry, date, turnover, net_flow, stock_count, is_total FROM daily_capital_flow "
         f"WHERE scheme=? AND date IN ({','.join('?'*len(dates))})", [source_scheme] + dates).fetchall()
-    
+
     ind_map = {}
     for ind, date, to, nf, sc, is_t in rows:
         mapped = _mapped_industry(scheme, ind, bool(is_t))
@@ -166,15 +168,15 @@ def _make_capital_flow(db, scheme, suffix, output_dir=None):
         ind_map[mapped]["daily_turnover"][idx] += round(to or 0)
         ind_map[mapped]["daily_net_flow"][idx] += round(nf or 0)
         ind_map[mapped]["daily_stock_counts"][idx] += int(sc or 0)
-    
+
     industries = list(ind_map.values())
     for r in industries:
         cum = 0
-        for i in range(len(dates) - 1, -1, -1):
+        for i in range(len(dates)):
             cum += r["daily_net_flow"][i]
             r["cumulative_flow"][i] = round(cum)
-        r["turnover"] = r["daily_turnover"][0]
-        r["stock_count"] = r["daily_stock_counts"][0]
+        r["turnover"] = r["daily_turnover"][-1]
+        r["stock_count"] = r["daily_stock_counts"][-1]
     total = sum(r["turnover"] for r in industries if not r["is_total"])
     for r in industries:
         if not r["is_total"] and total > 0:

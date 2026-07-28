@@ -70,7 +70,8 @@ class UpdateRangeContractTest(unittest.TestCase):
             export_json._make_capital_flow(db, "sw", "", root)
             data = json.loads(Path(root, "capital_flow.json").read_text(encoding="utf-8"))
             bank = next(row for row in data["industries"] if row["industry"] == "银行")
-            self.assertEqual(bank["cumulative_flow"], [30, 20])
+            self.assertEqual([d["label"] for d in data["dates"]], ["7月9日", "7月10日"])
+            self.assertEqual(bank["cumulative_flow"], [20, 30])
             self.assertEqual(data["flow_method"], "signed_turnover_proxy")
             db.close()
 

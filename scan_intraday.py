@@ -18,7 +18,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import pandas as pd
 
-from kline_cache import KlineCache, fetch_spot, get_active_codes, load_industry_map
+from kline_cache import (
+    KlineCache, NotTradingDayError, fetch_spot, get_active_codes,
+    get_trade_dates, load_industry_map,
+)
 from index_constituents import _citic_industry, _load_sw_detail_map
 from market_temperature import compute_intraday_temperature, limit_threshold, load_temperature_history
 from runtime_paths import DATA_DIR, data_path, resource_path
@@ -120,6 +123,9 @@ def _load_first_seen(output_dir: str, scheme: str, days: int, direction: str) ->
     suffix = scheme_suffix(scheme)
     path = os.path.join(output_dir, f"intraday_{direction}_{window_key(days)}{suffix}.json")
     previous = _load_json(path, {})
+    # first_seen_at 只在同一交易日内继承；跨交易日参照 _update_history 的做法重置
+    if previous.get("trade_date") != datetime.now().strftime("%Y%m%d"):
+        return {}
     result = {}
     for row in previous.get("industries", []):
         for stocks in (row.get("daily_details") or {}).values():
@@ -430,14 +436,38 @@ def run_scan(
     if invalid:
         raise ValueError(f"unsupported schemes: {sorted(invalid)}")
 
+    today_str = datetime.now().strftime("%Y%m%d")
+    # 非交易日守卫：节假日直接退出，避免把上一交易日行情盖上今天的日期戳
+    try:
+        recent_trade_dates = get_trade_dates(5)
+    except Exception as exc:
+        recent_trade_dates = []
+        print(f"交易日历获取失败，继续扫描（由行情报文日期兜底校验）: {exc}")
+    if recent_trade_dates and today_str not in recent_trade_dates:
+        print(f"今天 {today_str} 不是交易日，跳过盘中扫描")
+        return {
+            "skipped": True,
+            "reason": "not_trading_day",
+            "trade_date": today_str,
+            "scan_time": datetime.now().isoformat(timespec="seconds"),
+        }
+
     active_codes = get_active_codes()
     industry_maps = load_industry_maps(active_codes, schemes)
     shares = _load_shares()
-    today_str = datetime.now().strftime("%Y%m%d")
     scan_time = datetime.now().isoformat(timespec="seconds")
 
     t0 = time.time()
-    spot_data = fetch_spot(active_codes, today_str)
+    try:
+        spot_data = fetch_spot(active_codes, today_str)
+    except NotTradingDayError as exc:
+        print(f"行情日期校验未通过，跳过盘中扫描: {exc}")
+        return {
+            "skipped": True,
+            "reason": "not_trading_day",
+            "trade_date": today_str,
+            "scan_time": datetime.now().isoformat(timespec="seconds"),
+        }
     if not spot_data:
         raise RuntimeError("未获取到实时行情（非交易时间或数据源不可用）")
     cache = KlineCache()

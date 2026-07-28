@@ -400,13 +400,30 @@ function getDates() {
   if (!flowData) return [];
   if (Array.isArray(flowData.dates) && flowData.dates.length) {
     var dates=flowData.dates.slice();
-    // V2 dates/series are chronological; the UI keeps the newest session first.
-    if(Number(flowData.schema_version||0)>=2 && dates.length>1 &&
+    // 探测顺序，兼容新旧两种数据文件：loadScheme 已把升序文件统一翻成新→旧，
+    // 此处仅作兜底（不依赖 schema_version）。UI 约定 dates[0]=最新交易日。
+    if(dates.length>1 &&
        dateKey(fullDate(dates[0]))<dateKey(fullDate(dates[dates.length-1]))) dates.reverse();
     return dates;
   }
   var first=(flowData.industries||[])[0];
   return first&&Array.isArray(first.series)?first.series.map(function(x){return {date:pick(x,['date','trade_date'],'')};}):[];
+}
+// 后端数据文件既可能是旧版新→旧，也可能是新版升序（最新在 [-1]）。
+// 探测 dates 顺序：若为升序，把 dates 与各行业行上的并行序列（daily_* 等）
+// 同步翻转，统一成 UI 约定的新→旧，避免 dates 翻了而 daily 没翻的错位。
+function normalizeSeriesOrder(data) {
+  var dates=data&&data.dates;
+  if(!Array.isArray(dates)||dates.length<2)return;
+  var ascending=dateKey(fullDate(dates[0]))<dateKey(fullDate(dates[dates.length-1]));
+  if(!ascending)return;
+  dates.reverse();
+  (data.industries||[]).forEach(function(row){
+    Object.keys(row).forEach(function(key){
+      var value=row[key];
+      if(Array.isArray(value)&&value.length===dates.length)value.reverse();
+    });
+  });
 }
 function getDateIdx() {
   var dates=getDates();
@@ -1025,6 +1042,8 @@ async function loadScheme(scheme) {
   activeController=new AbortController();
   document.getElementById('schemeSelect').disabled=true;
   document.getElementById('reloadBtn').disabled=true;
+  var timedOut=false;
+  var timeoutId=setTimeout(function(){timedOut=true;activeController.abort();},20000);
   try {
     var response=await fetch('/api/capital-flow?scheme='+encodeURIComponent(scheme)+'&_='+Date.now(),{signal:activeController.signal,cache:'no-store'});
     if(!response.ok)throw new Error(response.status===404?'该分类数据尚未生成':'HTTP '+response.status);
@@ -1032,6 +1051,7 @@ async function loadScheme(scheme) {
     if(generation!==requestGeneration)return false;
     if(next.scheme && next.scheme!==scheme)throw new Error('返回的行业分类与请求不一致');
     if(!Array.isArray(next.industries))throw new Error('数据格式不完整');
+    normalizeSeriesOrder(next);
     flowData=next;
     currentScheme=scheme;
     var dates=getDates();
@@ -1045,10 +1065,15 @@ async function loadScheme(scheme) {
     renderAll();
     return true;
   } catch(error) {
-    if(error.name==='AbortError'||generation!==requestGeneration)return false;
+    if(generation!==requestGeneration)return false;
+    if(error.name==='AbortError'){
+      if(timedOut)showLoadError('后端响应超时，请稍后重试或重启服务');
+      return false;
+    }
     showLoadError(error.message);
     return false;
   } finally {
+    clearTimeout(timeoutId);
     if(generation===requestGeneration){
       document.getElementById('schemeSelect').disabled=false;
       document.getElementById('reloadBtn').disabled=false;

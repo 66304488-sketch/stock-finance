@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import tempfile
 import time
 import warnings
 
@@ -25,6 +26,25 @@ warnings.filterwarnings("ignore")
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 MAX_DATES = 20
+
+
+def _atomic_json_dump(data, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        with open(tmp, "r", encoding="utf-8") as f:
+            json.load(f)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def parse_args():
@@ -122,7 +142,8 @@ def load_ind_map(scheme="sw"):
 def aggregate_dates(target_dates, scheme="sw", force_refresh=False):
     print("[1/4] 加载行业分类...")
     ind_map = load_ind_map(scheme)
-    codes = [c for c in get_active_codes() if c in ind_map]
+    # 未映射的 active 股票归入"其他"，否则全市场合计偏小（与 update_engine 口径一致）
+    codes = list(get_active_codes())
     print(f"  {len(codes)} 只")
     print(f"  目标日期: {len(target_dates)}天 ({target_dates[0]} ~ {target_dates[-1]})")
 
@@ -138,8 +159,8 @@ def aggregate_dates(target_dates, scheme="sw", force_refresh=False):
     ind_by_date = {}
 
     for code, df in all_data.items():
-        ind = ind_map.get(code)
-        if not ind or df is None or df.empty:
+        ind = ind_map.get(code) or "其他"
+        if df is None or df.empty:
             continue
         date_strs = df["date"].dt.strftime("%Y%m%d")
         subset = df[date_strs.isin(target_set)]
@@ -161,7 +182,9 @@ def aggregate_dates(target_dates, scheme="sw", force_refresh=False):
                 # 首个日期：从 closets 字典中找前一日的收盘价
                 prev_dates = sorted([d for d in closes.keys() if d < date_str])
                 prev_close = closes.get(prev_dates[-1], 0) if prev_dates else 0
-            net = turnover if (prev_close and prev_close > 0 and cur_close >= prev_close) else -turnover
+            # 与 update_engine 口径一致：无前收（新股首日）或平盘记 0
+            net = turnover if (prev_close and prev_close > 0 and cur_close > prev_close) else \
+                  (-turnover if prev_close and cur_close < prev_close else 0)
             ind_by_date.setdefault(ind, {}).setdefault(date_str, {"turnover": 0, "net": 0, "stocks": 0})
             ind_by_date[ind][date_str]["turnover"] += turnover
             ind_by_date[ind][date_str]["net"] += net
@@ -381,8 +404,7 @@ def main():
     partial = aggregate_dates(compute_dates, scheme=scheme, force_refresh=args.force_refresh)
     output = partial if should_rebuild else merge_capital_flow(existing, partial)
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+    _atomic_json_dump(output, out_path)
 
     print(f"\n[4/4] 已保存: {out_path}")
     print(f"\n全市场成交: {output.get('total_turnover', 0)/1e8:.0f}亿")

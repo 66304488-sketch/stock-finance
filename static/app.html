@@ -677,6 +677,32 @@ async function fetchJsonChecked(url, options) {
   return data;
 }
 
+// 写操作接口（备份/还原/清空）需要 X-SF-Token；先向 /api/client-token 换取。
+var clientTokenPromise = null;
+async function getClientToken() {
+  if (!clientTokenPromise) {
+    clientTokenPromise = (async function() {
+      try {
+        var resp = await fetch('/api/client-token');
+        var data = await resp.json().catch(function() { return {}; });
+        if (!resp.ok || !data.token) throw new Error('HTTP ' + resp.status);
+        return data.token;
+      } catch (e) {
+        clientTokenPromise = null;
+        throw new Error('获取访问令牌失败: ' + e.message);
+      }
+    })();
+  }
+  return clientTokenPromise;
+}
+// 给 fetchJsonChecked 的 options 补上 X-SF-Token 请求头
+async function withTokenHeaders(options) {
+  var token = await getClientToken();
+  var merged = Object.assign({}, options);
+  merged.headers = Object.assign({}, (options && options.headers) || {}, {'X-SF-Token': token});
+  return merged;
+}
+
 function shortTradeDate(value) {
   value = String(value || '');
   return value.length === 8 ? value.slice(4, 6) + '/' + value.slice(6, 8) : '';
@@ -975,7 +1001,7 @@ function renderUpdateStatePanel(data) {
       '<td style="padding:7px 8px;color:#dcdfe4">' + datasetLabel(ds) + '</td>' +
       '<td style="padding:7px 8px;text-align:center;color:#abb2bf">' + sourceLabel(src) + '</td>' +
       '<td style="padding:7px 8px;text-align:center">' + status + '</td>' +
-      '<td style="padding:7px 8px;text-align:center;color:#abb2bf">' + time + detail + '</td>' +
+      '<td style="padding:7px 8px;text-align:center;color:#abb2bf">' + escapeAttr(time) + detail + '</td>' +
       '</tr>';
   });
   html += '</tbody></table>';
@@ -1239,10 +1265,10 @@ function getBackupDir() {
 async function saveBackupDir(dir) {
   dir = dir || getBackupDir();
   if (!dir) return;
-  return fetchJsonChecked('/api/backup/settings', {
+  return fetchJsonChecked('/api/backup/settings', await withTokenHeaders({
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({backup_dir: dir})
-    });
+    }));
 }
 document.getElementById('backupDirInput').addEventListener('change', function() {
   saveBackupDir().catch(function(e) {
@@ -1253,7 +1279,7 @@ document.getElementById('backupDirInput').addEventListener('change', function() 
 // 加载备份目录设置
 (async function() {
   try {
-    var data = await fetchJsonChecked('/api/backup/settings');
+    var data = await fetchJsonChecked('/api/backup/settings', await withTokenHeaders({}));
     document.getElementById('backupDirInput').value = data.backup_dir || '';
   } catch(e) {}
 })();
@@ -1272,7 +1298,7 @@ async function restoreData() {
   if (!confirm('还原会覆盖当前所有数据，确定？')) return;
   showStatus('dataStatus', 'warn', '⏳ 还原中...');
   try {
-    var data = await fetchJsonChecked('/api/restore', {method:'POST'});
+    var data = await fetchJsonChecked('/api/restore', await withTokenHeaders({method:'POST'}));
     showStatus('dataStatus', 'ok', '✅ 已还原 ' + data.restored + ' 个文件');
     var t = Date.now();
     ['heatmap','temp','constituents','crowding','flow','mcap','etf','momentum','backtest'].forEach(function(id) {
@@ -1285,7 +1311,7 @@ async function clearAllData() {
   if (!confirm('清空会删除市场数据和缓存，确定？\n\nETF 池及行业匹配等策略配置会保留；清空后可以点“更新数据”重新拉取。')) return;
   showStatus('dataStatus', 'warn', '⏳ 清空中...');
   try {
-    var data = await fetchJsonChecked('/api/clear-data', {method:'POST'});
+    var data = await fetchJsonChecked('/api/clear-data', await withTokenHeaders({method:'POST'}));
     showStatus('dataStatus', 'ok', '✅ 已清空 ' + data.deleted + ' 个文件');
     var t2 = Date.now();
     ['heatmap','temp','constituents','crowding','flow','mcap','etf','momentum','backtest'].forEach(function(id) {

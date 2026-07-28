@@ -20,7 +20,8 @@ SCHEMES = [
 
 
 def get_all_trade_dates(n=20):
-    """获取最近 N 个交易日列表（逗号分隔字符串）"""
+    """获取最近 N 个交易日列表（逗号分隔字符串）。日历获取失败直接退出，
+    不能回退成 [today]——周末/节假日会写入非交易日行。"""
     import akshare as ak
     import pandas as pd
     try:
@@ -28,9 +29,13 @@ def get_all_trade_dates(n=20):
         df["trade_date"] = pd.to_datetime(df["trade_date"])
         now = pd.Timestamp.now()
         dates = df[df["trade_date"] <= now].tail(n)["trade_date"].dt.strftime("%Y%m%d").tolist()
-        return dates
-    except Exception:
-        return [datetime.now().strftime("%Y%m%d")]
+    except Exception as exc:
+        print(f"获取交易日历失败，拒绝写入可疑数据: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not dates:
+        print("交易日历为空，拒绝写入可疑数据", file=sys.stderr)
+        sys.exit(1)
+    return dates
 
 
 def get_latest_trading_date():

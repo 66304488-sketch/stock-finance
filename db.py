@@ -3,12 +3,29 @@ SQLite 数据库 —— 替代 44 个 JSON 文件。
 支持：增量追加 / 事务保护 / SW+THS 双分类 / 日期级查询
 """
 
-import json, os, sqlite3, time
-from datetime import datetime
+import json, os, sqlite3, threading, time
+from datetime import datetime, timedelta
+from functools import wraps
 
 from runtime_paths import DATA_DIR, data_path
 
 DB_PATH = data_path("data.db")
+
+# 热表(daily_new_highs/daily_new_lows/stock_details)保留窗口。
+# 查询方最大回看：热力图/明细 20~60 个交易日，市场温度/拥挤度 250 个交易日；
+# 750 个自然日(约 500+ 个交易日)留有充足余量，alltime 统计依赖 kline_cache 边界值而非这些表。
+RETENTION_DAYS = 750
+
+
+def _synchronized(fn):
+    """多步写/迁移在实例锁内执行：check_same_thread=False 的连接被多线程共用，
+    `with self.conn:` 事务跨线程交错会导致半提交。读方法不加锁
+    (WAL + sqlite serialized 模式下读只见已提交状态)。"""
+    @wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return fn(self, *args, **kwargs)
+    return wrapper
 
 
 class StockDB:
@@ -16,11 +33,16 @@ class StockDB:
 
     def __init__(self, path=DB_PATH):
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        # check_same_thread=False 的连接被多线程共用，多步写必须在锁内完成，
+        # 否则 `with self.conn:` 事务跨线程交错会导致半提交
+        self._lock = threading.RLock()
+        self.lock = self._lock  # 暴露给 server 的 restore 路径
         self.conn = sqlite3.connect(path, check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL")  # 并发读写
         self.conn.execute("PRAGMA foreign_keys=ON")
         self._migrate()
 
+    @_synchronized
     def _migrate(self):
         self.conn.executescript("""
             CREATE TABLE IF NOT EXISTS daily_new_highs (
@@ -150,6 +172,7 @@ class StockDB:
 
     # ==================== 写入 ====================
 
+    @_synchronized
     def insert_highs_lows(self, records, direction="highs"):
         """批量写入新高/新低。records = [{date, period, scheme, industry, count, total_stocks, is_total}]"""
         table = "daily_new_highs" if direction == "highs" else "daily_new_lows"
@@ -161,6 +184,7 @@ class StockDB:
             )
         self._set_meta(f"{direction}_updated", datetime.now().isoformat())
 
+    @_synchronized
     def replace_heatmap_slice(self, records, detail_records, direction, period, scheme, dates):
         """Atomically replace counts and details for one calculated heatmap slice."""
         table = "daily_new_highs" if direction == "highs" else "daily_new_lows"
@@ -196,6 +220,7 @@ class StockDB:
                 (f"{direction}_updated", datetime.now().isoformat()),
             )
 
+    @_synchronized
     def replace_heatmap_batch(self, slices):
         """Replace multiple heatmap slices in one transaction."""
         with self.conn:
@@ -235,7 +260,21 @@ class StockDB:
                     "INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)",
                     (f"{direction}_updated", datetime.now().isoformat()),
                 )
+            # 热表保留窗口：删除早于(目标日 - RETENTION_DAYS 个自然日)的旧行。
+            # 目标日取本次写入日期与库内最大日期的较大者，回填旧日期时不会误删新数据。
+            anchors = [d for item in slices for d in (item.get("dates") or [])]
+            for t in ("daily_new_highs", "daily_new_lows"):
+                row = self.conn.execute(f"SELECT MAX(date) FROM {t}").fetchone()
+                if row and row[0]:
+                    anchors.append(row[0])
+            if anchors:
+                cutoff = (datetime.strptime(max(anchors), "%Y%m%d")
+                          - timedelta(days=RETENTION_DAYS)).strftime("%Y%m%d")
+                self.conn.execute("DELETE FROM daily_new_highs WHERE date < ?", [cutoff])
+                self.conn.execute("DELETE FROM daily_new_lows WHERE date < ?", [cutoff])
+                self.conn.execute("DELETE FROM stock_details WHERE date < ?", [cutoff])
 
+    @_synchronized
     def replace_capital_flow_batch(self, records, dates_by_scheme):
         with self.conn:
             for scheme, dates in dates_by_scheme.items():
@@ -256,6 +295,7 @@ class StockDB:
                 ("capital_flow_updated", datetime.now().isoformat()),
             )
 
+    @_synchronized
     def replace_market_temperature(self, records):
         """全量重建市场温度表(kline cache 是唯一数据源,重算幂等)。"""
         with self.conn:
@@ -287,6 +327,7 @@ class StockDB:
             "updated_at": self._get_meta("market_temperature_updated"),
         }
 
+    @_synchronized
     def replace_crowding(self, market_records, industry_records):
         """全量重建拥挤度表(kline cache 是唯一数据源,重算幂等)。"""
         for record in industry_records:
@@ -353,6 +394,7 @@ class StockDB:
             "updated_at": self._get_meta("crowding_updated"),
         }
 
+    @_synchronized
     def replace_index_quotes(self, records):
         """全量重建指数日线表(数据源自带全历史,重算幂等)。"""
         with self.conn:
@@ -374,6 +416,7 @@ class StockDB:
             result[symbol] = [{"date": d, "close": c} for d, c in reversed(rows)]
         return result
 
+    @_synchronized
     def replace_market_cap_batch(self, records, detail_records, dates_by_scheme):
         with self.conn:
             for scheme, dates in dates_by_scheme.items():
@@ -407,6 +450,7 @@ class StockDB:
                 ("market_cap_updated", datetime.now().isoformat()),
             )
 
+    @_synchronized
     def insert_capital_flow(self, records):
         """records = [{date, scheme, industry, turnover, net_flow, stock_count, is_total}]"""
         with self.conn:
@@ -417,6 +461,7 @@ class StockDB:
             )
         self._set_meta("capital_flow_updated", datetime.now().isoformat())
 
+    @_synchronized
     def insert_market_cap(self, records):
         """records = [{date, scheme, industry, mcap, stock_count, is_total}]"""
         with self.conn:
@@ -427,6 +472,7 @@ class StockDB:
             )
         self._set_meta("market_cap_updated", datetime.now().isoformat())
 
+    @_synchronized
     def insert_stock_details(self, records):
         """records = [{date, direction, period, scheme, industry, code, name, price, change_pct, mcap}]"""
         with self.conn:
@@ -575,6 +621,7 @@ class StockDB:
 
     # ==================== 迁移：JSON → SQLite ====================
 
+    @_synchronized
     def import_from_json(self, static_dir=None):
         """一次性导入所有 JSON 数据到 SQLite。已存在则跳过。"""
         static_dir = static_dir or DATA_DIR
@@ -623,14 +670,19 @@ class StockDB:
             for d in data.get("dates", []):
                 m = __import__("re").match(r"(\d{4})年(\d{1,2})月(\d{1,2})日", d.get("full_label", ""))
                 date_keys.append(f"{int(m.group(1)):04d}{int(m.group(2)):02d}{int(m.group(3)):02d}" if m else "")
+            n_dates = len(date_keys)
             for row in data.get("industries", []):
+                # 数组可能比 dates 短，按 dates 长度补 0，避免 IndexError 中断迁移
+                daily_to = (row.get("daily_turnover") or []) + [0] * n_dates
+                daily_nf = (row.get("daily_net_flow") or []) + [0] * n_dates
+                daily_sc = (row.get("daily_stock_counts") or []) + [0] * n_dates
                 for i, dk in enumerate(date_keys):
                     if dk:
                         records.append({
                             "date": dk, "scheme": scheme, "industry": row["industry"],
-                            "turnover": (row.get("daily_turnover", []) + [0])[i],
-                            "net_flow": (row.get("daily_net_flow", []) + [0])[i],
-                            "stock_count": (row.get("daily_stock_counts", []) + [0])[i],
+                            "turnover": daily_to[i],
+                            "net_flow": daily_nf[i],
+                            "stock_count": daily_sc[i],
                             "is_total": 1 if row.get("is_total") else 0,
                         })
             if records:
@@ -648,13 +700,17 @@ class StockDB:
             for d in data.get("dates", []):
                 m = __import__("re").match(r"(\d{4})年(\d{1,2})月(\d{1,2})日", d.get("full_label", ""))
                 date_keys.append(f"{int(m.group(1)):04d}{int(m.group(2)):02d}{int(m.group(3)):02d}" if m else "")
+            n_dates = len(date_keys)
             for row in data.get("industries", []):
+                # 数组可能比 dates 短，按 dates 长度补 0，避免 IndexError 中断迁移
+                daily_mc = (row.get("daily_mcap") or []) + [0] * n_dates
+                daily_sc = (row.get("daily_stock_counts") or []) + [0] * n_dates
                 for i, dk in enumerate(date_keys):
                     if dk:
                         records.append({
                             "date": dk, "scheme": scheme, "industry": row["industry"],
-                            "mcap": (row.get("daily_mcap", []) + [0])[i],
-                            "stock_count": (row.get("daily_stock_counts", []) + [0])[i] if row.get("daily_stock_counts") else 0,
+                            "mcap": daily_mc[i],
+                            "stock_count": daily_sc[i],
                             "is_total": 1 if row.get("is_total") else 0,
                         })
             if records:
@@ -681,6 +737,7 @@ class StockDB:
         params.append(n)
         return [r[0] for r in self.conn.execute(q, params).fetchall()][::-1]  # 升序
 
+    @_synchronized
     def _set_meta(self, key, value):
         self.conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value))
         self.conn.commit()
@@ -697,9 +754,11 @@ class StockDB:
     def _format_full(date_str):
         return f"{date_str[:4]}年{int(date_str[4:6])}月{int(date_str[6:8])}日"
 
+    @_synchronized
     def close(self):
         self.conn.close()
 
+    @_synchronized
     def backup_to(self, destination):
         os.makedirs(os.path.dirname(destination), exist_ok=True)
         target = sqlite3.connect(destination)
@@ -718,25 +777,28 @@ class StockDB:
 
 # ==================== 单例 ====================
 _db = None
+_db_lock = threading.Lock()
 
 def get_db():
     global _db
-    if _db is not None:
-        try:
-            _db.conn.execute("SELECT 1")
-        except Exception:
-            _db = None
-    if _db is None:
-        _db = StockDB()
-    return _db
+    with _db_lock:  # 防多线程并发双重创建
+        if _db is not None:
+            try:
+                _db.conn.execute("SELECT 1")
+            except Exception:
+                _db = None
+        if _db is None:
+            _db = StockDB()
+        return _db
 
 
 def reset_db():
     """Close and forget the process-wide connection before replacing data.db."""
     global _db
-    if _db is not None:
-        try:
-            _db.close()
-        except Exception:
-            pass
-    _db = None
+    with _db_lock:
+        if _db is not None:
+            try:
+                _db.close()
+            except Exception:
+                pass
+        _db = None
