@@ -2,6 +2,72 @@
   'use strict';
 
   var guides = {
+    'sentiment-radar.html': {
+      title: '板块情绪雷达使用说明',
+      subtitle: '把极端位置、压力衰竭和反向确认拆开，分别观察反弹与退潮',
+      html: `
+        <div class="page-guide-flow"><span><b>01</b>选择行业分类</span><span><b>02</b>看情绪位置</span><span><b>03</b>确认所处阶段</span><span><b>04</b>点击查看成分股</span><span><b>05</b>比较T1—T5频率</span><span><b>06</b>检查反对证据</span></div>
+        <div class="page-guide-grid">
+          <section><h4>为什么不是一个情绪分</h4><p>情绪位置只描述板块处于恐慌还是亢奋，不直接预测反转。极弱板块可能继续下跌，极强板块也可能继续上涨，因此页面将底部反弹与顶部退潮拆成两个条件事件。</p><p class="page-guide-formula">反转证据 = 先前极端位置 + 原方向压力衰竭 + 反方向价格/广度/成交确认</p></section>
+          <section><h4>情绪位置如何计算</h4><p>位置范围为 −100 至 +100：近5日相对市场收益的自身历史分位占50%，价格延伸分位占25%，当日涨跌家数广度占15%，方向成交差率占10%。负值偏恐慌，正值偏亢奋。</p><p>位置是描述变量；表格排序优先使用阶段和反向确认，不按绝对情绪值机械抄底或逃顶。</p></section>
+          <section><h4>底部反弹阶段</h4><ul><li><b>接飞刀风险：</b>近5日弱势且价格低位，但卖压没有衰减、价格/广度/方向成交尚未共同转正。</li><li><b>卖压衰竭：</b>高成交努力无法继续压低价格，或新低覆盖从极值收缩。</li><li><b>反弹确认：</b>当日价格、上涨家数广度和方向成交差率同时转正；活跃广度转正、成交不过度集中可提高质量。</li></ul></section>
+          <section><h4>顶部退潮阶段</h4><ul><li><b>亢奋观察：</b>近5日强势、价格延伸高，但内部扩张尚未破坏。</li><li><b>上涨衰竭/派发预警：</b>成交仍热但价格响应下降，或新高覆盖开始收缩。</li><li><b>退潮确认：</b>此前亢奋后，价格、下跌家数广度和方向成交差率共同转负。</li></ul></section>
+          <section><h4>板块个股如何阅读</h4><p>点击候选榜或行业雷达表中的任一行业，会在详情首屏加载当前分类下的全部成分股。个股行情严格截断到雷达信号日；同花顺缺失分类回退申万一级，申万三级缺失时依次回退二级和一级。</p><p>“内部角色”用当日涨跌和20日量比区分放量领涨、反弹先锋、主要拖累、放量领跌与放量分歧；“成交影响”等于当日涨跌幅乘板块内成交额占比，只解释谁在推动或拖累板块交易，不是行业指数权重贡献。点击名称可跳转同花顺复核。</p></section>
+          <section><h4>T1—T5与概率口径</h4><p>信号在收盘后确定，下一交易日开盘进入，扣除20bp成本后分别观察T1至T5。普通反转要求绝对收益与相对全市场收益方向均正确；强反转还要求横截面进入前/后30%。</p><p>当前显示2025-05-14至2026-08-04固定样本的历史条件频率、基础频率和提升倍数，不是完整walk-forward校准概率。申万三级按有效成分数以κ=20向申万一级同类条件收缩。</p></section>
+          <section><h4>如何判断危险</h4><p>优先比较当前频率与同类基础频率，而不是只看是否超过50%。同时检查独立日期、95%区间、强反转率和平均T5超额；命中率提高但平均超额未改善时只作观察。</p><p class="page-guide-warning">当前行业映射回溯历史存在分类前视，同花顺存在回退分类，板块收益使用成分股等权研究代理。任何频率都不能替代仓位、止损、流动性和可交易载体检查。</p></section>
+        </div>`
+    },
+    'opportunity-summary.html': {
+      title: '机会汇总使用说明',
+      subtitle: '用独立证据交叉验证机会，并把风险、冲突和载体分开',
+      html: `
+        <div class="page-guide-flow">
+          <span><b>01</b>过数据闸门</span><span><b>02</b>看市场许可</span>
+          <span><b>03</b>找行业触发</span><span><b>04</b>核对独立确认</span>
+          <span><b>05</b>检查风险与载体</span>
+        </div>
+        <div class="page-guide-grid">
+          <section>
+            <h4>汇总逻辑</h4>
+            <p>汇总不是把所有分数相加。数据质量先决定能否判断；市场参与强度决定是否允许承担风险；行业新高/新低扩散负责触发；价格、成交参与、结构和直接需求负责独立确认；拥挤与失效证据可以降级或否决。</p>
+            <p class="page-guide-formula">数据闸门 → 市场许可 → 行业触发 → 独立确认 → 风险否决 → ETF / 个股载体</p>
+          </section>
+          <section>
+            <h4>为什么按证据域计票</h4>
+            <p>同一份行情可派生出新高宽度、净扩散和加速度，但它们仍属于一个“触发域”，不能伪装成三份独立证据。可手动切换申万一级、同花顺和申万三级观察结果是否稳健；当前不做跨口径自动计票。</p>
+            <p>详情会披露每个证据的来源页、日期、方向和状态；缺失保持未知，不按零值处理。</p>
+          </section>
+          <section>
+            <h4>三类候选</h4>
+            <ul>
+              <li><b>已确认：</b>行业触发后，价格、成交参与、市值结构、直接需求四个非触发域中至少两个独立跟随，且没有风险否决；是否可执行仍要再过市场许可、数据质量和载体闸门。</li>
+              <li><b>待确认：</b>已有触发或相对强势，但证据尚不完整；详情会明确列出缺失项与冲突。</li>
+              <li><b>已否决：</b>拥挤、量价失效、流动性脆弱或数据质量触发否决，仅保留研究记录。</li>
+            </ul>
+            <p>候选允许为空；没有通过闸门的对象不会为了凑数进入榜单。</p>
+          </section>
+          <section>
+            <h4>风险、冲突与质量</h4>
+            <p>拥挤集中不自动等于反转，但若同时出现内部宽度恶化、量价低效率、流动性脆弱或价格破坏，会升级为否决。来源日期错位、覆盖不足和盘中快照过期会降低质量或暂停判断。</p>
+            <p class="page-guide-warning">机会分只用于同口径排序，不是上涨概率；风险和质量不会被机会分抵消。</p>
+          </section>
+          <section>
+            <h4>ETF 与个股载体</h4>
+            <p>ETF 按代码去重，并展示行业映射、需求或相对强度证据；没有通过筛选时可为空。个股来自触发或确认中的代表性明细，只用于解释行业由谁驱动。</p>
+            <p>点击股票可打开同花顺对应个股；执行前仍需核对流动性、价格位置和自身风险约束。</p>
+          </section>
+          <section>
+            <h4>建议阅读顺序</h4>
+            <ol>
+              <li>确认“截至日期”、模式和闸门是否通过。</li>
+              <li>看市场许可，再选一类候选。</li>
+              <li>展开证据链，确认至少两个来源域独立。</li>
+              <li>先读冲突、风险和失效条件，再看载体。</li>
+              <li>点击来源回到原始页面复核。</li>
+            </ol>
+          </section>
+        </div>`
+    },
     'industry-heatmap.html': {
       title: '行业机会热力图使用说明',
       subtitle: '从市场许可到行业状态，再回到原始日期矩阵验证',
@@ -44,7 +110,7 @@
           </section>
           <section>
             <h4>轮动象限怎么读</h4>
-            <p>横轴是 κ=20 市场先验收缩后的净扩散率，坐标范围随当前分类的最大绝对值向上取整，避免申万三级行业被固定轴裁到边界。纵轴是行业成交参与相对自身历史的因果分位减 50，P50 为中性。</p>
+            <p>横轴是 κ=20 市场先验收缩后的净扩散率，坐标范围随当前分类的最大绝对值向上取整，避免申万三级行业被固定轴裁到边界。纵轴是行业成交参与相对自身历史的因果分位减 50，P50 为中性。机会表中点击行业名可直接打开该行业最新一期创新高个股列表；点击行内其他位置仍查看完整机会证据。</p>
             <p>右上表示扩散且成交参与确认；右下表示扩散但参与不足；左上表示收缩伴随高参与，通常是主动杀跌或高风险；左下表示共同沉寂。圆面积近似代表当日成交规模，黄圈表示存在独立风险证据，红圈表示已判定拥挤。</p>
           </section>
           <section>
@@ -90,6 +156,7 @@
         <div class="page-guide-grid">
           <section><h4>集中指标</h4><p>CR5/CR10 是成交额最大的 5/10 个行业或股票占比；Top10/Top50 是市场头部成交占比。</p><p class="page-guide-formula">HHI = Σ成交份额²；有效参与数 = 1 ÷ HHI</p><p>页面常把份额按百分数表达，因此有效数也可能显示为 <span class="page-guide-code">10,000/HHI</span>。CR 与 HHI 描述注意力分布，不是持仓。</p></section>
           <section><h4>历史标准化</h4><p>成交额、行业份额、内部 Top5、价格延伸和 Amihud 冲击等指标都与此前滚动历史比较。z-score 使用当前值相对过去窗口的均值和标准差；因果分位不包含未来日期。</p></section>
+          <section><h4>矩阵放大操作</h4><p>申万三级点位密集时，先点“放大查看”，再用滚轮或 ＋/− 以光标位置为中心缩放；放大后拖动画布平移，点“复位”返回全景。气泡的可点击范围略大于可见圆点，便于选择小行业。</p></section>
           <section><h4>拥挤分</h4><p>市场层大致由集中分位45%、成交总额15%、5日龙头重叠15%、同向性10%、价格延伸10%、冲击成本5%加权。行业层由行业份额30%、成交额20%、内部Top5 15%、龙头重叠10%、价格延伸10%、同向性10%、冲击成本5%加权。</p><p>分数高只代表集中，需要第二类证据才能升级危险。</p></section>
           <section><h4>独立危险证据</h4><ul><li>内部涨跌宽度恶化或方向成交同步转弱</li><li>单位成交额价格冲击升高，退出承载下降</li><li>融资、ETF份额、机构持仓等直接集中证据</li><li>价格破坏、下行跳跃或成交努力失效</li></ul><p>外部数据缺失或过期保持“未知”，绝不按零风险处理。</p></section>
           <section><h4>状态解释</h4><p>集中观察＝注意力集中但未证实脆弱；脆弱警告＝至少两类相互独立证据；危险/去拥挤＝价格和流动性破坏已经发生。低分也可能只是数据覆盖不足，需先看质量。</p></section>
@@ -100,14 +167,29 @@
       title: '成交动能使用说明',
       subtitle: '用相对参与、价格结果和内部广度判断量价是否真正共振',
       html: `
-        <div class="page-guide-flow"><span><b>01</b>看量价象限</span><span><b>02</b>看有效参与</span><span><b>03</b>看加速度与持续性</span><span><b>04</b>排除衰竭风险</span></div>
+        <div class="page-guide-flow"><span><b>01</b>看量价象限</span><span><b>02</b>放大密集区域</span><span><b>03</b>看有效参与</span><span><b>04</b>看加速度与持续性</span><span><b>05</b>排除衰竭风险</span></div>
         <div class="page-guide-grid">
           <section><h4>量价罗盘</h4><p>横轴是行业相对市场收益除以自身历史波动后的价格强度分位；纵轴是行业成交份额相对过去 60 日中位数的活跃分位。气泡面积代表行业成交占比，颜色只表示当日涨跌。</p><p>右上是放量上涨确认，左上是放量下跌，右下是缩量上涨，左下是缩量下跌；象限是描述，不是固定买卖信号。</p></section>
+          <section><h4>罗盘放大与点选</h4><p>申万三级点位密集时，可先点“放大查看”扩大画布；滚轮或 ＋/− 会以光标位置为中心连续缩放，放大后拖动画布平移，点“复位”回到全景。</p><p>需要直接检查一簇气泡时，点“框选”后在图中拖出矩形，系统会自动放大该区域。可见圆点之外还有更大的透明点击范围，小气泡绘制在大气泡上层，因此更容易点中。Esc 可退出框选或放大视图。</p></section>
           <section><h4>成交与方向代理</h4><p class="page-guide-formula">相对参与 = 当日行业成交份额 ÷ 此前60日成交份额中位数</p><p class="page-guide-formula">方向压力 = (上涨股成交额 − 下跌股成交额) ÷ 行业总成交额</p><p>方向压力来自日线涨跌与成交额，无法识别真实主动买卖方，不是主力净流入。</p></section>
           <section><h4>内部扩散</h4><p>活跃股票需先满足个股相对成交异常，再按行业当日方向选取同向股票。活跃广度＝同向活跃股票数÷有效股票数。</p><p class="page-guide-formula">有效参与者 N_eff = (Σ同向异常成交权重)² ÷ Σ权重²</p><p>N_eff 明显低于普通参与家数时，动能主要由少数龙头贡献。</p></section>
           <section><h4>动能、加速度和效率</h4><p>价格强度截断在 ±3 后乘以相对参与平方根形成动能；加速度＝当前动能−此前 3 日指数加权均值。持续性看最近 5 日方向压力与价格方向一致的比例。</p><p class="page-guide-formula">效率差 = 价格响应分位 − 成交活跃分位</p><p>≤−30 为高努力低响应，≥30 为低努力大位移，中间为量价匹配。</p></section>
           <section><h4>风险外圈和详情</h4><p>价格延伸、内部Top5集中、活跃广度下降、方向脉冲、放量杀跌和流动性真空独立判定。点击行业查看20日轨迹、Top5证据载体和风险理由；外圈颜色表达风险级别，不改变象限坐标。</p></section>
           <section><h4>建议用法与边界</h4><p>优先寻找“价格结果转强＋成交参与上升＋有效参与扩大＋风险不高”的行业；放量但价格无响应、有效参与下降时应减分。</p><p class="page-guide-warning">高成交额本身既不是机会也不是危险。不要把方向压力写成资金流入；数据覆盖不足50%时内部广度会保持缺失。</p></section>
+        </div>`
+    },
+    'margin-financing.html': {
+      title: '板块融资融券使用说明',
+      subtitle: '用交易所逐证券明细观察行业杠杆余额、买入活跃度和变化方向',
+      html: `
+        <div class="page-guide-flow"><span><b>01</b>确认共同完整日</span><span><b>02</b>比较余额变化</span><span><b>03</b>用买入强度标准化</span><span><b>04</b>下钻个股</span></div>
+        <div class="page-guide-grid">
+          <section><h4>数据来源与日期</h4><p>逐证券融资融券明细来自上海证券交易所和深圳证券交易所。两所可能在不同时间发布最新数据，页面只展示两所均已发布的共同完整交易日，并分别披露各自最新日期。</p></section>
+          <section><h4>融资指标</h4><p>融资余额是交易日结束后的存量；融资买入额是当日新增融资买入成交。余额变化＝本日融资余额−前日融资余额，其中还包含融资偿还、强平及权益调整，不能直接称为净买入。</p><p class="page-guide-formula">融资买入强度 = 当日融资买入额 ÷ 对应两融标的成交额</p></section>
+          <section><h4>融券与两融余额</h4><p>深市融券余额直接采用交易所披露金额；沪市明细只披露融券余量，因此用当日收盘价×融券余量估算。两融余额＝融资余额＋融券余额。</p></section>
+          <section><h4>三种行业分类</h4><p>同一份交易所原始明细分别按申万一级、同花顺和申万三级聚合；缺失分类归入“其他”。行业切换不会混用排名或历史数组。</p></section>
+          <section><h4>如何比较</h4><p>绝对融资余额适合看杠杆集中在哪里，但会受行业规模影响；日/5日变化适合看存量方向，买入强度用于比较不同规模行业的当日融资参与。三者一致时证据更完整。</p></section>
+          <section><h4>个股下钻与边界</h4><p>点击行业查看个股融资余额、余额变化、融资买入、买入强度、融券余额和两融余额，代码与名称可打开同花顺。</p><p class="page-guide-warning">融资增加既可能是趋势确认，也可能是杠杆追涨；融资下降既可能是主动降杠杆，也可能是偿还或强平。必须结合价格、成交动能、拥挤风险和行业扩散判断，不构成买卖建议。</p></section>
         </div>`
     },
     'market-cap.html': {
@@ -118,6 +200,7 @@
         <div class="page-guide-grid">
           <section><h4>市值和收益口径</h4><p>总市值优先使用价格×时点总股本；缺少历史股本时使用明确标记的当前股本价格代理。A股流通市值代理来自本地行情字段，不等于指数公司的自由流通市值。</p><p class="page-guide-formula">行业市值 = Σ(股票价格 × 对应股本口径)</p></section>
           <section><h4>CW、EW 与广度</h4><p>市值加权收益 CW＝Σ期初市值权重×股票收益；等权收益 EW＝股票收益算术均值；股票广度＝上涨股票数÷有效股票数。</p><p>CW&gt;0、EW&lt;0 通常是权重托举；CW&lt;0、EW&gt;0 是少数大市值拖累；两者同向且广度高，行情更均衡。</p></section>
+          <section><h4>罗盘放大操作</h4><p>申万三级气泡密集时，先点“放大查看”，再用滚轮或 ＋/− 以光标位置为中心缩放；放大后拖动画布平移，点“复位”回到完整收益区间。气泡的实际点击范围略大于可见圆点，小行业会绘制在大气泡上层。</p></section>
           <section><h4>贡献和权重迁移</h4><p class="page-guide-formula">行业贡献 bp ≈ 行业期初市场权重% × 行业 CW 收益%</p><p class="page-guide-formula">权重迁移 bp = (当前行业权重% − 基期行业权重%) × 100</p><p>贡献 bp 是市场收益归因，不是资金流入；权重上升可能来自价格上涨、股本变化或样本进出。</p></section>
           <section><h4>集中结构</h4><p>行业 HHI＝Σ行业市值权重²，有效行业数＝10,000÷HHI；Top3/Top5 是头部行业市值占比。行业内部 Top5 和有效股票数用相同思想衡量是否由少数股票支撑。</p><p>大盘 Top100、中盘 Next400、其余股票分层用于识别大小盘风格迁移。</p></section>
           <section><h4>树图和窗口</h4><p>树图面积代表市值，颜色按固定的窗口收益阈值映射，因此跨日期可直接比较。1/5/20 日切换改变收益、贡献和基期，不改变行业分类。点击行业查看 20–60 日市值、权重、贡献和成分驱动。</p></section>
@@ -140,30 +223,31 @@
     },
     'momentum-etf.html': {
       title: '动量 ETF 使用说明',
-      subtitle: '用趋势速度×稳定度做二次验证，不把短期暴涨当作高质量动量',
+      subtitle: '与参考页同一套排名引擎：历史行情直接回算，不等待逐日累计',
       html: `
-        <div class="page-guide-flow"><span><b>01</b>选池子</span><span><b>02</b>确认市场状态</span><span><b>03</b>看得分与 R²</span><span><b>04</b>检查过滤链</span></div>
+        <div class="page-guide-flow"><span><b>01</b>选分组</span><span><b>02</b>设置参数</span><span><b>03</b>看排名轨迹</span><span><b>04</b>核对未入选原因</span></div>
         <div class="page-guide-grid">
-          <section><h4>动量如何计算</h4><p>对最近 lookback 日的对数收盘价做加权线性回归，越近的数据权重越高，权重序列为线性1→2后平方。斜率按250个交易日年化。</p><p class="page-guide-formula">年化趋势 = exp(回归斜率 × 250) − 1；动量得分 = 年化趋势 × R²</p><p>R² 越高表示价格更贴近稳定趋势，而不是只看累计涨幅。</p></section>
-          <section><h4>过滤链</h4><ul><li>得分必须位于配置区间，默认排除负趋势和极端爆发。</li><li>正常期要求 R² 高于阈值；走弱期改为收盘价站上 MA10×阈值。</li><li>量比低于阈值，避免放量过激。</li><li>近3日任一日跌幅不得低于风险阈值。</li></ul></section>
-          <section><h4>池子</h4><p>中国池和全球池是手工维护的 ETF 宇宙；动态池读取“ETF 下一热点”中通过门槛的唯一 ETF；合并视图去重。动态池为空是有效的无信号状态，不影响其他池独立计算。</p></section>
-          <section><h4>市场状态</h4><p>正常期可从全球、中国、动态三池合并选择；走弱期策略目标只从全球池产生，中国和动态池仍显示供观察。候选阈值通常按 Top10 第一名得分的一定比例确定。</p></section>
-          <section><h4>参数管理</h4><p>lookback 决定趋势观察长度；R²阈值控制平滑度；得分范围控制趋势速度；量比和近3日跌幅控制过热及破坏。修改后“保存”只存参数，“保存并重算”才刷新结果。</p></section>
-          <section><h4>边界</h4><p class="page-guide-warning">年化数只是回归斜率换算，不是未来一年收益预测。高分可能来自短样本快速上涨，必须同时看 R²、回撤、成交、市场状态和 ETF 下一热点的基本证据。</p></section>
+          <section><h4>动量如何计算</h4><p>对回看窗口内的对数收盘价做加权线性回归，权重从1线性增加到2，越近的数据权重越高；斜率按250个交易日年化。</p><p class="page-guide-formula">年化趋势 = exp(回归斜率 × 250) − 1；动量得分 = 年化趋势 × R²</p><p>默认回看25日，并同时计算10日短期年化动量。</p></section>
+          <section><h4>过滤链</h4><ul><li>先检查盈利保护：最新价相对指定窗口最高价的回撤不得超过阈值。</li><li>启用时，短期年化动量必须达到下限。</li><li>近3日任一单日跌幅不得超过限制。</li><li>分数必须严格位于最小值与最大值之间。</li></ul></section>
+          <section><h4>池子与分组</h4><p>默认选择“五福组”，也可切换“行业主题全量组”或全部标的。ETF 池和自定义分组保存在本机；恢复默认池会同时恢复参考文件的默认标的及分组。</p></section>
+          <section><h4>排名轨迹</h4><p>页面直接抓取东方财富前复权日线，失败时改用腾讯财经；随后针对每个历史交易日仅使用该日及以前的数据重新计算，因此无需等待排名逐日累计。</p><p>轨迹包含所选日期内所有曾进入 Top N 的 ETF；断档不连线，中途离榜标注“退出”，相对前一日新进榜单标注 NEW。</p></section>
+          <section><h4>参数管理</h4><p>13项参数与参考文件一致：长短动量窗口、短期过滤、三日跌幅、盈利保护、分数上下限、Top N、排序方向和回溯交易日数。改参数后点“重新计算”；只有所需历史长度超出现有缓存时才重新联网。</p></section>
+          <section><h4>排名与未入选</h4><p>日期标签可切换当日榜单；变化值与前一个交易日的完整入选榜比较。5/10/20日列是对应区间实际收益。未入选明细按当日无行情、数据不足、盈利保护、短期动量、近3日跌幅或分数范围归类。</p></section>
+          <section><h4>边界</h4><p class="page-guide-warning">年化数只是历史回归斜率换算，不是未来收益预测。名次变化是所选分组、参数和行情数据下的相对结果，不构成买卖建议。</p></section>
         </div>`
     },
     'etf-backtest.html': {
       title: 'ETF 回测使用说明',
       subtitle: '检查模型在严格时间顺序下是否优于基线，以及优势是否稳定',
       html: `
-        <div class="page-guide-flow"><span><b>01</b>确认样本区间</span><span><b>02</b>看可评估日期</span><span><b>03</b>看收益与超额</span><span><b>04</b>看横截面指标</span><span><b>05</b>看分期稳定性</span></div>
+        <div class="page-guide-flow"><span><b>01</b>确认样本区间</span><span><b>02</b>看可评估日期</span><span><b>03</b>看 T+1—T+5 路径</span><span><b>04</b>看横截面指标</span><span><b>05</b>看分期稳定性</span></div>
         <div class="page-guide-grid">
-          <section><h4>时间规则</h4><p>每个推荐日 D 只使用 D 日收盘前可获得的数据，统一在下一市场交易日 T+1 开盘成交。若 ETF 在严格 T+1 没有开盘行情，则该笔不可评估，不把之后首个交易日冒充 T+1。</p></section>
-          <section><h4>收益口径</h4><p class="page-guide-formula">净收益 = 目标日收盘 ÷ T+1开盘 − 1 − 交易成本</p><p>基准使用沪深300 ETF 同期 T+1开盘至目标日收盘且不扣成本；净超额＝ETF净收益−基准收益。页面会分别展示不同持有期。</p></section>
+          <section><h4>时间规则</h4><p>每个推荐日 D 只使用 D 日收盘前可获得的数据，统一在下一市场交易日 T+1 开盘成交，再依次观察 T+1、T+2、T+3、T+4、T+5 收盘。它是一笔交易的五个观察点，不是五次重复入场。若 ETF 在严格 T+1 没有开盘行情，则该笔不可评估，不把之后首个交易日冒充 T+1。</p></section>
+          <section><h4>收益口径</h4><p class="page-guide-formula">T+n净收益 = T+n收盘 ÷ T+1开盘 − 1 − 交易成本，n∈[1,5]</p><p>页面只保留 T+1 至 T+5。基准使用沪深300 ETF 同期 T+1开盘至对应目标日收盘且不扣成本；净超额＝ETF净收益−基准收益。连续五个期限可以判断机会是快速兑现、持续增强，还是很快衰减。</p></section>
           <section><h4>命中和横截面</h4><p>热点命中通常要求净收益&gt;0、超额收益&gt;0，且同日横截面收益分位≥80%。Precision@K 是每日 TopK 中命中比例的日期均值；Rank IC 是当日预测分数与未来收益排序的相关系数。</p></section>
           <section><h4>基线和公平比较</h4><p>模型与简单相对强弱基线使用同一推荐日、同一可交易 ETF 宇宙、同一 T+1 入场和未来标签。只比较模型榜单内标的会产生选择偏差，因此结果宇宙包含所有已配置且严格 T+1 可交易的 ETF。</p></section>
-          <section><h4>概率校准</h4><p>训练期和验证期按时间拆分，并避免训练期未来标签跨入验证期。只有独立预测日期和样本数足够、校准分箱具有稳定性时，预测概率才可展示；否则标记“校准中”。</p></section>
-          <section><h4>如何判断有效</h4><p>同时看扣成本收益、基准超额、Precision@K、Rank IC、不同年份/市场状态及预测日聚类后的置信区间。少数日期贡献全部收益、换一个持有期就失效，通常不具稳健性。</p><p class="page-guide-warning">回测不是实盘承诺。日线无法无穿越复原14:50盘中信号，只有真实保存分钟级特征快照后才能回测盘中策略。</p></section>
+          <section><h4>概率校准</h4><p>热点概率统一以 T+5 标签校准，训练期和验证期按时间拆分，并避免训练期未来标签跨入验证期。T+1 至 T+4 只展示兑现路径，不各自拟合小样本概率。只有独立预测日期和样本数足够、校准分箱具有稳定性时，预测概率才可展示；否则标记“校准中”。</p></section>
+          <section><h4>如何判断有效</h4><p>先看超额从 T+1 到 T+5 何时出现、能否保持，再结合 T+5 的 Precision@K、Rank IC、不同年份/市场状态及预测日聚类后的置信区间。若优势只在个别日期或某一个观察点短暂出现，通常不具稳健性。</p><p class="page-guide-warning">回测不是实盘承诺。日线无法无穿越复原14:50盘中信号，只有真实保存分钟级特征快照后才能回测盘中策略。</p></section>
         </div>`
     }
   };
@@ -178,26 +262,26 @@
     var style = document.createElement('style');
     style.id = 'pageGuideStyles';
     style.textContent = `
-      .page-guide-shell{width:calc(100% - 32px);max-width:1560px;margin:18px auto 24px;color:#abb2bf;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;box-sizing:border-box}
-      .page-guide-details{border:1px solid #343a46;border-radius:9px;background:#1f2329;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.12)}
-      .page-guide-details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;cursor:pointer;list-style:none;color:#e5e5e5;font-size:14px;font-weight:700;user-select:none}
+      .page-guide-shell{width:calc(100% - 32px);max-width:1560px;margin:18px auto 24px;color:var(--text,#abb2bf);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;box-sizing:border-box}
+      .page-guide-details{border:1px solid var(--border,#343a46);border-radius:9px;background:var(--panel,#1f2329);overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+      .page-guide-details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;cursor:pointer;list-style:none;color:var(--strong,#e5e5e5);font-size:14px;font-weight:700;user-select:none}
       .page-guide-details>summary::-webkit-details-marker{display:none}
-      .page-guide-details>summary::after{content:"展开 +";color:#61afef;font-size:11px;font-weight:600}
-      .page-guide-details[open]>summary{border-bottom:1px solid #343a46}
+      .page-guide-details>summary::after{content:"展开 +";color:var(--accent,#61afef);font-size:11px;font-weight:600}
+      .page-guide-details[open]>summary{border-bottom:1px solid var(--border,#343a46)}
       .page-guide-details[open]>summary::after{content:"收起 −"}
-      .page-guide-summary-note{margin-left:auto;color:#7f8792;font-size:11px;font-weight:400}
+      .page-guide-summary-note{margin-left:auto;color:var(--muted,#7f8792);font-size:11px;font-weight:400}
       .page-guide-content{padding:15px 16px 17px}
       .page-guide-flow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px}
-      .page-guide-flow span{padding:6px 9px;border:1px solid #343a46;border-radius:999px;background:#252a32;color:#9ba5b4;font-size:11px}
-      .page-guide-flow b{margin-right:5px;color:#61afef}
+      .page-guide-flow span{padding:6px 9px;border:1px solid var(--border,#343a46);border-radius:999px;background:var(--panel-2,#252a32);color:var(--muted,#9ba5b4);font-size:11px}
+      .page-guide-flow b{margin-right:5px;color:var(--accent,#61afef)}
       .page-guide-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-      .page-guide-grid section{padding:11px 12px;border:1px solid #303641;border-radius:7px;background:#20242b}
-      .page-guide-grid h4{margin:0 0 7px;color:#d7dce2;font-size:12px}
+      .page-guide-grid section{padding:11px 12px;border:1px solid var(--border,#303641);border-radius:7px;background:var(--panel-2,#20242b)}
+      .page-guide-grid h4{margin:0 0 7px;color:var(--strong,#d7dce2);font-size:12px}
       .page-guide-grid p,.page-guide-grid li{font-size:11px;line-height:1.72}
       .page-guide-grid p{margin:5px 0}
       .page-guide-grid ul,.page-guide-grid ol{margin:5px 0;padding-left:18px}
-      .page-guide-grid b{color:#c7cdd5}
-      .page-guide-formula{padding:6px 8px;border-left:3px solid #61afef;background:#1b1f25;color:#c8d9e8;font-family:"SF Mono",Menlo,Consolas,monospace}
+      .page-guide-grid b{color:var(--text,#c7cdd5)}
+      .page-guide-formula{padding:6px 8px;border-left:3px solid var(--accent,#61afef);background:var(--bg,#1b1f25);color:var(--text,#c8d9e8);font-family:"SF Mono",Menlo,Consolas,monospace}
       .page-guide-code{color:#e5c07b;font-family:"SF Mono",Menlo,Consolas,monospace}
       .page-guide-warning{padding:7px 9px;border:1px solid #e5c07b55;border-radius:5px;background:#e5c07b0d;color:#d8c28b}
       @media(max-width:860px){.page-guide-grid{grid-template-columns:1fr}.page-guide-shell{width:calc(100% - 20px)}.page-guide-summary-note{display:none}}

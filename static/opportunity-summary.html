@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script src="/theme.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机会汇总</title>
+<style>
+  :root {
+    --bg:#0c1017;
+    --panel:#131922;
+    --panel-2:#171f2a;
+    --panel-3:#0f151e;
+    --line:#273141;
+    --line-strong:#39475a;
+    --text:#d7dee9;
+    --strong:#f0f4fa;
+    --muted:#8490a2;
+    --dim:#596578;
+    --blue:#66a8ff;
+    --green:#58c59a;
+    --amber:#e4b65c;
+    --red:#ef6b73;
+    --violet:#a98af7;
+    --shadow:0 16px 40px #00000024;
+  }
+  * { box-sizing:border-box; }
+  html,body { min-height:100%; margin:0; background: var(--bg); color:var(--text); }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(circle at 12% -8%,var(--c-17305066, #17305066) 0,transparent 32%),
+      radial-gradient(circle at 93% 0,var(--c-28204a40, #28204a40) 0,transparent 27%),
+      var(--bg);
+  }
+  button,input,select { font:inherit; }
+  button,select { cursor:pointer; }
+  button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible {
+    outline:2px solid var(--blue);
+    outline-offset:2px;
+  }
+  .container { width:min(1540px,100%); margin:0 auto; padding:22px 24px 34px; }
+  .masthead {
+    display:flex; align-items:flex-end; justify-content:space-between; gap:22px;
+    margin-bottom:14px;
+  }
+  .eyebrow {
+    color:var(--blue); font:700 10px/1.2 "SF Mono",Menlo,monospace;
+    letter-spacing:.16em;
+  }
+  h1 { margin:5px 0 0; color:var(--c-f5f7fb, #f5f7fb); font-size:24px; letter-spacing:-.025em; }
+  .headline-note {
+    max-width:620px; color:var(--muted); font-size:12px; line-height:1.6; text-align:right;
+  }
+  .control-bar {
+    display:flex; align-items:end; gap:8px; flex-wrap:wrap; margin-bottom:12px;
+    padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    background: var(--c-111720b8, #111720b8); box-shadow:var(--shadow);
+  }
+  .control {
+    display:grid; gap:4px; color:var(--dim); font-size:9px; font-weight:750;
+    letter-spacing:.06em;
+  }
+  .control select {
+    min-width:122px; height:32px; padding:4px 30px 4px 9px; color:var(--text);
+    border:1px solid var(--line); border-radius:7px; background: var(--c-19212c, #19212c);
+    font-size:11px; letter-spacing:0;
+  }
+  .refresh {
+    height:32px; padding:0 13px; color:var(--c-d8e7fb, #d8e7fb); border:1px solid #41658d;
+    border-radius:7px; background: var(--c-172a40, #172a40); font-size:11px; font-weight:700;
+  }
+  .refresh:hover { border-color:var(--blue); background: var(--c-1b3450, #1b3450); }
+  .refresh:disabled { opacity:.5; cursor:wait; }
+  .load-state {
+    margin-left:auto; color:var(--dim); font-size:10px; line-height:32px;
+  }
+  .load-state.live { color:var(--green); }
+  .load-state.paused { color:var(--amber); }
+  .error-banner {
+    display:none; margin-bottom:12px; padding:12px 14px; border:1px solid #70404a;
+    border-radius:9px; background: var(--c-2d171d, #2d171d); color:var(--c-f09aa2, #f09aa2); font-size:12px; line-height:1.55;
+  }
+  .error-banner.show { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .retry {
+    flex:none; padding:5px 10px; color:var(--c-ffd9dd, #ffd9dd); border:1px solid #8f515c;
+    border-radius:6px; background: var(--c-3a1d24, #3a1d24);
+  }
+
+  .overview { display:grid; grid-template-columns:1.15fr .85fr; gap:10px; }
+  .overview-card {
+    min-width:0; min-height:190px; padding:16px 17px; border:1px solid var(--line);
+    border-radius:11px; background:linear-gradient(145deg,var(--c-18212c, #18212c),var(--c-111720, #111720));
+    box-shadow:var(--shadow);
+  }
+  .overview-card.permission-allowed { border-color:#35624f; }
+  .overview-card.permission-cautious { border-color:#6c5a33; }
+  .overview-card.permission-restricted,
+  .overview-card.permission-paused { border-color:#70414a; }
+  .card-kicker {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    color:var(--dim); font-size:9px; font-weight:800; letter-spacing:.1em;
+  }
+  .as-of { color:#647287; font:500 9px/1.2 "SF Mono",Menlo,monospace; letter-spacing:0; }
+  .permission-title {
+    margin-top:11px; color:var(--strong); font-size:22px; font-weight:760; letter-spacing:-.02em;
+  }
+  .permission-title.allowed { color:var(--c-8edbb9, #8edbb9); }
+  .permission-title.cautious { color:var(--c-f0c974, #f0c974); }
+  .permission-title.restricted,.permission-title.paused { color:var(--c-f18c96, #f18c96); }
+  .permission-message {
+    min-height:38px; margin-top:7px; color:var(--c-9eabbc, #9eabbc); font-size:12px; line-height:1.6;
+  }
+  .market-metrics {
+    display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin-top:13px;
+  }
+  .market-metric { min-width:0; padding:9px 10px; border-radius:8px; background: var(--panel-3); }
+  .market-metric span { display:block; color:var(--dim); font-size:9px; }
+  .market-metric strong {
+    display:block; margin-top:5px; color:var(--c-dce3ed, #dce3ed); font:700 13px/1.25 "SF Mono",Menlo,monospace;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .quality-head { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; }
+  .quality-title { margin-top:9px; color:var(--strong); font-size:19px; font-weight:740; }
+  .quality-status { margin-top:5px; color:var(--muted); font-size:11px; }
+  .quality-score {
+    flex:none; min-width:72px; padding:9px 10px; border:1px solid var(--line);
+    border-radius:9px; background: var(--c-0e141d, #0e141d); text-align:center;
+  }
+  .quality-score b { display:block; color:var(--blue); font:750 24px/1 "SF Mono",Menlo,monospace; }
+  .quality-score span { display:block; margin-top:5px; color:var(--dim); font-size:8px; }
+  .quality-bar { height:5px; margin-top:13px; overflow:hidden; border-radius:3px; background: var(--c-252e3b, #252e3b); }
+  .quality-bar i {
+    display:block; width:0; height:100%; border-radius:inherit;
+    background:linear-gradient(90deg,var(--amber),var(--green)); transition:width .25s ease;
+  }
+  .quality-notes { display:grid; gap:5px; margin-top:11px; }
+  .quality-note {
+    color:var(--c-9ba7b7, #9ba7b7); font-size:10px; line-height:1.45; overflow-wrap:anywhere;
+  }
+  .quality-note::before { content:"·"; margin-right:6px; color:var(--blue); }
+  .quality-note.warning { color:var(--c-d9b779, #d9b779); }
+  .quality-note.warning::before { color:var(--amber); }
+  .source-strip { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+  .source-chip {
+    padding:3px 7px; border:1px solid var(--c-2f3b4b, #2f3b4b); border-radius:999px;
+    color:#7f8da0; background: var(--c-101720, #101720); font-size:8px;
+  }
+
+  .funnel-panel {
+    margin-top:10px; padding:13px 15px; border:1px solid var(--line); border-radius:10px;
+    background: var(--c-111720d9, #111720d9); box-shadow:var(--shadow);
+  }
+  .section-line {
+    display:flex; align-items:flex-end; justify-content:space-between; gap:14px; margin-bottom:10px;
+  }
+  .section-title { color:var(--c-edf1f7, #edf1f7); font-size:13px; font-weight:720; }
+  .section-sub { margin-top:3px; color:var(--dim); font-size:9px; line-height:1.5; }
+  .funnel { display:grid; grid-template-columns:repeat(6,minmax(90px,1fr)); gap:7px; }
+  .funnel-step {
+    position:relative; min-width:0; padding:10px 9px; border:1px solid var(--c-263241, #263241);
+    border-radius:8px; background: var(--c-0e151e, #0e151e);
+  }
+  .funnel-step.bottleneck { border-color:#805f30; background: var(--c-211b11, #211b11); }
+  .funnel-name {
+    min-height:24px; color:#738096; font-size:9px; line-height:1.35;
+  }
+  .funnel-count { margin-top:4px; color:var(--c-e8edf4, #e8edf4); font:750 20px/1 "SF Mono",Menlo,monospace; }
+  .funnel-rate { margin-top:5px; color:#505e72; font-size:8px; }
+  .bottleneck-note {
+    display:none; margin-top:9px; padding:8px 10px; border-left:3px solid var(--amber);
+    border-radius:0 6px 6px 0; background: var(--c-211c13, #211c13); color:var(--c-c8aa72, #c8aa72); font-size:10px; line-height:1.5;
+  }
+  .bottleneck-note.show { display:block; }
+
+  .candidate-section { margin-top:20px; }
+  .toolbar {
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    margin:10px 0;
+  }
+  .search-wrap { position:relative; flex:1; max-width:360px; min-width:210px; }
+  .search-wrap input {
+    width:100%; height:34px; padding:6px 10px 6px 31px; color:var(--text);
+    border:1px solid var(--line); border-radius:8px; background: var(--c-111720, #111720); font-size:11px;
+  }
+  .search-wrap::before {
+    content:"⌕"; position:absolute; left:10px; top:5px; color:#6f7d91; font-size:17px;
+  }
+  .filters { display:flex; gap:5px; flex-wrap:wrap; }
+  .filter {
+    min-height:32px; padding:5px 10px; color:var(--muted); border:1px solid var(--line);
+    border-radius:8px; background: var(--c-111720, #111720); font-size:10px;
+  }
+  .filter:hover { color:var(--c-dbe4f0, #dbe4f0); border-color:var(--c-46566b, #46566b); }
+  .filter.active { color:var(--c-dceafb, #dceafb); border-color:#456d9e; background: var(--c-17273a, #17273a); }
+  .filter b { margin-left:3px; color:inherit; font-family:"SF Mono",Menlo,monospace; }
+  .result-count { color:var(--dim); font-size:9px; white-space:nowrap; }
+  .lanes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; align-items:start; }
+  .lane {
+    min-width:0; overflow:hidden; border:1px solid var(--line); border-radius:11px;
+    background: var(--c-10161f99, #10161f99);
+  }
+  .lane.confirmed { border-top-color:#4b9e7c; }
+  .lane.watch { border-top-color:#6f85b7; }
+  .lane.rejected { border-top-color:#9a5059; }
+  .lane-head {
+    position:sticky; top:0; z-index:2; display:flex; align-items:center;
+    justify-content:space-between; gap:10px; padding:11px 12px; border-bottom:1px solid var(--line);
+    background: var(--c-151c26f2, #151c26f2); backdrop-filter:blur(8px);
+  }
+  .lane-title { display:flex; align-items:center; gap:7px; color:var(--c-e5eaf1, #e5eaf1); font-size:11px; font-weight:720; }
+  .lane-dot { width:7px; height:7px; border-radius:50%; background: var(--dim); }
+  .confirmed .lane-dot { background: var(--green); box-shadow:0 0 10px #58c59a88; }
+  .watch .lane-dot { background: var(--blue); box-shadow:0 0 10px #66a8ff77; }
+  .rejected .lane-dot { background: var(--red); box-shadow:0 0 10px #ef6b7366; }
+  .lane-count {
+    padding:2px 6px; border-radius:8px; background: var(--c-0e141c, #0e141c); color:#7f8da1;
+    font:650 9px/1.4 "SF Mono",Menlo,monospace;
+  }
+  .lane-description { padding:8px 12px 0; color:#566276; font-size:9px; line-height:1.45; }
+  .card-list { display:grid; gap:8px; padding:10px; }
+  .opportunity-card {
+    position:relative; min-width:0; overflow:hidden; padding:13px 13px 11px;
+    border:1px solid var(--c-293545, #293545); border-radius:9px;
+    background:linear-gradient(150deg,var(--c-18212c, #18212c),var(--c-111720, #111720));
+  }
+  .opportunity-card::before {
+    content:""; position:absolute; inset:0 auto 0 0; width:3px; background: var(--dim);
+  }
+  .opportunity-card.confirmed::before { background: var(--green); }
+  .opportunity-card.watch::before { background: var(--blue); }
+  .opportunity-card.rejected::before { background: var(--red); }
+  .opportunity-card:hover { border-color:var(--c-3a495d, #3a495d); }
+  .card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:9px; }
+  .rank { color:#5f6c80; font:600 9px/1.2 "SF Mono",Menlo,monospace; }
+  .industry { margin-top:3px; color:var(--c-f0f3f8, #f0f3f8); font-size:14px; font-weight:730; overflow-wrap:anywhere; }
+  .badges { display:flex; justify-content:flex-end; gap:4px; flex-wrap:wrap; }
+  .badge {
+    display:inline-flex; align-items:center; min-height:20px; padding:2px 7px;
+    border:1px solid var(--line); border-radius:999px; color:var(--muted);
+    background: var(--c-0d131b, #0d131b); font-size:8px; font-weight:750; white-space:nowrap;
+  }
+  .badge.confirmed,.badge.actionable { color:var(--c-86d7b4, #86d7b4); border-color:#37624f; background: var(--c-163127, #163127); }
+  .badge.watch { color:var(--c-91bdf4, #91bdf4); border-color:var(--c-385574, #385574); background: var(--c-16273a, #16273a); }
+  .badge.rejected,.badge.veto { color:var(--c-ef929b, #ef929b); border-color:#6f3c46; background: var(--c-321b21, #321b21); }
+  .badge.data { color:var(--c-dfb965, #dfb965); border-color:#66542f; background: var(--c-2b2314, #2b2314); }
+  .score-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-top:11px; }
+  .score-item { min-width:0; padding:7px 8px; border-radius:7px; background: var(--c-0e151e, #0e151e); }
+  .score-item span { display:block; color:#596679; font-size:8px; }
+  .score-item strong {
+    display:block; margin-top:4px; color:var(--c-dce4ee, #dce4ee); font:700 12px/1.2 "SF Mono",Menlo,monospace;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .score-item:first-child strong { color:var(--blue); }
+  .why {
+    margin-top:9px; padding:8px 9px; border-left:2px solid #416f9e; border-radius:0 6px 6px 0;
+    background: var(--c-101a26, #101a26); color:var(--c-aeb9c8, #aeb9c8); font-size:9px; line-height:1.55;
+  }
+  .why b { color:var(--c-7595b9, #7595b9); font-size:8px; letter-spacing:.04em; }
+  .evidence-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+  .evidence-tag {
+    padding:2px 6px; border:1px solid var(--c-2e3a4a, #2e3a4a); border-radius:8px;
+    color:var(--c-8392a6, #8392a6); background: var(--c-101720, #101720); font-size:8px;
+  }
+  .evidence-tag.ok { color:var(--c-81c8a9, #81c8a9); border-color:#315343; }
+  .evidence-tag.warn { color:var(--c-ddbb73, #ddbb73); border-color:#5f5132; }
+  .evidence-tag.missing { color:#727e90; border-style:dashed; }
+  .carrier-preview {
+    display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-top:8px;
+    color:#596679; font-size:8px;
+  }
+  .asset-link,.asset-plain {
+    display:inline-flex; max-width:100%; align-items:center; gap:4px; padding:3px 6px;
+    border:1px solid var(--c-314052, #314052); border-radius:7px; color:var(--c-a9b9cc, #a9b9cc); background: var(--c-111a25, #111a25);
+    font-size:8px; text-decoration:none;
+  }
+  .asset-link:hover { color:var(--blue); border-color:#456c95; }
+  .asset-link.qualified { color:var(--c-89ccb0, #89ccb0); border-color:#335746; }
+  .asset-link.unqualified { color:var(--c-8c929b, #8c929b); border-color:var(--c-424750, #424750); border-style:dashed; }
+  .asset-code { color:var(--c-d5b267, #d5b267); font-family:"SF Mono",Menlo,monospace; }
+  .asset-meta { color:#657287; }
+  .details { margin-top:9px; border-top:1px solid var(--c-26313f, #26313f); }
+  .details summary {
+    padding:8px 1px 1px; color:#78879b; cursor:pointer; font-size:9px; list-style:none;
+  }
+  .details summary::-webkit-details-marker { display:none; }
+  .details summary::after { content:"＋"; float:right; color:#59677b; }
+  .details[open] summary::after { content:"－"; }
+  .drawer { display:grid; gap:10px; padding-top:10px; }
+  .drawer-section { min-width:0; }
+  .drawer-title {
+    margin-bottom:5px; color:#68768a; font-size:8px; font-weight:780; letter-spacing:.06em;
+  }
+  .drawer-list { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
+  .drawer-list li {
+    position:relative; padding-left:10px; color:var(--c-a1adbc, #a1adbc); font-size:9px; line-height:1.5;
+    overflow-wrap:anywhere;
+  }
+  .drawer-list li::before { content:"·"; position:absolute; left:1px; color:#607089; }
+  .drawer-list.risk li { color:var(--c-d5aa77, #d5aa77); }
+  .drawer-list.risk li::before { color:var(--amber); }
+  .drawer-list.veto li { color:var(--c-dc858e, #dc858e); }
+  .drawer-list.veto li::before { color:var(--red); }
+  .drawer-list.muted li { color:#778396; }
+  .domain-grid { display:grid; gap:5px; }
+  .domain {
+    padding:7px 8px; border:1px solid var(--c-263342, #263342); border-radius:7px; background: var(--c-0e151e, #0e151e);
+  }
+  .domain-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .domain-name { color:var(--c-aeb8c6, #aeb8c6); font-size:9px; font-weight:680; }
+  .domain-status { color:#6e7b8e; font-size:8px; }
+  .domain-status.ok { color:var(--green); }
+  .domain-status.warn { color:var(--amber); }
+  .domain-detail { margin-top:4px; color:#6f7c8e; font-size:8px; line-height:1.5; }
+  .domain-sources { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .source-link {
+    padding:3px 6px; color:var(--c-88a8ca, #88a8ca); border:1px solid var(--c-334a63, #334a63); border-radius:6px;
+    background: var(--c-111e2b, #111e2b); font-size:8px;
+  }
+  .source-link:hover { color:var(--c-c2dcf7, #c2dcf7); border-color:#4a7097; }
+  .source-note {
+    padding:3px 6px; color:var(--c-a99570, #a99570); border:1px dashed #615237; border-radius:6px;
+    background: var(--c-211c13, #211c13); font-size:8px; line-height:1.4;
+  }
+  .asset-group { display:flex; flex-wrap:wrap; gap:5px; }
+  .asset-group + .asset-group { margin-top:6px; }
+  .asset-label { flex-basis:100%; color:#586579; font-size:8px; }
+  .lane-empty {
+    margin:10px; padding:22px 12px; border:1px dashed var(--c-344052, #344052); border-radius:8px;
+    color:#667387; text-align:center; font-size:9px; line-height:1.55;
+  }
+  .show-more {
+    display:block; width:calc(100% - 20px); margin:0 10px 10px; padding:8px;
+    color:var(--c-8494a8, #8494a8); border:1px solid var(--c-2d3948, #2d3948); border-radius:7px;
+    background: var(--c-121923, #121923); font-size:9px;
+  }
+  .show-more:hover { color:var(--c-c4d2e4, #c4d2e4); border-color:var(--c-46576c, #46576c); }
+  .method {
+    margin-top:14px; color:#596579; font-size:9px; line-height:1.7;
+  }
+  .method summary { color:#78879b; cursor:pointer; font-weight:650; }
+  .method p { margin:7px 0 0; }
+  .loading-card {
+    min-height:150px; border-color:var(--c-252f3d, #252f3d);
+    background:linear-gradient(100deg,var(--c-131a23, #131a23) 25%,var(--c-1b2430, #1b2430) 38%,var(--c-131a23, #131a23) 52%);
+    background-size:220% 100%; animation:shimmer 1.3s infinite linear;
+  }
+  @keyframes shimmer { to { background-position-x:-220%; } }
+
+  @media (max-width:1050px) {
+    .lanes { grid-template-columns:1fr; }
+    .lane-head { position:static; }
+  }
+  @media (max-width:820px) {
+    .container { padding:17px 14px 28px; }
+    .masthead { display:block; }
+    .headline-note { margin-top:7px; text-align:left; }
+    .overview { grid-template-columns:1fr; }
+    .funnel { grid-template-columns:repeat(3,1fr); }
+  }
+  @media (max-width:560px) {
+    .control-bar { align-items:stretch; }
+    .control { flex:1 1 44%; }
+    .control select { width:100%; min-width:0; }
+    .refresh { flex:1 1 100%; }
+    .load-state { width:100%; margin-left:0; line-height:1.4; }
+    .market-metrics,.score-grid { grid-template-columns:1fr; }
+    .funnel { grid-template-columns:repeat(2,1fr); }
+    .section-line { display:block; }
+    .result-count { margin-top:5px; }
+    .toolbar { display:block; }
+    .search-wrap { max-width:none; }
+    .filters { margin-top:8px; }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    *,*::before,*::after { scroll-behavior:auto !important; animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<main class="container">
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">CROSS-VALIDATED OPPORTUNITY</div>
+      <h1>机会汇总</h1>
+    </div>
+    <div class="headline-note">先看市场是否许可，再验证行业扩散、价格、成交参与与直接需求；风险否决独立生效，不用高分掩盖冲突。</div>
+  </header>
+
+  <section class="control-bar" aria-label="汇总参数">
+    <label class="control">行业口径
+      <select id="schemeSelect">
+        <option value="sw">申万一级</option>
+        <option value="ths">同花顺细分</option>
+        <option value="sw3" selected>申万三级</option>
+      </select>
+    </label>
+    <label class="control">观察周期
+      <select id="periodSelect">
+        <option value="month" selected>近 20 日</option>
+        <option value="60d">近 60 日</option>
+        <option value="120d">近 120 日</option>
+        <option value="1year">近一年</option>
+        <option value="alltime">全部历史</option>
+      </select>
+    </label>
+    <label class="control">数据模式
+      <select id="modeSelect">
+        <option value="auto" selected>自动判断</option>
+        <option value="daily">收盘确认</option>
+        <option value="intraday">盘中预警</option>
+      </select>
+    </label>
+    <button class="refresh" id="refreshButton" type="button" title="只重新读取已生成的数据,不更新;更新数据请用右上角状态条">↻ 重新加载</button>
+    <div class="load-state" id="loadState" role="status" aria-live="polite">准备加载</div>
+  </section>
+
+  <div class="error-banner" id="errorBanner" role="alert">
+    <span id="errorMessage">加载失败</span>
+    <button class="retry" id="retryButton" type="button">重试</button>
+  </div>
+
+  <section class="overview" aria-label="全局状态">
+    <article class="overview-card" id="marketCard">
+      <div class="card-kicker">
+        <span>MARKET PERMISSION · 市场许可</span>
+        <span class="as-of" id="asOf">—</span>
+      </div>
+      <div class="permission-title" id="permissionTitle">正在判断…</div>
+      <div class="permission-message" id="permissionMessage">读取市场温度、参与强度与拥挤状态。</div>
+      <div class="market-metrics">
+        <div class="market-metric"><span>市场温度</span><strong id="temperatureValue">—</strong></div>
+        <div class="market-metric"><span id="participationLabel">参与强度</span><strong id="participationValue">—</strong></div>
+        <div class="market-metric"><span id="crowdingLabel">拥挤状态</span><strong id="crowdingValue">—</strong></div>
+      </div>
+    </article>
+    <article class="overview-card" id="qualityCard">
+      <div class="card-kicker"><span>DATA GATE · 数据质量</span><span id="qualityGate">—</span></div>
+      <div class="quality-head">
+        <div>
+          <div class="quality-title" id="qualityTitle">正在核对数据…</div>
+          <div class="quality-status" id="qualityStatus">日期、覆盖率与来源必须先通过闸门</div>
+        </div>
+        <div class="quality-score"><b id="qualityScore">—</b><span id="qualityScoreLabel">数据闸门</span></div>
+      </div>
+      <div class="quality-bar" aria-hidden="true"><i id="qualityBar"></i></div>
+      <div class="quality-notes" id="qualityNotes"></div>
+      <div class="source-strip" id="sourceStrip"></div>
+    </article>
+  </section>
+
+  <section class="funnel-panel" aria-labelledby="funnelTitle">
+    <div class="section-line">
+      <div>
+        <div class="section-title" id="funnelTitle">候选漏斗</div>
+        <div class="section-sub">每一层都必须保留原因；被风险否决的候选不会回到可执行区。</div>
+      </div>
+    </div>
+    <div class="funnel" id="funnel"></div>
+    <div class="bottleneck-note" id="bottleneckNote" role="status"></div>
+  </section>
+
+  <section class="candidate-section" aria-labelledby="candidateTitle">
+    <div class="section-line">
+      <div>
+        <div class="section-title" id="candidateTitle">行业机会泳道</div>
+        <div class="section-sub">确认区代表证据链完整，观察区等待独立确认，否决区保留冲突、风险和失效理由。</div>
+      </div>
+      <div class="result-count" id="resultCount">—</div>
+    </div>
+    <div class="toolbar">
+      <label class="search-wrap">
+        <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">搜索行业、ETF、个股或证据</span>
+        <input id="searchInput" type="search" autocomplete="off" placeholder="搜索行业、ETF、个股或证据">
+      </label>
+      <div class="filters" id="filters" role="group" aria-label="候选筛选">
+        <button class="filter active" type="button" data-filter="all" aria-pressed="true">全部 <b id="allCount">0</b></button>
+        <button class="filter" type="button" data-filter="actionable" aria-pressed="false">可执行 <b id="actionableCount">0</b></button>
+        <button class="filter" type="button" data-filter="confirmed" aria-pressed="false">已确认 <b id="confirmedCount">0</b></button>
+        <button class="filter" type="button" data-filter="watch" aria-pressed="false">待确认 <b id="watchCount">0</b></button>
+        <button class="filter" type="button" data-filter="rejected" aria-pressed="false">已否决 <b id="rejectedCount">0</b></button>
+      </div>
+    </div>
+
+    <div class="lanes" id="lanes">
+      <section class="lane confirmed" aria-labelledby="confirmedLaneTitle">
+        <header class="lane-head">
+          <div class="lane-title"><i class="lane-dot"></i><span id="confirmedLaneTitle">已确认</span></div>
+          <span class="lane-count" id="confirmedLaneCount">0</span>
+        </header>
+        <div class="lane-description">独立证据已经共振且风险通过，可进一步核对交易载体。</div>
+        <div class="card-list" id="confirmedList"></div>
+        <button class="show-more" id="confirmedMore" type="button" data-lane-more="confirmed" hidden></button>
+      </section>
+      <section class="lane watch" aria-labelledby="watchLaneTitle">
+        <header class="lane-head">
+          <div class="lane-title"><i class="lane-dot"></i><span id="watchLaneTitle">待确认</span></div>
+          <span class="lane-count" id="watchLaneCount">0</span>
+        </header>
+        <div class="lane-description">已有触发但证据不完整；看清缺什么，比盯住总分更重要。</div>
+        <div class="card-list" id="watchList"></div>
+        <button class="show-more" id="watchMore" type="button" data-lane-more="watch" hidden></button>
+      </section>
+      <section class="lane rejected" aria-labelledby="rejectedLaneTitle">
+        <header class="lane-head">
+          <div class="lane-title"><i class="lane-dot"></i><span id="rejectedLaneTitle">已否决</span></div>
+          <span class="lane-count" id="rejectedLaneCount">0</span>
+        </header>
+        <div class="lane-description">拥挤、冲突、流动性或数据闸门触发，保留记录但不进入行动区。</div>
+        <div class="card-list" id="rejectedList"></div>
+        <button class="show-more" id="rejectedMore" type="button" data-lane-more="rejected" hidden></button>
+      </section>
+    </div>
+  </section>
+
+  <details class="method">
+    <summary>口径说明</summary>
+    <p>机会强度只用于同日排序，不等于收益率或胜率。行业触发是前置条件；价格、成交参与、市值结构、直接需求四个非触发域至少确认两个，才进入已确认泳道。同一证据域内的同源衍生指标只计一票。盘中模式只生成预警，收盘数据才能确认。ETF 与个股是行业证据的交易或复核载体，点击后在同花顺打开。</p>
+  </details>
+</main>
+
+<script>
+(function() {
+  'use strict';
+
+  var state = {
+    payload:null,
+    candidates:[],
+    filter:'all',
+    query:'',
+    requestId:0,
+    controller:null,
+    laneLimits:{confirmed:10,watch:10,rejected:10},
+    loading:false,
+    effectiveMode:null,
+    refreshChecking:false
+  };
+
+  var LANE_LABELS = {confirmed:'已确认',watch:'待确认',rejected:'已否决'};
+  var DOMAIN_LABELS = {
+    trigger:'行业触发',price:'价格确认',participation:'成交参与',
+    structure:'结构确认',direct_demand:'直接需求'
+  };
+  var SOURCE_LABELS = {
+    heatmap_opportunity:'热力图',capital_flow_v2:'成交动能',
+    market_cap_v2:'市值结构',crowding:'拥挤风险',
+    market_temperature:'市场温度',momentum_etf:'ETF 动量'
+  };
+  var FUNNEL_DEFS = [
+    {key:'total',label:'全部行业',aliases:['all','universe','industries','all_industries']},
+    {key:'triggered',label:'扩散触发',aliases:['diffusion_triggered','opportunity_triggered']},
+    {key:'confirmed',label:'独立确认',aliases:['independent_confirmed','cross_confirmed']},
+    {key:'risk_passed',label:'风险通过',aliases:['passed_risk','risk_clear']},
+    {key:'with_qualified_etf',label:'合格 ETF',aliases:['with_etf','carrier_ready','qualified_carrier']},
+    {key:'actionable',label:'可执行候选',aliases:['executable','ready']}
+  ];
+
+  function byId(id) { return document.getElementById(id); }
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+  function finite(value) {
+    if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
+    var number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  function firstValue(object, keys) {
+    if (!object || typeof object !== 'object') return null;
+    for (var i=0;i<keys.length;i++) {
+      var value = object[keys[i]];
+      if (value !== undefined && value !== null && value !== '') return value;
+    }
+    return null;
+  }
+  function displayText(value, fallback) {
+    if (value === null || value === undefined || value === '') return fallback || '—';
+    if (typeof value === 'object') {
+      var nested = firstValue(value,['label','message','name','status','value','score','detail','text']);
+      return nested === null ? (fallback || '—') : displayText(nested,fallback);
+    }
+    if (typeof value === 'boolean') return value ? '是' : '否';
+    return String(value);
+  }
+  function displayMetric(value) {
+    if (value && typeof value === 'object') {
+      var label = firstValue(value,['label','name','status']);
+      var number = finite(firstValue(value,['value','score','percentile','temperature']));
+      if (label !== null && number !== null) return displayText(label) + ' · ' + formatNumber(number,1);
+      if (label !== null) return displayText(label);
+      if (number !== null) return formatNumber(number,1);
+    }
+    var numeric = finite(value);
+    return numeric === null ? displayText(value,'—') : formatNumber(numeric,1);
+  }
+  function formatNumber(value,digits) {
+    var number = finite(value);
+    if (number === null) return '—';
+    return number.toLocaleString('zh-CN',{
+      minimumFractionDigits:digits || 0,
+      maximumFractionDigits:digits || 0
+    });
+  }
+  function formatScore(value) {
+    var number = finite(value);
+    return number === null ? displayText(value,'—') : formatNumber(number,number % 1 ? 1 : 0);
+  }
+  function itemText(item) {
+    if (item === null || item === undefined || item === '') return '';
+    if (typeof item !== 'object') return String(item);
+    var label = firstValue(item,['label','message','reason','detail','name','title','status','source']);
+    if (label !== null) return displayText(label,'');
+    var pairs = Object.keys(item).filter(function(key) {
+      return item[key] !== null && item[key] !== undefined && typeof item[key] !== 'object';
+    }).slice(0,3).map(function(key) { return key + '：' + item[key]; });
+    return pairs.join(' · ');
+  }
+  function toList(value) {
+    if (value === null || value === undefined || value === '') return [];
+    if (Array.isArray(value)) return value.map(itemText).filter(Boolean);
+    if (typeof value === 'object') {
+      return Object.keys(value).filter(function(key) {
+        return value[key] !== false && value[key] !== null && value[key] !== undefined && value[key] !== '';
+      }).map(function(key) {
+        var item = value[key];
+        if (item === true) return DOMAIN_LABELS[key] || key;
+        var text = itemText(item);
+        return text || DOMAIN_LABELS[key] || key;
+      });
+    }
+    return [String(value)];
+  }
+  function unique(list) {
+    var seen = Object.create(null);
+    return list.filter(function(item) {
+      var key = String(item);
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+  function normaliseRoot(payload) {
+    if (payload && payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
+      if (payload.data.candidates || payload.data.quality || payload.data.market) return payload.data;
+    }
+    if (payload && payload.opportunity_summary && typeof payload.opportunity_summary === 'object') {
+      return payload.opportunity_summary;
+    }
+    return payload && typeof payload === 'object' ? payload : {};
+  }
+  function normaliseLane(row) {
+    var value = String((row || {}).lane || '').toLowerCase();
+    var map = {
+      confirmed:'confirmed',confirm:'confirmed',actionable:'confirmed','已确认':'confirmed','确认':'confirmed',
+      watch:'watch',watching:'watch',emerging:'watch',candidate:'watch','待确认':'watch','观察':'watch','萌芽':'watch',
+      rejected:'rejected',reject:'rejected',avoid:'rejected',vetoed:'rejected','已否决':'rejected','回避':'rejected'
+    };
+    if (map[value]) return map[value];
+    if (toList((row || {}).vetoes).length) return 'rejected';
+    if ((row || {}).actionable === true) return 'confirmed';
+    return 'watch';
+  }
+  function normaliseStatus(value) {
+    var text = String(value || '').toLowerCase();
+    if (['ok','pass','passed','good','high','ready','available','confirmed','positive','true','1'].indexOf(text)>=0) return 'ok';
+    if (['warning','watch','partial','mixed','cautious','pending','low','conflict'].indexOf(text)>=0) return 'warn';
+    return '';
+  }
+  function evidenceStatusLabel(value) {
+    var key = String(value || '').toLowerCase();
+    return {
+      confirmed:'已确认',conflict:'存在冲突',missing:'数据缺失',
+      not_confirmed:'未确认',pending:'待确认',unavailable:'不可用'
+    }[key] || displayText(value,'待确认');
+  }
+  function sourceName(value) {
+    var key = String(value || '');
+    if (SOURCE_LABELS[key]) return SOURCE_LABELS[key];
+    if (key.indexOf('etf_recommend') === 0) return 'ETF 候选';
+    return key;
+  }
+  function sourceStatusLabel(value) {
+    var key = String(value || '').toLowerCase();
+    return {
+      valid:'同日有效',prior_close:'上一收盘',stale:'日期滞后',
+      missing:'缺失',undated:'日期未知',future:'未来数据已排除',
+      invalid:'无效',unavailable:'不可用'
+    }[key] || displayText(value,'');
+  }
+  function sourceDateLabel(value) {
+    var digits = String(value == null ? '' : value).replace(/\D/g,'');
+    if (digits.length < 8) return displayText(value,'');
+    return digits.slice(0,4) + '-' + digits.slice(4,6) + '-' + digits.slice(6,8);
+  }
+  function permissionKey(value) {
+    var text = String(value || '').toLowerCase();
+    var map = {
+      allowed:'allowed',allow:'allowed','允许':'allowed','进攻':'allowed',
+      cautious:'cautious',caution:'cautious','谨慎':'cautious',
+      restricted:'restricted',restrict:'restricted','受限':'restricted','防守':'restricted',
+      paused:'paused',pause:'paused','暂停':'paused','停止':'paused'
+    };
+    return map[text] || 'cautious';
+  }
+  function qualityScore(value) {
+    var number = finite(value);
+    if (number === null) return null;
+    if (number >= 0 && number <= 1) number *= 100;
+    return Math.max(0,Math.min(100,number));
+  }
+  function codeOf(asset) {
+    var raw = typeof asset === 'object' && asset ? firstValue(asset,['code','symbol','ticker','etf_code','stock_code']) : asset;
+    var match = String(raw == null ? '' : raw).match(/(^|\D)(\d{6})(?!\d)/);
+    return match ? match[2] : '';
+  }
+  function nameOf(asset) {
+    if (asset && typeof asset === 'object') {
+      return displayText(firstValue(asset,['name','short_name','etf_name','stock_name']),'');
+    }
+    var text = String(asset == null ? '' : asset).trim();
+    var code = codeOf(asset);
+    return code ? text.replace(code,'').replace(/^[\s·\-()（）]+|[\s·\-()（）]+$/g,'') : text;
+  }
+  function assetSearchText(asset) {
+    if (!asset || typeof asset !== 'object') return String(asset || '');
+    return Object.keys(asset).map(function(key) {
+      return typeof asset[key] === 'object' ? '' : String(asset[key] == null ? '' : asset[key]);
+    }).join(' ');
+  }
+  function assetLink(asset,type,detail) {
+    var code = codeOf(asset);
+    var name = nameOf(asset);
+    var label = escapeHtml(name || code || displayText(asset,'未知载体'));
+    var codeHtml = code ? '<span class="asset-code">' + escapeHtml(code) + '</span>' : '';
+    var qualified = type === 'etf' && asset && typeof asset === 'object' && asset.qualified === false ? ' unqualified' :
+      (type === 'etf' && asset && typeof asset === 'object' && asset.qualified === true ? ' qualified' : '');
+    var metadata = [];
+    if (detail && asset && typeof asset === 'object') {
+      if (type === 'etf') {
+        if (asset.primary_industry || asset.industry) metadata.push(displayText(asset.primary_industry || asset.industry,''));
+        if (finite(asset.share_change_pct) !== null) metadata.push('份额 ' + (Number(asset.share_change_pct)>0?'+':'') + formatNumber(asset.share_change_pct,1) + '%');
+        if (asset.qualified === false) metadata.push('仅参考');
+        if (asset.liquid === false) metadata.push('流动性未通过');
+        if (asset.last_date) metadata.push(displayText(asset.last_date,''));
+      } else {
+        if (asset.source) metadata.push(displayText(asset.source,''));
+        if (finite(asset.return_pct) !== null) metadata.push((Number(asset.return_pct)>0?'+':'') + formatNumber(asset.return_pct,1) + '%');
+      }
+    }
+    var inner = '<span>' + (label || (type === 'etf' ? 'ETF' : '个股')) + '</span>' + codeHtml;
+    if (metadata.length) inner += '<span class="asset-meta">' + escapeHtml(metadata.join(' · ')) + '</span>';
+    if (!code) return '<span class="asset-plain' + qualified + '">' + inner + '</span>';
+    return '<a class="asset-link' + qualified + '" href="https://stockpage.10jqka.com.cn/' +
+      encodeURIComponent(code) + '/" target="_blank" rel="noopener noreferrer" title="在同花顺打开' +
+      escapeHtml(name || code) + '">' + inner + '</a>';
+  }
+  function assets(row,type) {
+    var carriers = row && row.carriers && typeof row.carriers === 'object' ? row.carriers : {};
+    var value = carriers[type === 'etf' ? 'etfs' : 'stocks'];
+    if (!Array.isArray(value)) return value ? [value] : [];
+    return value;
+  }
+  function candidateSearchText(row) {
+    var fields = [
+      row.industry,row.stage,row.stage_label,row.lane,row.invalidation,
+      row.evidence,row.confirmations,row.independent_confirmations,
+      row.conflicts,row.missing,row.risks,row.vetoes
+    ];
+    assets(row,'etf').forEach(function(item) { fields.push(assetSearchText(item)); });
+    assets(row,'stock').forEach(function(item) { fields.push(assetSearchText(item)); });
+    return fields.map(function(value) {
+      if (typeof value === 'object') return toList(value).join(' ');
+      return String(value == null ? '' : value);
+    }).join(' ').toLowerCase();
+  }
+
+  function setLoading(loading) {
+    state.loading = loading;
+    byId('refreshButton').disabled = loading;
+    byId('schemeSelect').disabled = loading;
+    byId('periodSelect').disabled = loading;
+    byId('modeSelect').disabled = loading;
+    if (loading) {
+      byId('loadState').className = 'load-state';
+      byId('loadState').textContent = '正在交叉验证…';
+    }
+  }
+  function showError(message) {
+    byId('errorMessage').textContent = message || '汇总加载失败，请稍后重试。';
+    byId('errorBanner').classList.add('show');
+  }
+  function hideError() { byId('errorBanner').classList.remove('show'); }
+  function updateUrl() {
+    if (!window.history || !window.history.replaceState) return;
+    var params = new URLSearchParams(window.location.search);
+    params.set('scheme',byId('schemeSelect').value);
+    params.set('period',byId('periodSelect').value);
+    params.set('mode',byId('modeSelect').value);
+    window.history.replaceState(null,'',window.location.pathname + '?' + params.toString());
+  }
+  function applyUrl() {
+    var params = new URLSearchParams(window.location.search);
+    var values = {
+      scheme:['sw','ths','sw3'],
+      period:['month','60d','120d','1year','alltime'],
+      mode:['auto','daily','intraday']
+    };
+    Object.keys(values).forEach(function(key) {
+      var value = params.get(key);
+      var select = byId(key + 'Select');
+      if (select && values[key].indexOf(value)>=0) select.value = value;
+    });
+    if (byId('modeSelect').value === 'intraday' && byId('periodSelect').value === 'alltime') {
+      byId('periodSelect').value = 'month';
+    }
+  }
+
+  async function fetchJson(url,timeoutMs) {
+    var controller = new AbortController();
+    var timeout = setTimeout(function() { controller.abort(); },timeoutMs || 20000);
+    state.controller = controller;
+    try {
+      var response = await fetch(url,{signal:controller.signal,cache:'no-store'});
+      var payload = await response.json().catch(function() { return {}; });
+      if (!response.ok) throw new Error(payload.detail || payload.message || ('HTTP ' + response.status));
+      return payload;
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw new Error('请求超时，请确认本地服务仍在运行。');
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      if (state.controller === controller) state.controller = null;
+    }
+  }
+  async function loadSummary(manual) {
+    var requestId = ++state.requestId;
+    if (state.controller) state.controller.abort();
+    setLoading(true);
+    hideError();
+    if (!state.payload) renderLoading();
+    updateUrl();
+    var query = new URLSearchParams({
+      scheme:byId('schemeSelect').value,
+      period:byId('periodSelect').value,
+      mode:byId('modeSelect').value
+    });
+    if (manual) query.set('_',Date.now());
+    try {
+      var raw = await fetchJson('/api/opportunity-summary?' + query.toString(),30000);
+      if (requestId !== state.requestId) return;
+      state.payload = normaliseRoot(raw);
+      state.candidates = Array.isArray(state.payload.candidates) ? state.payload.candidates.filter(function(row) {
+        return row && typeof row === 'object';
+      }) : [];
+      state.laneLimits = {confirmed:10,watch:10,rejected:10};
+      var request = state.payload.request || {};
+      state.effectiveMode = request.effective_mode || state.payload.effective_mode || null;
+      renderAll();
+      var now = new Date();
+      byId('loadState').className = 'load-state live';
+      byId('loadState').textContent = '已更新 · ' + now.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) +
+        (state.effectiveMode ? ' · ' + (state.effectiveMode === 'intraday' ? '盘中预警' : '收盘确认') : '');
+    } catch (error) {
+      if (requestId !== state.requestId) return;
+      showError(error && error.message ? error.message : '汇总加载失败');
+      byId('loadState').className = 'load-state paused';
+      byId('loadState').textContent = state.payload ? '保留上次结果' : '加载失败';
+      if (!state.payload) renderUnavailable();
+    } finally {
+      if (requestId === state.requestId) setLoading(false);
+    }
+  }
+
+  function renderLoading() {
+    ['confirmed','watch','rejected'].forEach(function(lane) {
+      byId(lane + 'List').innerHTML =
+        '<div class="opportunity-card loading-card" aria-label="正在加载"></div>' +
+        '<div class="opportunity-card loading-card" aria-label="正在加载"></div>';
+    });
+    byId('funnel').innerHTML = FUNNEL_DEFS.map(function(step) {
+      return '<div class="funnel-step"><div class="funnel-name">' + step.label +
+        '</div><div class="funnel-count">—</div><div class="funnel-rate">等待数据</div></div>';
+    }).join('');
+  }
+  function renderUnavailable() {
+    byId('permissionTitle').textContent = '暂时无法判断';
+    byId('permissionMessage').textContent = '没有取得可用的汇总数据，市场许可保持未知。';
+    byId('qualityTitle').textContent = '数据闸门未建立';
+    byId('qualityStatus').textContent = '请重新加载或检查本地服务';
+    ['confirmed','watch','rejected'].forEach(function(lane) {
+      byId(lane + 'List').innerHTML = '<div class="lane-empty">没有可展示的数据</div>';
+    });
+  }
+  function renderAll() {
+    renderOverview();
+    renderFunnel();
+    updateCounts();
+    renderCandidates();
+  }
+
+  function renderOverview() {
+    var data = state.payload || {};
+    var market = data.market && typeof data.market === 'object' ? data.market : {};
+    var quality = data.quality && typeof data.quality === 'object' ? data.quality : {};
+    var permission = permissionKey(market.permission);
+    var marketCard = byId('marketCard');
+    marketCard.className = 'overview-card permission-' + permission;
+    var title = displayText(market.label,'');
+    if (!title) title = {allowed:'允许进攻',cautious:'谨慎观察',restricted:'限制风险',paused:'暂停判断'}[permission];
+    var currentCounts = counts();
+    if (currentCounts.actionable === 0 && title.indexOf('暂无可执行') < 0) title += ' · 暂无可执行候选';
+    byId('permissionTitle').className = 'permission-title ' + permission;
+    byId('permissionTitle').textContent = title;
+    var marketMessage = displayText(market.message || market.reason,'当前市场说明暂缺；请结合三个状态指标判断。');
+    if (currentCounts.actionable === 0 && marketMessage.indexOf('暂无可执行') < 0) {
+      marketMessage = '暂无可执行候选。' + marketMessage;
+    }
+    byId('permissionMessage').textContent = marketMessage;
+    byId('temperatureValue').textContent = displayMetric(market.temperature);
+    var participation = market.participation;
+    var breadth = market.breadth && typeof market.breadth === 'object' ? market.breadth : {};
+    if (participation === undefined) {
+      byId('participationLabel').textContent = '净扩散';
+      participation = firstValue(breadth,['net_breadth_pct','market_breadth']);
+      var participationNumber = finite(participation);
+      byId('participationValue').textContent = participationNumber === null
+        ? displayMetric(participation)
+        : (participationNumber > 0 ? '+' : '') + formatNumber(participationNumber,1) + '%';
+    } else {
+      byId('participationLabel').textContent = '参与强度';
+      byId('participationValue').textContent = displayMetric(participation);
+    }
+    if (market.crowding !== undefined && market.crowding !== null) {
+      byId('crowdingLabel').textContent = '拥挤状态';
+      byId('crowdingValue').textContent = displayMetric(market.crowding);
+    } else {
+      byId('crowdingLabel').textContent = '创新高 / 新低';
+      var highs = finite(breadth.highs);
+      var lows = finite(breadth.lows);
+      byId('crowdingValue').textContent = highs === null && lows === null
+        ? '—'
+        : (highs === null ? '—' : formatNumber(highs,0)) + ' / ' + (lows === null ? '—' : formatNumber(lows,0));
+    }
+    var request = data.request || {};
+    var asOf = firstValue(data,['as_of','date','updated_at','generated_at']) ||
+      firstValue(request,['as_of','effective_at','date']);
+    byId('asOf').textContent = displayText(asOf,'日期未知');
+
+    var score = qualityScore(quality.score);
+    var qualityKey = String(quality.status || '').toLowerCase();
+    byId('qualityScore').textContent = score === null
+      ? ({valid:'通过',degraded:'降级',invalid:'暂停'}[qualityKey] || '未知')
+      : formatNumber(score,0);
+    byId('qualityScoreLabel').textContent = score === null ? '数据闸门' : '可信度 / 100';
+    byId('qualityBar').parentElement.style.display = score === null ? 'none' : '';
+    byId('qualityBar').style.width = (score === null ? 0 : score) + '%';
+    byId('qualityTitle').textContent = displayText(quality.label,'数据质量未知');
+    var qualityMessage = quality.message;
+    if (!qualityMessage) {
+      qualityMessage = {
+        valid:'日期、覆盖与核心来源已对齐',
+        degraded:'部分来源降级，仅用于观察',
+        invalid:'硬闸门未通过，暂停行动判断'
+      }[qualityKey];
+    }
+    var qualityCapabilities = [];
+    if (typeof quality.can_rank === 'boolean') qualityCapabilities.push(quality.can_rank ? '可排序' : '停止排序');
+    if (typeof quality.can_act === 'boolean') qualityCapabilities.push(quality.can_act ? '质量允许行动判断' : '质量不允许行动判断');
+    byId('qualityStatus').textContent =
+      displayText(qualityMessage || quality.status,'尚未提供完整的质量状态') +
+      (qualityCapabilities.length ? ' · ' + qualityCapabilities.join(' · ') : '');
+    byId('qualityGate').textContent = displayText(quality.status,'未知');
+    var reasons = toList(quality.reasons);
+    var warnings = toList(quality.warnings);
+    var notes = reasons.slice(0,4).map(function(item) {
+      return '<div class="quality-note">' + escapeHtml(item) + '</div>';
+    }).concat(warnings.slice(0,4).map(function(item) {
+      return '<div class="quality-note warning">' + escapeHtml(item) + '</div>';
+    }));
+    if (!notes.length) {
+      notes.push('<div class="quality-note">' + (qualityKey === 'valid'
+        ? '所有要求来源已核对；各来源状态与日期见下方标签。'
+        : '接口未提供质量说明，候选应按较低置信度复核。') + '</div>');
+    }
+    byId('qualityNotes').innerHTML = notes.join('');
+    var sources = normaliseSources(quality.sources);
+    byId('sourceStrip').innerHTML = sources.slice(0,8).map(function(item) {
+      return '<span class="source-chip">' + escapeHtml(item) + '</span>';
+    }).join('');
+  }
+  function normaliseSources(value) {
+    if (Array.isArray(value)) return unique(value.map(itemText).filter(Boolean));
+    if (value && typeof value === 'object') {
+      return unique(Object.keys(value).map(function(key) {
+        var item = value[key];
+        if (typeof item === 'boolean') return item ? key : '';
+        if (item && typeof item === 'object') {
+          var status = sourceStatusLabel(item.status);
+          var date = sourceDateLabel(firstValue(item,['date','source_date','as_of']));
+          var parts = [sourceName(key),status,date].filter(Boolean);
+          return parts.join(' · ');
+        }
+        var label = itemText(item);
+        return label && label !== key ? sourceName(key) + ' · ' + label : (label || sourceName(key));
+      }).filter(Boolean));
+    }
+    return toList(value);
+  }
+
+  function funnelValue(funnel,definition) {
+    var value = funnel[definition.key];
+    if (value === undefined) {
+      for (var i=0;i<definition.aliases.length;i++) {
+        if (funnel[definition.aliases[i]] !== undefined) {
+          value = funnel[definition.aliases[i]];
+          break;
+        }
+      }
+    }
+    if (value && typeof value === 'object') value = firstValue(value,['count','value','total','number']);
+    return finite(value);
+  }
+  function funnelSteps() {
+    var funnel = state.payload && state.payload.funnel;
+    if (Array.isArray(funnel)) {
+      return funnel.map(function(item,index) {
+        if (typeof item !== 'object') return {key:'step-' + index,label:'阶段 ' + (index+1),count:finite(item)};
+        return {
+          key:displayText(firstValue(item,['key','stage','name']),'step-' + index),
+          label:displayText(firstValue(item,['label','name','title']),'阶段 ' + (index+1)),
+          count:finite(firstValue(item,['count','value','total','number']))
+        };
+      });
+    }
+    funnel = funnel && typeof funnel === 'object' ? funnel : {};
+    return FUNNEL_DEFS.map(function(definition) {
+      return {key:definition.key,label:definition.label,count:funnelValue(funnel,definition)};
+    });
+  }
+  function bottleneckFor(steps) {
+    var quality = (state.payload || {}).quality || {};
+    var status = String(quality.status || '').toLowerCase();
+    if (['blocked','failed','error','invalid','unavailable','stop','paused'].indexOf(status)>=0) {
+      return {index:-1,message:'数据质量闸门未通过：' + (toList(quality.reasons)[0] || displayText(quality.label,'请先修复日期、覆盖或来源问题。'))};
+    }
+    if (!steps.length) return {index:-1,message:'接口尚未提供候选漏斗，无法定位信号停在哪一层。'};
+    for (var i=0;i<steps.length;i++) {
+      if (steps[i].count === 0) {
+        var messages = [
+          '当前分类下没有可评估行业，请先检查数据覆盖。',
+          '今天没有行业形成有效扩散触发，继续等待结构改善。',
+          '已有触发，但价格、成交参与或直接需求尚未形成独立确认。',
+          '候选未通过拥挤、集中度或流动性风险检查。',
+          '风险通过的行业尚无合格 ETF 载体，可保留行业观察。',
+          '证据链尚未形成可执行候选，空榜是本次交叉验证的有效结论。'
+        ];
+        var message = messages[Math.min(i,messages.length-1)];
+        if (i === steps.length - 1) {
+          var market = (state.payload || {}).market || {};
+          var permission = permissionKey(market.permission);
+          if (permission !== 'allowed') {
+            message = '市场许可为“' + displayText(market.label,{cautious:'谨慎',restricted:'受限',paused:'暂停'}[permission] || permission) +
+              '”，即使行业证据已确认，也不进入可执行候选。';
+          }
+        }
+        return {index:i,message:message};
+      }
+    }
+    var last = steps[steps.length-1];
+    if (last.count === null) return {index:-1,message:'部分漏斗计数缺失，候选卡仍按现有证据展示。'};
+    return null;
+  }
+  function renderFunnel() {
+    var steps = funnelSteps();
+    var bottleneck = bottleneckFor(steps);
+    var previous = null;
+    byId('funnel').innerHTML = steps.map(function(step,index) {
+      var rate = '';
+      if (step.count !== null && previous !== null && previous > 0) {
+        rate = '留存 ' + Math.round(step.count / previous * 100) + '%';
+      } else if (index === 0) {
+        rate = '候选宇宙';
+      } else {
+        rate = '留存待计算';
+      }
+      if (step.count !== null) previous = step.count;
+      return '<div class="funnel-step' + (bottleneck && bottleneck.index === index ? ' bottleneck' : '') + '">' +
+        '<div class="funnel-name">' + escapeHtml(step.label) + '</div>' +
+        '<div class="funnel-count">' + (step.count === null ? '—' : formatNumber(step.count,0)) + '</div>' +
+        '<div class="funnel-rate">' + escapeHtml(rate) + '</div></div>';
+    }).join('');
+    var note = byId('bottleneckNote');
+    if (bottleneck) {
+      note.textContent = bottleneck.message;
+      note.classList.add('show');
+    } else {
+      note.textContent = '';
+      note.classList.remove('show');
+    }
+  }
+
+  function counts() {
+    var result = {all:state.candidates.length,actionable:0,confirmed:0,watch:0,rejected:0};
+    state.candidates.forEach(function(row) {
+      var lane = normaliseLane(row);
+      result[lane]++;
+      if (row.actionable === true) result.actionable++;
+    });
+    return result;
+  }
+  function updateCounts() {
+    var result = counts();
+    Object.keys(result).forEach(function(key) {
+      var element = byId(key + 'Count');
+      if (element) element.textContent = formatNumber(result[key],0);
+    });
+  }
+  function filteredCandidates() {
+    var query = state.query.trim().toLowerCase();
+    return state.candidates.filter(function(row) {
+      var lane = normaliseLane(row);
+      if (state.filter === 'actionable' && row.actionable !== true) return false;
+      if (['confirmed','watch','rejected'].indexOf(state.filter)>=0 && lane !== state.filter) return false;
+      return !query || candidateSearchText(row).indexOf(query)>=0;
+    });
+  }
+  function renderCandidates() {
+    var rows = filteredCandidates();
+    var grouped = {confirmed:[],watch:[],rejected:[]};
+    rows.forEach(function(row) { grouped[normaliseLane(row)].push(row); });
+    ['confirmed','watch','rejected'].forEach(function(lane) {
+      renderLane(lane,grouped[lane]);
+    });
+    byId('resultCount').textContent = '显示 ' + formatNumber(rows.length,0) + ' / ' +
+      formatNumber(state.candidates.length,0) + ' 个行业';
+  }
+  function renderLane(lane,rows) {
+    byId(lane + 'LaneCount').textContent = formatNumber(rows.length,0);
+    var list = byId(lane + 'List');
+    var limit = state.laneLimits[lane];
+    var visible = rows.slice(0,limit);
+    if (!rows.length) {
+      var reason = state.query ? '没有匹配当前搜索条件的候选' :
+        (state.filter !== 'all' ? '当前筛选下没有进入本泳道的候选' : '当前没有进入' + LANE_LABELS[lane] + '泳道的候选');
+      list.innerHTML = '<div class="lane-empty">' + escapeHtml(reason) + '</div>';
+    } else {
+      list.innerHTML = visible.map(function(row,index) { return candidateCard(row,lane,index); }).join('');
+    }
+    var more = byId(lane + 'More');
+    var remaining = rows.length - visible.length;
+    more.hidden = remaining <= 0;
+    more.textContent = remaining > 0 ? '再显示 ' + Math.min(10,remaining) + ' 个 · 尚有 ' + remaining + ' 个' : '';
+  }
+  function confirmationNames(row) {
+    var hasIndependent = row.independent_confirmations !== undefined &&
+      row.independent_confirmations !== null;
+    var confirmations = hasIndependent ? row.independent_confirmations : row.confirmations;
+    if (Array.isArray(confirmations)) return unique(confirmations.map(function(item) {
+      var key = String(item || '');
+      return DOMAIN_LABELS[key] || itemText(item);
+    }).filter(function(item) {
+      if (!item) return false;
+      return hasIndependent || item !== DOMAIN_LABELS.trigger ||
+        finite(row.confirmation_total) !== 4;
+    }));
+    if (confirmations && typeof confirmations === 'object') {
+      return Object.keys(confirmations).filter(function(key) { return Boolean(confirmations[key]); })
+        .filter(function(key) { return hasIndependent || key !== 'trigger' || finite(row.confirmation_total) !== 4; })
+        .map(function(key) { return DOMAIN_LABELS[key] || key; });
+    }
+    return toList(confirmations);
+  }
+  function evidenceDomains(row) {
+    var evidence = row.evidence;
+    if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) return [];
+    return Object.keys(evidence).map(function(key) {
+      var item = evidence[key];
+      if (item && typeof item === 'object') {
+        return {
+          key:key,
+          label:displayText(item.label,DOMAIN_LABELS[key] || key),
+          status:displayText(item.status,''),
+          detail:toList(item.details || item.detail || item.reasons).join('；'),
+          sources:normaliseSources(item.sources)
+        };
+      }
+      return {key:key,label:DOMAIN_LABELS[key] || key,status:item === true ? 'confirmed' : displayText(item,''),detail:'',sources:[]};
+    });
+  }
+  function whyNow(row,domains,confirmations) {
+    var explicit = toList(row.why_now);
+    if (explicit.length) return explicit.slice(0,2).join('；');
+    var positive = domains.filter(function(domain) { return normaliseStatus(domain.status) === 'ok'; })
+      .map(function(domain) { return domain.label + (domain.detail ? '：' + domain.detail : ''); });
+    if (positive.length) return positive.slice(0,2).join('；');
+    var evidence = Array.isArray(row.evidence) ? toList(row.evidence) : [];
+    if (evidence.length) return evidence.slice(0,2).join('；');
+    if (confirmations.length) return '已获得' + confirmations.join('、') + '确认。';
+    return normaliseLane(row) === 'rejected' ? '触发后被风险或数据闸门否决。' : '已有初始触发，等待独立证据跟随。';
+  }
+  function candidateCard(row,lane,index) {
+    var confirmations = confirmationNames(row);
+    var domains = evidenceDomains(row);
+    var confirmationCount = finite(row.confirmation_count);
+    if (confirmationCount === null) confirmationCount = confirmations.length;
+    var total = finite(row.confirmation_total);
+    if (total === null) {
+      var independentDomainCount = domains.filter(function(domain) { return domain.key !== 'trigger'; }).length;
+      total = independentDomainCount || 4;
+    }
+    var strength = firstValue(row,['opportunity_strength','score','rank_score']);
+    var rankScore = firstValue(row,['rank_score','score']);
+    var confidence = firstValue(row,['data_confidence','confidence']);
+    var stageLabel = displayText(firstValue(row,['stage_label','stage']),LANE_LABELS[lane]);
+    var industry = displayText(row.industry,'未命名行业');
+    var vetoes = toList(row.vetoes);
+    var missing = toList(row.missing || row.missing_confirmations);
+    var allEtfs = assets(row,'etf');
+    var qualifiedEtfs = allEtfs.filter(function(asset) {
+      return asset && typeof asset === 'object' && asset.qualified === true;
+    });
+    var previewEtfs = (qualifiedEtfs.length ? qualifiedEtfs : allEtfs).slice(0,2);
+    var triggerDomain = domains.find(function(domain) { return domain.key === 'trigger'; });
+    var evidenceTags = [];
+    if (triggerDomain) {
+      evidenceTags.push('<span class="evidence-tag ' + normaliseStatus(triggerDomain.status) +
+        '">触发 · ' + escapeHtml(evidenceStatusLabel(triggerDomain.status)) + '</span>');
+    }
+    evidenceTags = evidenceTags.concat(confirmations.slice(0,4).map(function(item) {
+      return '<span class="evidence-tag ok">' + escapeHtml(item) + '</span>';
+    }));
+    if (!evidenceTags.length) {
+      domains.slice(0,3).forEach(function(domain) {
+        var status = normaliseStatus(domain.status);
+        evidenceTags.push('<span class="evidence-tag ' + status + '">' + escapeHtml(domain.label) + '</span>');
+      });
+    }
+    if (missing.length) evidenceTags.push('<span class="evidence-tag missing">缺 ' + escapeHtml(missing[0]) + '</span>');
+    var carrierPreview = previewEtfs.length
+      ? '<div class="carrier-preview"><span>' + (qualifiedEtfs.length ? '合格 ETF' : '无合格 ETF · 仅参考') + '</span>' +
+        previewEtfs.map(function(asset) { return assetLink(asset,'etf',false); }).join('') + '</div>'
+      : '<div class="carrier-preview"><span>ETF</span><span>暂无合格载体</span></div>';
+    return '<article class="opportunity-card ' + lane + '">' +
+      '<div class="card-top"><div><div class="rank">#' + (index+1) + '</div><div class="industry">' +
+      escapeHtml(industry) + '</div></div><div class="badges">' +
+      '<span class="badge ' + lane + '">' + escapeHtml(stageLabel) + '</span>' +
+      (row.actionable === true ? '<span class="badge actionable">可执行</span>' : '') +
+      (vetoes.length ? '<span class="badge veto">否决 ' + vetoes.length + '</span>' : '') +
+      '</div></div>' +
+      '<div class="score-grid">' +
+      '<div class="score-item"><span>机会强度</span><strong>' + escapeHtml(formatScore(strength)) + '</strong></div>' +
+      '<div class="score-item"><span>独立确认</span><strong>' + escapeHtml(formatNumber(confirmationCount,0)) + '/' + escapeHtml(formatNumber(total,0)) + '</strong></div>' +
+      '<div class="score-item"><span>数据可信度</span><strong>' + escapeHtml(formatScore(confidence)) + '</strong></div>' +
+      '</div>' +
+      '<div class="why"><b>为什么现在</b><br>' + escapeHtml(whyNow(row,domains,confirmations)) + '</div>' +
+      '<div class="evidence-tags">' + evidenceTags.join('') + '</div>' +
+      carrierPreview +
+      '<details class="details"><summary>展开完整证据链</summary>' +
+      '<div class="drawer">' + drawerHtml(row,domains,confirmations) + '</div></details></article>';
+  }
+  function listSection(title,items,kind,emptyText) {
+    items = unique(items || []);
+    if (!items.length && !emptyText) return '';
+    var content = items.length ? items.map(function(item) { return '<li>' + escapeHtml(item) + '</li>'; }).join('') :
+      '<li>' + escapeHtml(emptyText) + '</li>';
+    return '<section class="drawer-section"><div class="drawer-title">' + escapeHtml(title) +
+      '</div><ul class="drawer-list ' + (kind || '') + '">' + content + '</ul></section>';
+  }
+  function drawerHtml(row,domains,confirmations) {
+    var html = '';
+    if (domains.length) {
+      html += '<section class="drawer-section"><div class="drawer-title">独立证据域</div><div class="domain-grid">' +
+        domains.map(function(domain) {
+          var status = normaliseStatus(domain.status);
+          var sourceLinks = domain.sources.map(sourceButton).filter(Boolean).join('');
+          var sourceText = domain.sources.length && !sourceLinks ? '来源：' + domain.sources.join('、') : '';
+          return '<div class="domain"><div class="domain-head"><span class="domain-name">' +
+            escapeHtml(domain.label) + '</span><span class="domain-status ' + status + '">' +
+            escapeHtml(evidenceStatusLabel(domain.status)) + '</span></div>' +
+            (domain.detail || sourceText ? '<div class="domain-detail">' +
+              escapeHtml([domain.detail,sourceText].filter(Boolean).join(' · ')) + '</div>' : '') +
+            (sourceLinks ? '<div class="domain-sources">' + sourceLinks + '</div>' : '') + '</div>';
+        }).join('') + '</div></section>';
+    } else {
+      html += listSection('独立确认',confirmations,'','尚无独立域确认');
+    }
+    html += listSection('冲突与缺失',toList(row.conflicts).concat(toList(row.missing || row.missing_confirmations)),'muted','没有记录冲突或缺失项');
+    html += listSection('风险',toList(row.risks || row.risk_reasons),'risk','没有记录独立风险');
+    html += listSection('否决原因',toList(row.vetoes),'veto',normaliseLane(row) === 'rejected' ? '否决原因未提供，请降低置信度。' : '');
+    html += listSection('失效条件',toList(row.invalidation),'veto','失效条件未提供');
+    html += carrierSection(row);
+    return html;
+  }
+  function sourceTab(source) {
+    var value = String(source || '').toLowerCase();
+    if (value.indexOf('heatmap')>=0) return 'heatmap';
+    if (value.indexOf('capital_flow')>=0 || value === 'flow') return 'flow';
+    if (value.indexOf('market_cap')>=0 || value === 'mcap') return 'mcap';
+    if (value.indexOf('crowding')>=0) return 'crowding';
+    if (value.indexOf('etf_recommend')>=0 || value === 'etf') return 'etf';
+    if (value.indexOf('momentum')>=0) return 'momentum';
+    return '';
+  }
+  function sourceButton(source) {
+    var tab = sourceTab(source);
+    if (!tab) return '';
+    var labels = {heatmap:'热力图',flow:'成交动能',mcap:'市值结构',crowding:'拥挤风险',etf:'ETF候选',momentum:'ETF动量'};
+    var scheme = byId('schemeSelect').value;
+    if ((tab === 'etf' || tab === 'momentum') && scheme !== 'sw3') {
+      return '<span class="source-note" title="ETF 与动量原始页固定采用申万三级口径">' +
+        escapeHtml(labels[tab]) + '原页为申万三级 · 当前不跳转</span>';
+    }
+    return '<button class="source-link" type="button" data-source-tab="' + tab +
+      '" title="主界面内会同步当前口径；独立打开时请核对口径">' + escapeHtml(labels[tab]) + '</button>';
+  }
+  function sourceContext() {
+    var scheme = byId('schemeSelect').value;
+    var period = byId('periodSelect').value;
+    var mode = byId('modeSelect').value;
+    if (period === 'alltime' && mode === 'auto' && state.effectiveMode === 'daily') mode = 'daily';
+    return {scheme:scheme,period:period,mode:mode};
+  }
+  function clickSourceControl(documentRef,selector) {
+    var button = documentRef.querySelector(selector);
+    if (!button || button.classList.contains('active')) return;
+    button.click();
+  }
+  function syncSourceFrame(frame,tab,context) {
+    try {
+      var view = frame.contentWindow;
+      var documentRef = view && view.document;
+      if (!view || !documentRef || documentRef.readyState === 'loading') return false;
+      if (tab === 'heatmap') {
+        clickSourceControl(documentRef,'#modeToggle [data-mode="' + context.mode + '"]');
+        clickSourceControl(documentRef,'#typeToggle [data-type="' + context.period + '"]');
+      }
+      if (['heatmap','flow','mcap','crowding'].indexOf(tab)>=0) {
+        var schemeSelect = documentRef.getElementById('schemeSelect');
+        if (schemeSelect && schemeSelect.value !== context.scheme) {
+          schemeSelect.value = context.scheme;
+          if (typeof view.switchScheme === 'function') {
+            view.switchScheme(context.scheme);
+          } else {
+            schemeSelect.dispatchEvent(new view.Event('change',{bubbles:true}));
+          }
+        }
+      }
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+  function openSource(tab) {
+    var paths = {
+      heatmap:'/industry-heatmap.html',flow:'/capital-flow.html',mcap:'/market-cap.html',
+      crowding:'/crowding.html',etf:'/etf-recommend.html',momentum:'/momentum-etf.html'
+    };
+    if (!Object.prototype.hasOwnProperty.call(paths,tab)) return;
+    var context = sourceContext();
+    if ((tab === 'etf' || tab === 'momentum') && context.scheme !== 'sw3') return;
+    try {
+      if (window.parent !== window && window.parent.location.origin === window.location.origin &&
+          typeof window.parent.switchTab === 'function') {
+        window.parent.switchTab(tab);
+        var frame = window.parent.document.querySelector('#panel-' + tab + ' iframe');
+        if (frame && !syncSourceFrame(frame,tab,context)) {
+          frame.addEventListener('load',function() {
+            syncSourceFrame(frame,tab,context);
+          },{once:true});
+        }
+        return;
+      }
+    } catch (error) {
+      /* 跨源嵌入时不能访问父页面，改为新标签打开。 */
+    }
+    var query = new URLSearchParams({
+      scheme:context.scheme,period:context.period,mode:context.mode
+    });
+    var opened = window.open(paths[tab] + '?' + query.toString(),'_blank','noopener,noreferrer');
+    if (opened) opened.opener = null;
+    byId('loadState').className = 'load-state paused';
+    byId('loadState').textContent = '原始页已新开 · 请核对行业口径与周期';
+  }
+  function carrierSection(row) {
+    var etfs = assets(row,'etf');
+    var stocks = assets(row,'stock');
+    var etfHtml = etfs.length ? etfs.map(function(asset) { return assetLink(asset,'etf',true); }).join('') :
+      '<span class="asset-plain">暂无 ETF 载体</span>';
+    var stockHtml = stocks.length ? stocks.map(function(asset) { return assetLink(asset,'stock',true); }).join('') :
+      '<span class="asset-plain">暂无个股证据</span>';
+    return '<section class="drawer-section"><div class="drawer-title">ETF 与个股载体</div>' +
+      '<div class="asset-group"><div class="asset-label">ETF · 实线为合格，虚线为仅参考</div>' + etfHtml + '</div>' +
+      '<div class="asset-group"><div class="asset-label">个股 · 点击在同花顺复核</div>' + stockHtml + '</div>' +
+      (etfs.length ? '<div class="domain-sources">' + sourceButton('etf_recommend') + sourceButton('momentum_etf') + '</div>' : '') +
+      '</section>';
+  }
+
+  async function scheduledRefresh() {
+    if (document.hidden) return;  // 嵌入仪表盘且不可见时不轮询
+    if (state.refreshChecking || state.loading) return;
+    var mode = byId('modeSelect').value;
+    if (mode !== 'auto' && mode !== 'intraday') return;
+    state.refreshChecking = true;
+    try {
+      var session = await fetchJson('/api/market-session?_=' + Date.now(),5000);
+      var recommended = session.recommended_mode || 'daily';
+      var changed = mode === 'auto' && state.effectiveMode && recommended !== state.effectiveMode;
+      if (session.phase === 'trading' || changed) {
+        await loadSummary(false);
+      } else {
+        byId('loadState').className = 'load-state paused';
+        byId('loadState').textContent = '自动刷新已暂停 · 非连续交易时段' +
+          ((session.phase === 'lunch' || session.phase === 'awaiting_close') && recommended === 'intraday' ? ' · 保留今日盘中预警' : '');
+      }
+    } catch (error) {
+      /* 会话检查失败时保留当前画面。 */
+    } finally {
+      state.refreshChecking = false;
+    }
+  }
+
+  byId('refreshButton').addEventListener('click',function() { loadSummary(true); });
+  byId('retryButton').addEventListener('click',function() { loadSummary(true); });
+  ['schemeSelect','periodSelect','modeSelect'].forEach(function(id) {
+    byId(id).addEventListener('change',function() {
+      if (byId('modeSelect').value === 'intraday' && byId('periodSelect').value === 'alltime') {
+        byId('periodSelect').value = 'month';
+      }
+      loadSummary(false);
+    });
+  });
+  byId('searchInput').addEventListener('input',function() {
+    state.query = this.value || '';
+    state.laneLimits = {confirmed:10,watch:10,rejected:10};
+    renderCandidates();
+  });
+  byId('filters').addEventListener('click',function(event) {
+    var button = event.target.closest('[data-filter]');
+    if (!button) return;
+    state.filter = button.getAttribute('data-filter') || 'all';
+    this.querySelectorAll('[data-filter]').forEach(function(item) {
+      var active = item === button;
+      item.classList.toggle('active',active);
+      item.setAttribute('aria-pressed',active ? 'true' : 'false');
+    });
+    state.laneLimits = {confirmed:10,watch:10,rejected:10};
+    renderCandidates();
+  });
+  byId('lanes').addEventListener('click',function(event) {
+    var source = event.target.closest('[data-source-tab]');
+    if (source) {
+      openSource(source.getAttribute('data-source-tab'));
+      return;
+    }
+    var button = event.target.closest('[data-lane-more]');
+    if (!button) return;
+    var lane = button.getAttribute('data-lane-more');
+    if (!state.laneLimits[lane]) return;
+    state.laneLimits[lane] += 10;
+    renderCandidates();
+  });
+
+  applyUrl();
+  renderLoading();
+  loadSummary(false);
+  setInterval(scheduledRefresh,60000);
+})();
+</script>
+<script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
+</body>
+</html>

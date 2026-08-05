@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<script src="/theme.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ETF 热点预测验证</title>
 <style>
   :root {
-    --bg:#171a20; --panel:#20242c; --panel2:#262b34; --border:#343b47;
+    --bg:#171a20; --panel:#20242c; --panel2:#262b34; --border:var(--c-343b47, #343b47);
     --text:#b8c0cc; --muted:#747e8d; --white:#edf1f7; --blue:#61afef;
     --red:#e06c75; --green:#98c379; --yellow:#e5c07b;
   }
   * { box-sizing:border-box; }
-  html,body { margin:0; min-height:100%; background:var(--bg); color:var(--text);
+  html,body { margin:0; min-height:100%; background: var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
   .container { max-width:1320px; margin:auto; padding:20px; }
   .header { position:relative; text-align:center; margin-bottom:14px; }
@@ -19,57 +20,58 @@
   .subtitle { color:var(--muted); font-size:.76rem; line-height:1.7; margin-top:5px; }
   button { font:inherit; }
   .refresh { position:absolute; right:0; top:0; border:0; border-radius:7px; padding:7px 12px;
-    background:var(--blue); color:#141820; font-size:.74rem; font-weight:700; cursor:pointer; }
+    background: var(--blue); color:#141820; font-size:.74rem; font-weight:700; cursor:pointer; }
   .refresh:disabled { opacity:.5; cursor:wait; }
   .tabs { display:flex; justify-content:center; gap:7px; margin:14px 0; flex-wrap:wrap; }
-  .tab { border:1px solid var(--border); background:var(--panel); color:var(--text);
+  .tab { border:1px solid var(--border); background: var(--panel); color:var(--text);
     border-radius:7px; padding:7px 17px; font-size:.78rem; cursor:pointer; }
-  .tab.active { background:var(--blue); border-color:var(--blue); color:#151922; font-weight:700; }
+  .tab.active { background: var(--blue); border-color:var(--blue); color:#151922; font-weight:700; }
   .tab.disabled { color:var(--yellow); border-style:dashed; }
   .notice { display:flex; gap:12px; align-items:flex-start; border:1px solid #e5c07b55;
-    border-radius:9px; background:#e5c07b10; padding:11px 13px; margin-bottom:13px;
-    color:#c9b887; font-size:.75rem; line-height:1.65; }
+    border-radius:9px; background: #e5c07b10; padding:11px 13px; margin-bottom:13px;
+    color:var(--c-c9b887, #c9b887); font-size:.75rem; line-height:1.65; }
   .notice strong { color:var(--yellow); white-space:nowrap; }
-  .cards { display:grid; grid-template-columns:repeat(7,minmax(105px,1fr)); gap:8px; margin-bottom:14px; }
-  .card { min-width:0; background:var(--panel); border:1px solid var(--border);
+  .cards { display:grid; grid-template-columns:repeat(8,minmax(95px,1fr)); gap:8px; margin-bottom:14px; }
+  .card { min-width:0; background: var(--panel); border:1px solid var(--border);
     border-radius:9px; padding:10px 8px; text-align:center; }
   .card .value { color:var(--white); font:700 1.03rem "SF Mono",Menlo,monospace; }
   .card .label { color:var(--muted); font-size:.64rem; line-height:1.35; margin-top:4px; }
   .positive .value { color:var(--red); } .negative .value { color:var(--blue); }
-  .section { background:var(--panel); border:1px solid var(--border); border-radius:9px;
+  .section { background: var(--panel); border:1px solid var(--border); border-radius:9px;
     margin-bottom:14px; overflow:hidden; }
   .section-head { display:flex; justify-content:space-between; align-items:center; gap:10px;
-    padding:9px 12px; background:var(--panel2); color:var(--white); font-size:.79rem; font-weight:700; }
+    padding:9px 12px; background: var(--panel2); color:var(--white); font-size:.79rem; font-weight:700; }
   .section-note { color:var(--muted); font-size:.67rem; font-weight:400; }
-  .compare { display:grid; grid-template-columns:1.25fr repeat(5,1fr); font-size:.73rem; }
-  .compare > div { padding:8px 10px; border-top:1px solid #303640; text-align:right; }
-  .compare > div:nth-child(6n+1) { text-align:left; color:var(--white); }
-  .compare .head { color:var(--muted)!important; background:#1c2027; font-size:.66rem; font-weight:600; }
+  .compare-wrap { overflow-x:auto; }
+  .compare { display:grid; grid-template-columns:1.35fr repeat(7,minmax(78px,1fr)); min-width:790px; font-size:.73rem; }
+  .compare > div { padding:8px 10px; border-top:1px solid var(--c-303640, #303640); text-align:right; }
+  .compare > div:nth-child(8n+1) { text-align:left; color:var(--white); }
+  .compare .head { color:var(--muted)!important; background: var(--c-1c2027, #1c2027); font-size:.66rem; font-weight:600; }
   .calibration { display:grid; grid-template-columns:1.15fr 1fr; gap:0; }
   .cal-status { padding:13px; font-size:.75rem; line-height:1.7; }
   .cal-status strong { color:var(--white); }
   .cal-status.ready strong { color:var(--green); }
   .cal-status.insufficient strong { color:var(--yellow); }
   .cal-grid { display:grid; grid-template-columns:repeat(4,1fr); border-left:1px solid var(--border); }
-  .cal-metric { text-align:center; padding:11px 6px; border-left:1px solid #303640; }
+  .cal-metric { text-align:center; padding:11px 6px; border-left:1px solid var(--c-303640, #303640); }
   .cal-metric:first-child { border-left:0; }
   .cal-metric b { display:block; color:var(--white); font:700 .9rem "SF Mono",Menlo,monospace; }
   .cal-metric span { color:var(--muted); font-size:.61rem; }
   .table-wrap { overflow-x:auto; }
   table { width:100%; border-collapse:collapse; font-size:.72rem; }
-  th { padding:7px 6px; text-align:right; color:var(--muted); background:#1c2027;
+  th { padding:7px 6px; text-align:right; color:var(--muted); background: var(--c-1c2027, #1c2027);
     font-size:.65rem; white-space:nowrap; }
   th:first-child,th:nth-child(2),td:first-child,td:nth-child(2) { text-align:left; }
-  td { border-top:1px solid #2b3039; padding:6px; text-align:right; white-space:nowrap;
+  td { border-top:1px solid var(--c-2b3039, #2b3039); padding:6px; text-align:right; white-space:nowrap;
     font-variant-numeric:tabular-nums; }
-  tbody tr:hover { background:#282e3744; }
-  .date-row td { background:var(--panel2); color:var(--white); font-weight:700; text-align:left!important; }
-  .code { display:block; color:#d19a66; font:600 .66rem "SF Mono",Menlo,monospace; margin-top:2px; }
+  tbody tr:hover { background: var(--c-282e3744, #282e3744); }
+  .date-row td { background: var(--panel2); color:var(--white); font-weight:700; text-align:left!important; }
+  .code { display:block; color:var(--c-d19a66, #d19a66); font:600 .66rem "SF Mono",Menlo,monospace; margin-top:2px; }
   .score { color:var(--yellow); font-family:"SF Mono",Menlo,monospace; }
   .up { color:var(--red); } .down { color:var(--blue); } .na { color:#505967; }
   .tag { display:inline-block; padding:1px 6px; border-radius:8px; color:var(--green);
-    border:1px solid #98c37944; background:#98c37911; font-size:.62rem; }
-  .tag.avoid { color:var(--red); border-color:#e06c7544; background:#e06c7511; }
+    border:1px solid #98c37944; background: #98c37911; font-size:.62rem; }
+  .tag.avoid { color:var(--red); border-color:#e06c7544; background: #e06c7511; }
   .hit { color:var(--green); font-weight:700; } .miss { color:var(--muted); }
   .empty { padding:38px 18px; text-align:center; color:var(--muted); line-height:1.8; }
   .disabled-box { padding:28px; text-align:center; line-height:1.8; }
@@ -77,17 +79,15 @@
   .disabled-box h2 { color:var(--yellow); font-size:1rem; margin:8px 0; }
   .disabled-box p { max-width:720px; margin:6px auto; color:var(--text); font-size:.76rem; }
   .method { color:var(--muted); font-size:.69rem; line-height:1.85; margin-top:10px; }
-  .method strong { color:#9ba5b4; }
+  .method strong { color:var(--c-9ba5b4, #9ba5b4); }
   @media (max-width:900px) {
-    .cards { grid-template-columns:repeat(3,1fr); }
+    .cards { grid-template-columns:repeat(4,1fr); }
     .calibration { grid-template-columns:1fr; }
     .cal-grid { border-left:0; border-top:1px solid var(--border); }
     .refresh { position:static; margin-top:8px; }
   }
   @media (max-width:560px) {
     .container { padding:12px; } .cards { grid-template-columns:repeat(2,1fr); }
-    .compare { grid-template-columns:1.25fr repeat(2,1fr); }
-    .compare .wide { display:none; }
   }
 </style>
 </head>
@@ -95,7 +95,7 @@
 <main class="container">
   <header class="header">
     <h1>ETF 热点预测验证</h1>
-    <div class="subtitle" id="dateSub">严格 T+1 · 扣 20bps 往返成本 · 相对沪深300 ETF · 按预测日聚类</div>
+    <div class="subtitle" id="dateSub">短线 T+1—T+5 · 严格 T+1 开盘入场 · 扣 20bps 往返成本 · 按预测日聚类</div>
     <button class="refresh" id="refreshBtn" onclick="refreshData()">重新回测</button>
   </header>
 
@@ -114,6 +114,7 @@
 <script>
 var DATA = null;
 var module_ = 'industry';
+var SHORT_HORIZONS = [1, 2, 3, 4, 5];
 
 function escapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
@@ -178,39 +179,39 @@ function renderSummary(moduleData) {
   var h5 = summary.t5 || {};
   var cards = '';
   cards += card(e5.eligible_dates == null ? h5.n : e5.eligible_dates, '独立可评估日期');
+  SHORT_HORIZONS.forEach(function(day) {
+    var e = evaluation(moduleData, 't' + day);
+    cards += card(e.avg_net_return == null ? null : (e.avg_net_return > 0 ? '+' : '') + number(e.avg_net_return,2) + '%',
+      'T+' + day + ' 平均净收益', true);
+  });
   cards += card(e5.precision_at_k == null ? null : number(e5.precision_at_k,1) + '%',
-    'Precision@' + (e5.k || 3));
-  cards += card(e5.avg_net_return == null ? null : (e5.avg_net_return > 0 ? '+' : '') + number(e5.avg_net_return,2) + '%',
-    'T+5 平均净收益', true);
-  cards += card(e5.avg_excess_return == null ? null : (e5.avg_excess_return > 0 ? '+' : '') + number(e5.avg_excess_return,2) + '%',
-    'T+5 平均超额', true);
-  cards += card(e5.rank_ic == null ? null : number(e5.rank_ic,3), 'T+5 Rank IC', true);
-  cards += card(e5.coverage == null ? null : number(e5.coverage,1) + '%', '可评估日期覆盖');
-  cards += card(summary.avg_max_dd == null ? null : number(summary.avg_max_dd,2) + '%', '观察窗平均最大回撤', true);
+    'T+5 Precision@' + (e5.k || 3));
+  cards += card(summary.avg_max_dd == null ? null : number(summary.avg_max_dd,2) + '%', '5日平均最大回撤', true);
   document.getElementById('summaryCards').innerHTML = cards;
 }
 
-function compareRow(name, e5, e10) {
-  return '<div>' + escapeHtml(name) + '</div>' +
-    '<div>' + number(e5.precision_at_k,1) + '%</div>' +
-    '<div>' + pct(e5.avg_excess_return) + '</div>' +
-    '<div class="wide">' + number(e5.rank_ic,3) + '</div>' +
-    '<div class="wide">' + number(e10.precision_at_k,1) + '%</div>' +
-    '<div>' + pct(e10.avg_excess_return) + '</div>';
+function compareRow(name, moduleData) {
+  var html = '<div>' + escapeHtml(name) + '</div>';
+  SHORT_HORIZONS.forEach(function(day) {
+    html += '<div>' + pct(evaluation(moduleData,'t' + day).avg_excess_return) + '</div>';
+  });
+  var e5 = evaluation(moduleData,'t5');
+  html += '<div>' + number(e5.precision_at_k,1) + '%</div>' +
+    '<div>' + number(e5.rank_ic,3) + '</div>';
+  return html;
 }
 
 function renderComparison(moduleData) {
   if (module_ !== 'industry') return '';
   var baseline = (((DATA.baselines || {}).relative_strength_5d) || {});
-  var e5 = evaluation(moduleData,'t5'), e10 = evaluation(moduleData,'t10');
-  var b5 = evaluation(baseline,'t5'), b10 = evaluation(baseline,'t10');
+  var heads = '<div class="head">方法</div>';
+  SHORT_HORIZONS.forEach(function(day) { heads += '<div class="head">T+' + day + ' 超额</div>'; });
+  heads += '<div class="head">T+5 P@K</div><div class="head">T+5 Rank IC</div>';
   return '<section class="section"><div class="section-head"><span>与简单基线同口径比较</span>' +
-    '<span class="section-note">同一完整 ETF 结果横截面 · 同成本 · 同基准</span></div>' +
-    '<div class="compare">' +
-    '<div class="head">方法</div><div class="head">T+5 P@K</div><div class="head">T+5 超额</div>' +
-    '<div class="head wide">T+5 Rank IC</div><div class="head wide">T+10 P@K</div><div class="head">T+10 超额</div>' +
-    compareRow('V3 热点候选',e5,e10) + compareRow('5日相对强弱 Top3',b5,b10) +
-    '</div></section>';
+    '<span class="section-note">比较 T+1—T+5 超额路径 · 同横截面 · 同成本 · 同基准</span></div>' +
+    '<div class="compare-wrap"><div class="compare">' + heads +
+    compareRow('V3 热点候选',moduleData) + compareRow('5日相对强弱 Top3',baseline) +
+    '</div></div></section>';
 }
 
 function renderCalibration() {
@@ -222,9 +223,10 @@ function renderCalibration() {
     ? '概率映射已完成时间切分的样本外校准。机会分仍不是确定性结论。'
     : '校准中：独立预测日期或有效样本尚未达到门槛，页面不会把短样本胜率冒充预测概率。';
   return '<section class="section"><div class="section-head"><span>概率校准</span>' +
-    '<span class="section-note">训练期与验证期按时间分离</span></div><div class="calibration">' +
+    '<span class="section-note">T+5 热点标签 · 训练期与验证期按时间分离</span></div><div class="calibration">' +
     '<div class="cal-status ' + (ready ? 'ready' : 'insufficient') + '"><strong>' +
-    (ready ? '已校准' : '校准中') + '</strong><br>' + escapeHtml(text) + '</div>' +
+    (ready ? '已校准' : '校准中') + '</strong><br>' + escapeHtml(text) +
+    '<br>T+1—T+4 用于观察短线路径，不各自拟合小样本概率。</div>' +
     '<div class="cal-grid">' +
     '<div class="cal-metric"><b>' + number(c.independent_dates,0) + '</b><span>独立日期 / ' + number(c.min_dates,0) + '</span></div>' +
     '<div class="cal-metric"><b>' + number(c.sample_size,0) + '</b><span>样本 / ' + number(c.min_samples,0) + '</span></div>' +
@@ -245,25 +247,27 @@ function renderPicks(moduleData) {
     }
     var stage = row.stage || (module_ === 'momentum' ? '动量通过' : '—');
     var hit = row.hotspot_hit_t5;
+    var returnCells = SHORT_HORIZONS.map(function(day) {
+      var netKey = 'net_ret_t' + day, legacyKey = 'ret_t' + day;
+      return '<td>' + pct(row[netKey] == null ? row[legacyKey] : row[netKey]) + '</td>';
+    }).join('');
+    var hitText = hit == null ? '—' : (hit ? '命中' : '未命中');
+    if (row.forward_percentile_t5 != null) hitText += ' · P' + number(row.forward_percentile_t5,0);
     body += '<tr><td>#' + escapeHtml(row.rank) + '</td>' +
       '<td><strong>' + escapeHtml(row.name || row.label || row.code) + '</strong><span class="code">' + escapeHtml(row.code) + '</span></td>' +
       '<td class="score">' + number(row.opportunity_score == null ? row.score : row.opportunity_score,1) + '</td>' +
       '<td><span class="tag ' + (stage === 'avoid' ? 'avoid' : '') + '">' + escapeHtml(stageLabel(stage)) + '</span></td>' +
       '<td>' + (row.entry == null ? '<span class="na">—</span>' : number(row.entry,3)) + '</td>' +
-      '<td>' + pct(row.net_ret_t5 == null ? row.ret_t5 : row.net_ret_t5) + '</td>' +
-      '<td>' + pct(row.benchmark_ret_t5) + '</td>' +
+      returnCells +
       '<td>' + pct(row.excess_ret_t5) + '</td>' +
-      '<td>' + (row.forward_percentile_t5 == null ? '<span class="na">—</span>' : number(row.forward_percentile_t5,1) + '%') + '</td>' +
-      '<td class="' + (hit === true ? 'hit' : 'miss') + '">' + (hit == null ? '—' : (hit ? '命中' : '未命中')) + '</td>' +
-      '<td>' + pct(row.net_ret_t10 == null ? row.ret_t10 : row.net_ret_t10) + '</td>' +
-      '<td>' + pct(row.excess_ret_t10) + '</td>' +
+      '<td class="' + (hit === true ? 'hit' : 'miss') + '">' + hitText + '</td>' +
       '<td>' + pct(row.max_dd) + '</td></tr>';
   });
   return '<section class="section"><div class="section-head"><span>逐日预测明细</span>' +
-    '<span class="section-note">收益均为百分比；“—”表示尚无完整观察窗</span></div>' +
+    '<span class="section-note">同一笔 T+1 开盘入场，连续观察至第 5 个交易日收盘</span></div>' +
     '<div class="table-wrap"><table><thead><tr><th>#</th><th>ETF</th><th>机会分</th><th>阶段</th><th>T+1 开盘</th>' +
-    '<th>T+5 净收益</th><th>510300</th><th>T+5 超额</th><th>横截面分位</th><th>热点标签</th>' +
-    '<th>T+10 净收益</th><th>T+10 超额</th><th>最大回撤</th></tr></thead><tbody>' + body +
+    '<th>T+1 净</th><th>T+2 净</th><th>T+3 净</th><th>T+4 净</th><th>T+5 净</th>' +
+    '<th>T+5 超额</th><th>T+5 热点</th><th>5日最大回撤</th></tr></thead><tbody>' + body +
     '</tbody></table></div></section>';
 }
 
@@ -284,7 +288,7 @@ function render() {
   var dates = DATA.dates || [];
   document.getElementById('dateSub').textContent =
     (dates.length ? '回测区间 ' + fmtDate(dates[dates.length-1]) + '—' + fmtDate(dates[0]) + ' · ' : '') +
-    '严格 T+1 · 扣 ' + number((DATA.costs || {}).round_trip_bps,0) + 'bps 成本 · 基准 ' +
+    '短线 T+1—T+5 · 严格 T+1 开盘入场 · 扣 ' + number((DATA.costs || {}).round_trip_bps,0) + 'bps 成本 · 基准 ' +
     escapeHtml(((DATA.benchmark || {}).code) || '510300') + ' · 更新于 ' + (DATA.updated_at || '—');
   if (module_ === 'intraday') { renderDisabledIntraday(); return; }
   var moduleData = DATA[module_] || {};
@@ -299,7 +303,7 @@ function render() {
     ' · <strong>入场：</strong>' + escapeHtml(DATA.entry_rule || 'T+1 开盘') +
     ' · <strong>成本：</strong>' + escapeHtml((DATA.costs || {}).application || '净收益扣除往返成本') +
     '<br><strong>热点定义：</strong>' + escapeHtml(DATA.hotspot_definition || '净收益、超额收益与完整横截面分位共同确认') +
-    ' · 统计先按预测日聚类，不能把同日多只 ETF 或相邻重叠窗口当作独立样本。' +
+    ' · 概率统一使用 T+5 标签；T+1—T+4 用来判断短线兑现速度。统计先按预测日聚类，不能把同日多只 ETF 或相邻重叠窗口当作独立样本。' +
     (DATA.sample_note ? '<br>' + escapeHtml(DATA.sample_note) : '') +
     ((DATA.feature_availability || {}).note
       ? '<br><strong>历史特征边界：</strong>' + escapeHtml(DATA.feature_availability.note) : '');
@@ -324,5 +328,6 @@ function refreshData() {
 load();
 </script>
 <script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
 </body>
 </html>

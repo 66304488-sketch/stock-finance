@@ -36,6 +36,9 @@ class InstallationContractTest(unittest.TestCase):
         self.assertIn('from: "share_history_cninfo.py"', source)
         self.assertIn('from: "index_constituents.py"', source)
         self.assertIn('from: "index_futures.py"', source)
+        self.assertIn('from: "margin_financing.py"', source)
+        self.assertIn('from: "sentiment_radar.py"', source)
+        self.assertIn('from: "decision_intelligence.py"', source)
 
     def test_arm64_electron_signing_preserves_v8_jit_entitlements(self):
         config = (ROOT / "electron-builder.yml").read_text(encoding="utf-8")
@@ -53,6 +56,16 @@ class InstallationContractTest(unittest.TestCase):
             "com.apple.security.cs.disable-library-validation",
         ):
             self.assertIn(key, entitlements)
+
+    def test_existing_installations_receive_margin_financing_seeds(self):
+        source = (ROOT / "runtime_paths.py").read_text(encoding="utf-8")
+        for filename in (
+            "margin_financing.json",
+            "margin_financing_ths.json",
+            "margin_financing_sw3.json",
+        ):
+            self.assertIn(filename, source)
+        self.assertIn("_seed_margin_financing(copied)", source)
 
 
 if __name__ == "__main__":

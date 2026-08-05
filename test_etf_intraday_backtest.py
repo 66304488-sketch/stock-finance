@@ -2,7 +2,9 @@ import unittest
 from unittest import mock
 
 from etf_backtest import (
+    FORWARD_DAYS,
     INTRADAY_DISABLED_REASON,
+    SHORT_HORIZONS,
     _adjust_ohlc_corporate_actions,
     _annotate_forward_outcomes,
     _calibrate_scores,
@@ -64,6 +66,21 @@ class StrictForwardBacktestTest(unittest.TestCase):
         self.assertAlmostEqual(result["benchmark_ret_t5"], 2.0, places=4)
         self.assertAlmostEqual(result["excess_ret_t5"], 7.8, places=4)
         self.assertEqual(result["ret_t5"], result["net_ret_t5"])
+
+    def test_short_horizons_cover_every_day_from_t1_through_t5(self):
+        result = _forward_perf(
+            self.etf, "20260701", self.benchmark, round_trip_cost_bps=20
+        )
+        self.assertEqual(SHORT_HORIZONS, (1, 2, 3, 4, 5))
+        self.assertEqual(FORWARD_DAYS, 5)
+        self.assertEqual(result["fwd_days"], 5)
+        self.assertAlmostEqual(result["net_ret_t2"], 2.8, places=4)
+        self.assertAlmostEqual(result["excess_ret_t2"], 2.3, places=4)
+        self.assertAlmostEqual(result["net_ret_t4"], 7.8, places=4)
+        self.assertAlmostEqual(result["excess_ret_t4"], 6.3, places=4)
+        for day in SHORT_HORIZONS:
+            self.assertIn(f"net_ret_t{day}", result)
+        self.assertNotIn("net_ret_t10", result)
 
     def test_missing_market_t_plus_one_is_not_shifted_to_a_later_entry(self):
         without_t1 = [row for row in self.etf if row["date"] != "20260702"]

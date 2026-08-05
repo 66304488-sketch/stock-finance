@@ -43,6 +43,8 @@
   .stock-title small { font-weight: 400; color: var(--muted); font-size: 14px; }
   .stock-title .tick { color: var(--green); }
   .stock-title .tick.down { color: var(--red); }
+  .stock-link { color:inherit; text-decoration:none; }
+  .stock-link:hover,.stock-link:focus-visible { color:var(--primary); text-decoration:underline; }
 
   .error {
     background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
@@ -187,6 +189,18 @@ input.addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
 
 let stockData = null;
 
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  })[char]);
+}
+
+function stockLink(code, content, name) {
+  const safeCode = String(code == null ? '' : code).trim();
+  if (!/^\d{6}$/.test(safeCode)) return content || '—';
+  return `<a class="stock-link" href="https://stockpage.10jqka.com.cn/${safeCode}/" target="_blank" rel="noopener noreferrer" title="在同花顺打开${escapeHtml(name || safeCode)}">${content || escapeHtml(safeCode)}</a>`;
+}
+
 async function search() {
   let code = input.value.trim().toUpperCase().replace(/[^0-9]/g, '');
   if (!code || !/^\d{6}$/.test(code)) {
@@ -244,11 +258,12 @@ function renderAll(d) {
   const cp = q.changePercent;
   const cls = cp > 0 ? 'tick' : cp < 0 ? 'tick down' : '';
   const arrow = cp > 0 ? '▲' : cp < 0 ? '▼' : '';
+  const name = q.name || q.code || '';
+  const stockTitle = escapeHtml(name) + (q.code ? ` <small>${escapeHtml(q.code)}</small>` : '');
   title.innerHTML =
-    (q.name || q.code || '') +
+    stockLink(q.code, stockTitle, name) +
     (q.latestPrice ? ` <small>${n(q.latestPrice)}</small>` : '') +
-    (cp != null ? ` <small class="${cls}">${arrow} ${Math.abs(cp).toFixed(2)}%</small>` : '') +
-    (q.code ? ` <small>${q.code}</small>` : '');
+    (cp != null ? ` <small class="${cls}">${arrow} ${Math.abs(cp).toFixed(2)}%</small>` : '');
 
   renderQuote(q, d.technicals);
   renderFinancials(d.financials);

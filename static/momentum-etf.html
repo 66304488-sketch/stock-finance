@@ -1,670 +1,1525 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>动量ETF · 五福5.2策略信号</title>
+<script src="/theme.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ETF 动量排名</title>
 <style>
-  :root { --bg:#1a1d23; --text:#abb2bf; --accent:#61afef; --border:#333842; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html,body { height:100%; background:var(--bg); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); }
-  .container { max-width:1200px; margin:0 auto; padding:20px; }
-  .header { text-align:center; margin-bottom:14px; position:relative; }
-  .header h1 { font-size:1.2em; color:#e5e5e5; }
-  .header .sub { font-size:0.8em; color:#666; margin-top:4px; }
-  .edit-btn { position:absolute; right:0; top:2px; padding:5px 12px; background:#282c34; color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:0.72em; cursor:pointer; }
-  .edit-btn:hover { border-color:var(--accent); color:var(--accent); }
-  .refresh-btn { position:absolute; right:110px; top:2px; padding:5px 12px; background:var(--accent); color:#1a1d23; border:none; border-radius:6px; font-size:0.72em; font-weight:600; cursor:pointer; }
-  .refresh-btn:disabled { background:#3a4a5a; color:#888; cursor:wait; }
-  .mode-chip { display:inline-block; font-size:0.62em; padding:1px 8px; border-radius:8px; margin-left:6px; vertical-align:middle; }
-  .mode-chip.intraday { background:#e5c07b22; color:#e5c07b; border:1px solid #e5c07b44; }
-  .mode-chip.close { background:#61afef22; color:#61afef; border:1px solid #61afef44; }
+  :root {
+    --bg:#0c111a; --panel:#131b28; --panel-2:#172131; --line:#293548;
+    --text:#e7edf6; --muted:#8390a5; --faint:#59667a; --accent:#6ea8fe;
+    --up:#ef6a67; --down:#52a7d8; --new:#e8b15b; --danger:#ff5267;
+    --mono:"SF Mono","Menlo","Consolas",monospace;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { min-height:100%; margin:0; background:var(--bg); color:var(--text); }
+  body { font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif; }
+  button,select,input { font:inherit; }
+  button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible,a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .shell { max-width:1580px; margin:0 auto; padding:18px 20px 34px; }
+  .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+  .title-wrap h1 { margin:0; font-size:20px; letter-spacing:.02em; }
+  .title-wrap p { margin:5px 0 0; color:var(--muted); font-size:12px; }
+  .toolbar { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+  .control,.ghost-btn,.primary-btn,button {
+    min-height:34px; border:1px solid var(--line); border-radius:8px; background:var(--panel);
+    color:var(--text); padding:6px 10px; cursor:pointer;
+  }
+  .control { max-width:210px; }
+  .ghost-btn { color:var(--muted); }
+  .ghost-btn:hover:not(:disabled),button:hover:not(:disabled) { color:var(--text); border-color:var(--c-46556c, #46556c); }
+  .primary-btn,button.primary { color:#07101c; border-color:var(--accent); background:var(--accent); font-weight:700; }
+  .primary-btn:hover:not(:disabled),button.primary:hover:not(:disabled) { color:#07101c; border-color:var(--accent); filter:brightness(1.06); }
+  button:disabled,select:disabled { opacity:.5; cursor:wait; }
 
-  /* 池切换 */
-  .mod-tabs { display:flex; gap:6px; justify-content:center; margin-bottom:12px; flex-wrap:wrap; }
-  .mod-tab { padding:5px 16px; border:1px solid var(--border); border-radius:6px; background:#21252b; color:var(--text); font:inherit; font-size:0.78em; cursor:pointer; }
-  .mod-tab.active { background:var(--accent); color:#1a1d23; border-color:var(--accent); font-weight:600; }
-  .weak-note { text-align:center; font-size:0.7em; color:#e06c75; margin:-6px 0 10px; display:none; }
+  .status-panel { position:relative; overflow:hidden; display:flex; align-items:center; gap:13px; min-height:48px; margin-bottom:10px; padding:10px 13px; border:1px solid var(--line); border-radius:10px; background:linear-gradient(125deg,var(--c-172234, #172234),var(--c-101924, #101924)); }
+  .status-panel:before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--accent); }
+  .status-label { flex:none; color:var(--faint); font-size:10px; font-weight:700; letter-spacing:.08em; }
+  .status-copy { min-width:0; flex:1; }
+  .sub { color:var(--muted); font-size:11px; line-height:1.5; }
+  .status-copy .sub { margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .status-copy .sub.err { color:var(--danger); }
+  .progress { flex:none; width:min(260px,24vw); height:5px; background:var(--panel-2); border-radius:999px; overflow:hidden; }
+  .progress > i { display:block; width:0; height:100%; border-radius:999px; background:var(--accent); transition:width .2s; }
 
-  /* 市场状态条 */
-  .market-strip { display:flex; gap:10px; align-items:stretch; margin-bottom:14px; flex-wrap:wrap; }
-  .market-badge { padding:10px 16px; border-radius:10px; border:1px solid var(--border); background:#21252b; text-align:center; min-width:150px; }
-  .market-badge .st { font-size:1.05em; font-weight:700; }
-  .market-badge .days { font-size:0.68em; color:#888; margin-top:3px; }
-  .market-badge.weak { border-color:#e06c7555; }
-  .market-badge.weak .st { color:#e06c75; }
-  .market-badge.normal { border-color:#98c37955; }
-  .market-badge.normal .st { color:#98c379; }
-  .idx-chip { flex:1; min-width:110px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#21252b; text-align:center; }
-  .idx-chip .nm { font-size:0.7em; color:#888; }
-  .idx-chip .px { font-size:0.85em; font-weight:600; color:#e5e5e5; font-family:"SF Mono","Menlo","Consolas",monospace; margin:2px 0; }
-  .idx-chip .ma { font-size:0.65em; }
-  .idx-chip.above .ma { color:#98c379; }
-  .idx-chip.below .ma { color:#e06c75; }
+  .metric-grid { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:9px; margin-bottom:12px; }
+  .metric-card { min-width:0; padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+  .metric-label { color:var(--faint); font-size:10px; }
+  .metric-value { margin-top:5px; overflow:hidden; color:var(--text); font:700 17px/1.25 var(--mono); text-overflow:ellipsis; white-space:nowrap; }
+  .metric-value.name { font-family:inherit; font-size:15px; }
+  .metric-note { margin-top:3px; overflow:hidden; color:var(--muted); font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
 
-  /* 今日目标卡 */
-  .target-card { border-radius:12px; padding:16px 18px; margin-bottom:16px; border:1px solid #e5c07b55; background:linear-gradient(135deg,#26221a 0%,#21252b 100%); }
-  .target-card.defensive { border-color:#61afef55; background:linear-gradient(135deg,#1a2230 0%,#21252b 100%); }
-  .target-label { font-size:0.72em; color:#888; letter-spacing:1px; }
-  .target-name { font-size:1.3em; font-weight:700; color:#e5e5e5; margin:4px 0; }
-  .target-name .code { font-family:"SF Mono","Menlo","Consolas",monospace; color:#d19a66; font-size:0.7em; margin-left:8px; }
-  .target-metrics { display:flex; gap:18px; flex-wrap:wrap; margin-top:8px; }
-  .tm { text-align:center; }
-  .tm .v { font-size:1.05em; font-weight:700; font-family:"SF Mono","Menlo","Consolas",monospace; color:#e5c07b; }
-  .tm .k { font-size:0.62em; color:#888; margin-top:2px; }
+  .panel { margin-bottom:12px; overflow:hidden; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  .panel-head { min-height:45px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 13px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .panel-title { color:var(--text); font-size:13px; font-weight:700; }
+  .panel-note { margin-top:2px; color:var(--faint); font-size:10px; font-weight:400; }
+  .panel-side { color:var(--faint); font-size:10px; text-align:right; }
+  #config { display: none; }
+  #config.open { display: block; }
+  .config-body { padding:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:9px; }
+  .field { display:flex; flex-direction:column; gap:4px; min-width:0; padding:8px 9px; border:1px solid var(--c-263247, #263247); border-radius:8px; background:var(--c-0d1520, #0d1520); }
+  .field > label { color:var(--muted); font-size:11px; }
+  .field input[type=number] {
+    width:100%; min-height:31px; padding:5px 7px; color:var(--text); border:1px solid var(--line); border-radius:6px; background:var(--panel-2);
+  }
+  .field.check { min-height:64px; flex-direction:row; align-items:center; gap:8px; }
+  .field.check input { width:15px; height:15px; accent-color:var(--accent); }
+  .config-note { margin-top:10px; color:var(--muted); font-size:11px; }
 
-  /* 中国池与动态池并列动量 */
-  .compare-section { margin-bottom:16px; }
-  .compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .compare-col { background:#21252b; border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
-  .compare-col h3 { font-size:0.78em; color:#888; font-weight:600; margin-bottom:8px; }
-  .compare-item { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; font-size:0.76em; }
-  .compare-item + .compare-item { border-top:1px solid #1e2130; }
-  .compare-item .rk { color:#666; font-family:"SF Mono","Menlo","Consolas",monospace; width:16px; }
-  .compare-item .nm { flex:1; color:#e5e5e5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .compare-item .nm small { color:#666; margin-left:4px; }
-  .compare-item .sc { font-family:"SF Mono","Menlo","Consolas",monospace; color:#e5c07b; }
-  .compare-item.both { background:#e5c07b14; border:1px solid #e5c07b44; }
-  .both-chip { font-size:0.58em; padding:0 5px; border-radius:7px; background:#e5c07b; color:#1a1d23; font-weight:700; }
-  .compare-empty { color:#555; font-size:0.75em; padding:8px; text-align:center; }
-  .source-chip { font-size:0.58em; padding:0 5px; border-radius:4px; color:#61afef; border:1px solid #61afef55; }
-  .etf-link { color:inherit; text-decoration:none; }
-  .etf-link:hover { color:var(--accent); text-decoration:underline; }
+  .modal { display:none; position:fixed; inset:0; z-index:50; padding:18px; background:var(--c-04070c88, #04070c88); }
+  .modal.open { display:flex; align-items:center; justify-content:center; }
+  .modal-card {
+    width:100%; max-width:820px; max-height:88vh; display:flex; flex-direction:column; gap:10px;
+    padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel); box-shadow:0 20px 56px #0008;
+  }
+  .modal-head { display:flex; align-items:center; gap:8px; padding-bottom:10px; border-bottom:1px solid var(--line); }
+  .modal-head > h2 { flex:1; margin:0; font-size:15px; font-weight:700; }
+  button.icon { min-height:28px; padding:3px 7px; border:0; background:transparent; color:var(--muted); font-size:17px; }
+  button.icon:hover { color:var(--text); }
+  select { color:var(--text); border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+  .pool-add { display:flex; gap:8px; flex-wrap:wrap; }
+  .pool-add input {
+    min-width:0; min-height:34px; flex:1 1 180px; padding:6px 8px; color:var(--text); border:1px solid var(--line); border-radius:7px; background:var(--c-0d1520, #0d1520);
+  }
+  .pool-add select { min-height:34px; flex:1 1 180px; max-width:240px; padding:6px 8px; }
+  .pool-list {
+    min-height:80px; flex:1; display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:6px; overflow-y:auto;
+  }
+  .pool-item {
+    display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2);
+  }
+  .pool-item > .pn { min-width:0; flex:1; overflow:hidden; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+  .pool-item > .mem { flex:none; width:15px; height:15px; margin:0; accent-color:var(--accent); }
+  .pool-item > .del {
+    min-height:22px; flex:none; padding:1px 4px; color:var(--muted); border:0; border-radius:4px; background:transparent; font-size:15px; line-height:1;
+  }
+  .pool-item > .del:hover { color:var(--up); background:#ef6a6712; }
 
-  /* 表格 */
-  .section-title { font-size:0.9em; color:#e5e5e5; font-weight:600; margin:14px 0 8px; }
-  .table-scroll { overflow-x:auto; max-height:52vh; overflow-y:auto; }
-  table { width:100%; border-collapse:collapse; font-size:0.78em; }
-  th { background:#21252b; padding:7px 6px; text-align:right; border-bottom:2px solid var(--border); font-weight:600; color:#888; font-size:0.78em; position:sticky; top:0; white-space:nowrap; }
-  th:first-child, td:first-child { text-align:left; }
-  th.sortable { cursor:pointer; user-select:none; }
-  th.sortable:hover { color:var(--accent); }
-  th.sort-active { color:var(--accent) !important; }
-  td { padding:6px; text-align:right; border-bottom:1px solid #1e2130; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  tr:hover td { background:#21252b22; }
-  tr.in-top td { background:#e5c07b0a; }
-  .code { font-family:"SF Mono","Menlo","Consolas",monospace; color:#d19a66; font-size:0.92em; }
-  .nm { color:#e5e5e5; font-weight:600; }
-  .score-v { color:#e5c07b; font-weight:700; font-family:"SF Mono","Menlo","Consolas",monospace; }
-  .up { color:#e06c75; }
-  .down { color:#61afef; }
-  .pass { color:#98c379; }
-  .fail { color:#e06c75; }
-  .na { color:#444; }
-  .footnote { font-size:0.7em; color:#555; margin-top:12px; line-height:1.8; }
-  .error { text-align:center; padding:40px; color:#e06c75; }
-
-  /* 编辑器弹窗 */
-  .modal-overlay { display:none; position:fixed; inset:0; background:#000000aa; z-index:1000; justify-content:center; align-items:center; }
-  .modal-overlay.active { display:flex; }
-  .modal { background:#1a1d23; border:1px solid var(--border); border-radius:8px; padding:20px; width:min(1060px,96vw); max-height:90vh; overflow-y:auto; }
-  .modal h2 { font-size:1em; color:#e5e5e5; margin-bottom:12px; }
-  .pool-cols { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-  .pool-col { border:1px solid var(--border); border-radius:6px; background:#21252b; padding:10px; min-width:0; }
-  .pool-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-  .pool-head strong { font-size:0.76em; color:#e5e5e5; }
-  .pool-count { color:#666; font-size:0.68em; }
-  .pool-add { display:grid; grid-template-columns:80px 1fr 30px; gap:5px; margin-bottom:8px; }
-  .pool-add input { min-width:0; background:#1a1d23; color:var(--text); border:1px solid var(--border); border-radius:4px; padding:5px 6px; font-size:0.72em; }
-  .icon-btn { width:30px; height:28px; border:1px solid var(--border); background:#282c34; color:var(--text); border-radius:4px; cursor:pointer; font-size:1em; }
-  .icon-btn:hover { border-color:var(--accent); color:var(--accent); }
-  .pool-list { height:225px; overflow:auto; border-top:1px solid var(--border); }
-  .pool-row { display:grid; grid-template-columns:48px 1fr 24px; gap:6px; align-items:center; padding:6px 2px; border-bottom:1px solid #2a2e36; font-size:0.7em; }
-  .pool-row.dynamic { grid-template-columns:24px 48px 1fr; }
-  .pool-row .pool-code { color:#d19a66; font-family:"SF Mono","Menlo","Consolas",monospace; }
-  .pool-row .pool-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#e5e5e5; }
-  .pool-row .pool-industry { display:block; color:#666; font-size:0.9em; margin-top:1px; }
-  .remove-btn { border:0; background:transparent; color:#777; cursor:pointer; width:24px; height:24px; font-size:1.1em; }
-  .remove-btn:hover { color:#e06c75; }
-  .dynamic-note { color:#666; font-size:0.65em; line-height:1.5; margin-bottom:7px; min-height:30px; }
-  .params-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-top:12px; }
-  .param-item label { font-size:0.66em; color:#888; display:block; margin-bottom:2px; }
-  .param-item input { width:100%; background:#21252b; color:var(--text); border:1px solid var(--border); border-radius:5px; padding:5px 8px; font-size:0.8em; font-family:"SF Mono","Menlo","Consolas",monospace; }
-  .modal-actions { display:flex; gap:10px; margin-top:14px; align-items:center; }
-  .btn-primary { padding:7px 16px; background:var(--accent); color:#1a1d23; border:none; border-radius:6px; font-size:0.82em; font-weight:600; cursor:pointer; }
-  .btn-normal { padding:7px 14px; background:#282c34; color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:0.82em; cursor:pointer; }
-  .save-status { font-size:0.75em; }
-  .save-status.ok { color:#98c379; }
-  .save-status.warn { color:#e06c75; }
-  .modal-hint { font-size:0.68em; color:#555; margin-top:8px; line-height:1.6; }
-  @media (max-width:760px) {
-    .container { padding:12px; }
-    .header { padding-top:36px; }
-    .pool-cols, .compare-grid { grid-template-columns:1fr; }
-    .pool-list { height:180px; }
+  .tabs { display:flex; gap:5px; overflow-x:auto; padding:9px 12px; border-bottom:1px solid var(--line); scrollbar-width:thin; }
+  .tabs > button { min-height:29px; padding:4px 9px; color:var(--muted); white-space:nowrap; font-size:11px; }
+  .tabs > button.on { color:#07101c; border-color:var(--accent); background:var(--accent); font-weight:700; }
+  .table-scroll { max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+  .table-scroll > table { min-width:760px; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { position:sticky; top:0; z-index:2; padding:9px 7px; color:var(--muted); border-bottom:1px solid var(--c-364359, #364359); background:var(--panel-2); font-size:10px; font-weight:600; text-align:right; white-space:nowrap; }
+  td { padding:8px 7px; color:var(--c-b8c3d2, #b8c3d2); border-bottom:1px solid var(--c-202b3b, #202b3b); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  th:nth-child(2),td:nth-child(2) { text-align:left; white-space:normal; }
+  tbody tr:hover td { background:var(--c-1a2534, #1a2534); }
+  tbody tr:last-child td { border-bottom:0; }
+  td.muted,.rank { color:var(--muted); }
+  .rank { font-family:var(--mono); }
+  .nm { color:var(--text); font-weight:650; }
+  .cd { color:var(--muted); font:10px var(--mono); }
+  a.cd { display:inline-block; padding:2px 0; text-decoration:none; }
+  a.cd:hover,a.cd:active { color:var(--accent); text-decoration:underline; }
+  .up { color:var(--up); } .down { color:var(--down); }
+  .badge {
+    display:inline-block; min-width:40px; padding:2px 6px; border:1px solid transparent; border-radius:999px; text-align:center; font:10px var(--mono);
+  }
+  .badge.u { color:var(--up); border-color:#ef6a6766; background:#ef6a6712; }
+  .badge.d { color:var(--down); border-color:#52a7d866; background:#52a7d812; }
+  .badge.f { color:var(--muted); }
+  .badge.n { color:var(--new); border-color:#e8b15b77; background:#e8b15b14; font-weight:700; }
+  .chart-scroll { overflow-x:auto; padding:12px 14px 7px; -webkit-overflow-scrolling:touch; }
+  #chart { display:block; height:auto; min-height:180px; margin:0 auto; }
+  .chart-hint { padding:0 14px 11px; color:var(--faint); font-size:10px; line-height:1.55; }
+  .filtered-panel details { padding:11px 13px; }
+  details > summary { cursor:pointer; color:var(--muted); font-size:11px; font-weight:650; }
+  .msg { padding:8px 2px; color:var(--muted); font-size:11px; line-height:1.6; }
+  .err { color:var(--danger); }
+  .foot { margin-top:13px; color:var(--faint); font-size:10px; line-height:1.7; text-align:center; }
+  @media (max-width:900px) {
+    .topbar { flex-direction:column; }
+    .toolbar { width:100%; justify-content:flex-start; }
+    .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .status-panel { align-items:flex-start; flex-wrap:wrap; }
+    .status-copy { flex-basis:calc(100% - 80px); }
+    .progress { width:100%; margin-left:72px; }
+  }
+  @media (max-width:620px) {
+    .shell { padding:13px 10px 25px; }
+    .toolbar .control { flex:1 1 100%; max-width:none; }
+    .toolbar button { flex:1 1 auto; }
+    .metric-grid { grid-template-columns:1fr 1fr; }
+    .metric-value { font-size:15px; }
+    .pool-add > * { flex:1 1 100%; max-width:none; }
+    .hide-s { display:none; }
+    th,td { padding:8px 5px; }
+    .progress { margin-left:0; }
   }
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <h1>🚀 动量ETF <span style="font-size:0.6em;color:#666;font-weight:400">五福5.2策略信号</span></h1>
-    <div class="sub" id="dateSub"></div>
-    <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">🔄 更新数据</button>
-    <button class="edit-btn" onclick="openEditor()">⚙️ 池子与参数</button>
-  </div>
-  <div class="mod-tabs" role="tablist" aria-label="动量策略池">
-    <button type="button" class="mod-tab active" data-variant="combined" onclick="switchVariant('combined')" role="tab" aria-selected="true">中国 + 动态</button>
-    <button type="button" class="mod-tab" data-variant="china" onclick="switchVariant('china')" role="tab" aria-selected="false">中国池</button>
-    <button type="button" class="mod-tab" data-variant="dynamic" onclick="switchVariant('dynamic')" role="tab" aria-selected="false">动态池</button>
-    <button type="button" class="mod-tab" data-variant="global" onclick="switchVariant('global')" role="tab" aria-selected="false">全球池</button>
-  </div>
-  <div class="weak-note" id="weakNote">走弱期策略目标仅从全球池选择；中国池和动态池仍持续计算供观察</div>
-  <div id="statusSection"></div>
-  <div id="targetSection"></div>
-  <div class="compare-section" id="compareSection"></div>
-  <div class="section-title" id="topTitle">过滤后 Top10</div>
-  <div class="table-scroll" style="max-height:32vh">
-    <table><thead><tr>
-      <th>#</th><th>代码</th><th>名称</th><th>动量得分</th><th>年化收益</th>
-      <th>R²</th><th>量比</th><th>3日最小</th><th>MA10</th><th>今日涨幅</th>
-    </tr></thead><tbody id="topTbody"></tbody></table>
-  </div>
-  <div class="section-title" id="allTitle">全部评分</div>
-  <div class="table-scroll">
-    <table><thead><tr>
-      <th class="sortable" data-sort="code">代码</th>
-      <th class="sortable" data-sort="name">名称</th>
-      <th class="sortable" data-sort="score">动量得分</th>
-      <th class="sortable" data-sort="annualized">年化收益</th>
-      <th class="sortable" data-sort="r2">R²</th>
-      <th class="sortable" data-sort="vol">量比</th>
-      <th class="sortable" data-sort="minday">3日最小</th>
-      <th class="sortable" data-sort="amt">日均成交</th>
-      <th>过滤状态</th>
-    </tr></thead><tbody id="allTbody"></tbody></table>
-  </div>
-  <div class="footnote" id="footnote"></div>
-</div>
+<main class="shell">
+  <header class="topbar">
+    <div class="title-wrap">
+      <h1>ETF 动量排名</h1>
+      <p>加权趋势 × 拟合质量 · 真实历史重算排名轨迹</p>
+    </div>
+    <div class="toolbar">
+      <select id="groupSel" class="control" aria-label="选择参与排名的分组" title="选择参与排名的分组"></select>
+      <button id="btnPool" class="ghost-btn" aria-haspopup="dialog">ETF 池</button>
+      <button id="btnConfig" class="ghost-btn" aria-expanded="false" aria-controls="config">策略参数</button>
+      <button id="btnRecalc" class="ghost-btn">重新计算</button>
+      <button id="btnRefresh" class="primary-btn">更新行情</button>
+    </div>
+  </header>
 
-<!-- 池子编辑器 -->
-<div class="modal-overlay" id="editorOverlay" onclick="if(event.target===this)closeEditor()">
-  <div class="modal">
-    <h2>⚙️ ETF 池与策略参数</h2>
-    <div class="pool-cols">
-      <div class="pool-col">
-        <div class="pool-head"><strong>全球/海外池</strong><span class="pool-count" id="globalPoolCount"></span></div>
-        <div class="pool-add">
-          <input id="globalCode" inputmode="numeric" maxlength="6" placeholder="ETF代码">
-          <input id="globalName" placeholder="名称（可选）">
-          <button class="icon-btn" onclick="addPoolItem('global_pool')" title="添加到全球池">+</button>
-        </div>
-        <div class="pool-list" id="globalPoolList"></div>
-      </div>
-      <div class="pool-col">
-        <div class="pool-head"><strong>中国池</strong><span class="pool-count" id="chinaPoolCount"></span></div>
-        <div class="pool-add">
-          <input id="chinaCode" inputmode="numeric" maxlength="6" placeholder="ETF代码">
-          <input id="chinaName" placeholder="名称（可选）">
-          <button class="icon-btn" onclick="addPoolItem('china_pool')" title="添加到中国池">+</button>
-        </div>
-        <div class="pool-list" id="chinaPoolList"></div>
-      </div>
-      <div class="pool-col">
-        <div class="pool-head"><strong>动态池 · ETF 热点候选</strong><span class="pool-count" id="dynamicPoolCount"></span></div>
-        <div class="dynamic-note">随 ETF 热点候选自动更新；模型允许今日无信号，只读，无需手工维护。</div>
-        <div class="pool-list" id="dynamicPoolList"></div>
+  <section class="status-panel" aria-live="polite">
+    <div class="status-label">数据状态</div>
+    <div class="status-copy"><div class="sub" id="status">准备中…</div></div>
+    <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+  </section>
+
+  <section id="overviewCards" class="metric-grid" aria-label="动量概览">
+    <div class="metric-card"><div class="metric-label">数据日期</div><div class="metric-value">—</div><div class="metric-note">等待行情</div></div>
+    <div class="metric-card"><div class="metric-label">当前分组</div><div class="metric-value name">—</div><div class="metric-note">参与排名范围</div></div>
+    <div class="metric-card"><div class="metric-label">通过过滤</div><div class="metric-value">—</div><div class="metric-note">最新日入选 / 分组数</div></div>
+    <div class="metric-card"><div class="metric-label">当前榜首</div><div class="metric-value name">—</div><div class="metric-note">最新日动量排名</div></div>
+  </section>
+
+  <section id="config" class="panel">
+    <div class="panel-head"><div><div class="panel-title">策略参数</div><div class="panel-note">参数改动只重新计算，不会改写原始行情</div></div><div class="panel-side">13 项参数</div></div>
+    <div class="config-body">
+      <div class="grid" id="fields"></div>
+      <div class="config-note">
+        改参数后点「重新计算」即可，无需重新联网。「更新行情」会强制重新拉取行情。
       </div>
     </div>
-    <div class="params-grid" id="paramsGrid"></div>
-    <div class="modal-actions">
-      <button class="btn-primary" onclick="saveConfig()">💾 保存</button>
-      <button class="btn-normal" onclick="saveConfig(true)">💾 保存并重算</button>
-      <button class="btn-normal" onclick="closeEditor()">取消</button>
-      <span class="save-status" id="saveStatus"></span>
-    </div>
-    <div class="modal-hint">
-      全球池和中国池可逐条添加、移除；动态池由 ETF 热点候选自动维护。保存后在下次重算生效。<br>
-      流动性阈值：20日日均成交额 ≥ 该值（元）。走弱期判断：4指数 ≥3/4 破 MA10 进入，≥3/4 站上退出。
+  </section>
+
+  <div id="poolModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="poolTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="poolTitle">ETF 池（<span id="poolCount">0</span> 只）</h2>
+        <button id="btnPoolClose" class="icon" title="关闭">✕</button>
+      </div>
+      <div class="pool-add">
+        <input id="poolCode" type="text" placeholder="代码，如 518880 / SH518880 / 159915.XSHE" autocomplete="off">
+        <input id="poolName" type="text" placeholder="名称（留空自动获取）" autocomplete="off">
+        <button id="btnAdd" class="primary">添加</button>
+        <button id="btnResetPool">恢复默认池</button>
+      </div>
+      <div class="pool-add">
+        <select id="groupEdit" title="选择要编辑的分组"></select>
+        <input id="groupName" type="text" placeholder="分组名称" autocomplete="off">
+        <button id="btnGroupAdd">新建分组</button>
+        <button id="btnGroupRename">重命名</button>
+        <button id="btnGroupDel">删除分组</button>
+      </div>
+      <div class="sub" id="poolMsg">增删后榜单立即重算，池子与分组保存在本机浏览器，下次打开自动沿用。</div>
+      <div class="pool-list" id="poolList"></div>
     </div>
   </div>
-</div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div><div class="panel-title">排名轨迹</div><div class="panel-note">历史日逐日真实重算 · 越靠上名次越前</div></div>
+      <div class="panel-side">橙色圈 = 新进榜单　断档 = 离榜</div>
+    </div>
+    <div class="chart-scroll"><svg id="chart" role="img" aria-label="近期排名变化"></svg></div>
+    <div class="chart-hint" id="chartHint">左右两侧标注首日与最新日名次，橙色圈为新进榜单。窄屏可左右滑动查看。</div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div><div class="panel-title" id="rankTitle">榜单</div><div class="panel-note">点日期切换当日榜单 · 点 ETF 代码打开同花顺</div></div><div class="panel-side">红 = 上涨　蓝 = 下跌</div></div>
+    <div class="tabs" id="tabs"></div>
+    <div id="table"></div>
+  </section>
+
+  <section class="panel filtered-panel">
+    <details id="filteredBox">
+      <summary>未入选明细</summary>
+      <div id="filtered"></div>
+    </details>
+  </section>
+
+  <div class="foot">
+    数据来源：东方财富（主）/ 腾讯财经（备），前复权日线，浏览器本地计算。<br>
+    评分 = (exp(加权对数回归斜率 × 250) − 1) × R²，与 App 端算法一致。<br>
+    网页版不支持溢价过滤与量比过滤（依赖需鉴权/无跨域的接口，且历史日无法重建）。<br>
+    仅供研究参考，不构成投资建议。
+  </div>
+</main>
 
 <script>
-var DATA = null;
-var sortState = { key: 'score', dir: 'desc' };
-var currentVariant = 'combined';
-var POOL_DRAFT = { global_pool: [], china_pool: [] };
-var VARIANT_LABELS = { combined:'中国 + 动态', china:'中国池', dynamic:'动态池', global:'全球池' };
+"use strict";
 
-// 当前方案数据（兼容旧版无 variants 的 JSON）
-function V() {
-  if (!DATA) return {};
-  if (DATA.variants) return DATA.variants[currentVariant] || {};
-  return DATA;
-}
+/* ============================== ETF 池 ============================== */
+const DEFAULT_POOL = [
+  ["518880.XSHG", "黄金ETF华安"],
+  ["159980.XSHE", "有色ETF大成"],
+  ["159985.XSHE", "豆粕ETF华夏"],
+  ["501018.XSHG", "南方原油LOF"],
+  ["161226.XSHE", "国投白银LOF"],
+  ["159981.XSHE", "能源化工ETF建信"],
+  ["513100.XSHG", "纳指ETF国泰"],
+  ["513390.XSHG", "纳指100ETF博时"],
+  ["513870.XSHG", "纳指ETF富国"],
+  ["159509.XSHE", "纳指科技ETF景顺"],
+  ["513290.XSHG", "纳指生物科技ETF汇添富"],
+  ["513500.XSHG", "标普500ETF博时"],
+  ["513650.XSHG", "标普500ETF南方"],
+  ["159529.XSHE", "标普消费ETF景顺"],
+  ["513400.XSHG", "道琼期ETF鹏华"],
+  ["513850.XSHG", "美国50ETF易方达"],
+  ["513520.XSHG", "日经ETF华夏"],
+  ["513000.XSHG", "日经225ETF易方达"],
+  ["513880.XSHG", "日经225ETF华安"],
+  ["513030.XSHG", "德国ETF华安"],
+  ["513080.XSHG", "法国ETF华安"],
+  ["159687.XSHE", "亚太精选ETF南方"],
+  ["520830.XSHG", "沙特ETF华泰柏瑞"],
+  ["513310.XSHG", "中韩半导华ETF华泰柏瑞"],
+  ["513730.XSHG", "东南亚科技ETF华泰柏瑞"],
+  ["159792.XSHE", "港股通互联网ETF富国"],
+  ["513130.XSHG", "恒生科技ETF华泰柏瑞"],
+  ["513050.XSHG", "中概互联网ETF易方达"],
+  ["159920.XSHE", "恒生ETF华夏"],
+  ["513210.XSHG", "恒生ETF易方达"],
+  ["513600.XSHG", "恒生指数ETF南方"],
+  ["513690.XSHG", "港股红利ETF博时"],
+  ["513530.XSHG", "港股通红利ETF华泰柏瑞"],
+  ["513830.XSHG", "港股通高股息ETF嘉实"],
+  ["520550.XSHG", "港股红利低波ETF招商"],
+  ["517030.XSHG", "沪港深300ETF易方达"],
+  ["517100.XSHG", "沪港深500ETF富国"],
+  ["510300.XSHG", "沪深300ETF华泰柏瑞"],
+  ["510500.XSHG", "中证500ETF南方"],
+  ["510050.XSHG", "上证50ETF华夏"],
+  ["510210.XSHG", "上证指数ETF富国"],
+  ["159915.XSHE", "创业板ETF易方达"],
+  ["588080.XSHG", "科创50ETF易方达"],
+  ["512100.XSHG", "中证1000ETF南方"],
+  ["563360.XSHG", "A500ETF华泰柏瑞"],
+  ["563300.XSHG", "中证2000ETF华泰柏瑞"],
+  ["512890.XSHG", "红利低波ETF华泰柏瑞"],
+  ["159967.XSHE", "创业板成长ETF华夏"],
+  ["512040.XSHG", "价值100ETF富国"],
+  ["159201.XSHE", "自由现金流ETF华夏"],
+  ["511380.XSHG", "可转债ETF博时"],
+  ["511010.XSHG", "国债ETF国泰"],
+  ["511220.XSHG", "城投债ETF海富通"],
+  ["517520.XSHG", "黄金股ETF永赢"],
+  ["518860.XSHG", "上海金ETF建信"],
+  ["159518.XSHE", "标普油气ETF嘉实"],
+  ["513180.XSHG", "恒生科技ETF华夏"],
+  ["159941.XSHE", "纳指ETF广发"],
+  ["513120.XSHG", "港股创新药ETF广发"],
+  ["513330.XSHG", "恒生互联网ETF华夏"],
+  ["159570.XSHE", "港股通创新药ETF汇添富"],
+  ["513090.XSHG", "香港证券ETF易方达"],
+  ["159636.XSHE", "港股通科技30ETF工银"],
+  ["513300.XSHG", "纳斯达克ETF华夏"],
+  ["513980.XSHG", "港股科技ETF景顺"],
+  ["513630.XSHG", "港股低波红利ETF摩根"],
+  ["159659.XSHE", "纳斯达克100ETF招商"],
+  ["513060.XSHG", "恒生医疗ETF博时"],
+  ["159892.XSHE", "恒生医药ETF华夏"],
+  ["513770.XSHG", "港股互联网ETF华宝"],
+  ["513920.XSHG", "港股通央企红利ETF华安"],
+  ["159605.XSHE", "中概互联ETF广发"],
+  ["513800.XSHG", "日本东证指数ETF南方"],
+  ["513190.XSHG", "港股通金融ETF华夏"],
+  ["513070.XSHG", "港股通消费ETF易方达"],
+  ["513970.XSHG", "恒生消费ETF景顺"],
+  ["159329.XSHE", "沙特ETF南方"],
+  ["513200.XSHG", "港股通医药ETF易方达"],
+  ["520560.XSHG", "香港大盘30ETF华宝"],
+  ["588000.XSHG", "科创50ETF华夏"],
+  ["510880.XSHG", "红利ETF华泰柏瑞"],
+  ["159338.XSHE", "中证A500ETF国泰"],
+  ["159949.XSHE", "创业板50ETF华安"],
+  ["515450.XSHG", "红利低波50ETF南方"],
+  ["510180.XSHG", "上证180ETF华安"],
+  ["159781.XSHE", "科创创业ETF易方达"],
+  ["515080.XSHG", "中证红利ETF招商"],
+  ["159307.XSHE", "红利低波100ETF博时"],
+  ["588220.XSHG", "科创100ETF鹏华"],
+  ["512950.XSHG", "央企改革ETF华夏"],
+  ["159263.XSHE", "价值ETF易方达"],
+  ["159259.XSHE", "成长ETF易方达"],
+  ["510810.XSHG", "上海国企ETF汇添富"],
+  ["515800.XSHG", "中证800ETF汇添富"],
+  ["159901.XSHE", "深证100ETF易方达"],
+  ["560050.XSHG", "中国A50ETF汇添富"],
+  ["159593.XSHE", "中证A50ETF平安"],
+  ["159207.XSHE", "高股息ETF广发"],
+  ["588020.XSHG", "科创成长ETF易方达"],
+  ["588330.XSHG", "双创50ETF华宝"],
+  ["512880.XSHG", "证券ETF国泰"],
+  ["588200.XSHG", "科创芯片ETF嘉实"],
+  ["515880.XSHG", "通信ETF国泰"],
+  ["159516.XSHE", "半导体设备ETF国泰"],
+  ["512000.XSHG", "券商ETF华宝"],
+  ["159995.XSHE", "芯片ETF华夏"],
+  ["588170.XSHG", "科创半导体ETF华夏"],
+  ["512170.XSHG", "医疗ETF华宝"],
+  ["512400.XSHG", "有色金属ETF南方"],
+  ["512480.XSHG", "半导体ETF国联安"],
+  ["159819.XSHE", "人工智能ETF易方达"],
+  ["159326.XSHE", "电网设备ETF华夏"],
+  ["159206.XSHE", "卫星ETF永赢"],
+  ["562500.XSHG", "机器人ETF华夏"],
+  ["512010.XSHG", "医药ETF易方达"],
+  ["159992.XSHE", "创新药ETF银华"],
+  ["159870.XSHE", "化工ETF鹏华"],
+  ["159928.XSHE", "消费ETF汇添富"],
+  ["512070.XSHG", "证券保险ETF易方达"],
+  ["515220.XSHG", "煤炭ETF国泰"],
+  ["512690.XSHG", "酒ETF鹏华"],
+  ["512800.XSHG", "银行ETF华宝"],
+  ["159755.XSHE", "电池ETF广发"],
+  ["560860.XSHG", "工业有色ETF万家"],
+  ["159611.XSHE", "电力ETF广发"],
+  ["159869.XSHE", "游戏ETF华夏"],
+  ["159852.XSHE", "软件ETF嘉实"],
+  ["512710.XSHG", "军工龙头ETF富国"],
+  ["516150.XSHG", "稀土ETF嘉实"],
+  ["159363.XSHE", "创业板人工智能ETF华宝"],
+  ["512660.XSHG", "军工ETF国泰"],
+  ["515790.XSHG", "光伏ETF华泰柏瑞"],
+  ["159851.XSHE", "金融科技ETF华宝"],
+  ["159865.XSHE", "养殖ETF国泰"],
+  ["159227.XSHE", "航空航天ETF华夏"],
+  ["159732.XSHE", "消费电子ETF华夏"],
+  ["159859.XSHE", "生物医药ETF天弘"],
+  ["516160.XSHG", "新能源ETF南方"],
+  ["159736.XSHE", "食品饮料ETF天弘"],
+  ["512980.XSHG", "传媒ETF广发"],
+  ["512930.XSHG", "AI人工智能ETF平安"],
+  ["560280.XSHG", "工程机械ETF广发"],
+  ["515650.XSHG", "消费50ETF富国"],
+  ["512200.XSHG", "房地产ETF南方"],
+  ["159766.XSHE", "旅游ETF富国"],
+  ["515030.XSHG", "新能源车ETF华夏"],
+  ["588790.XSHG", "科创AIETF博时"],
+  ["159625.XSHE", "绿色电力ETF嘉实"],
+  ["516510.XSHG", "云计算ETF易方达"],
+  ["560080.XSHG", "中药ETF汇添富"],
+  ["159267.XSHE", "航天ETF华安"],
+  ["560710.XSHG", "船舶ETF富国"],
+  ["516670.XSHG", "畜牧养殖ETF招商"],
+  ["159825.XSHE", "农业ETF富国"],
+  ["515400.XSHG", "大数据ETF富国"],
+  ["515210.XSHG", "钢铁ETF国泰"],
+  ["159939.XSHE", "信息技术ETF广发"],
+  ["512580.XSHG", "环保ETF广发"],
+  ["159996.XSHE", "家电ETF国泰"],
+  ["159745.XSHE", "建材ETF国泰"],
+  ["159940.XSHE", "金融地产ETF广发"],
+  ["515250.XSHG", "智能汽车ETF富国"],
+  ["560800.XSHG", "数字经济ETF鹏扬"],
+  ["516110.XSHG", "汽车ETF国泰"],
+  ["562910.XSHG", "高端制造ETF易方达"],
+  ["517050.XSHG", "互联网ETF华泰柏瑞"],
+  ["159856.XSHE", "互联网龙头ETF工银"],
+  ["159013.XSHE", "工业互联网ETF大成"],
+  ["511880.XSHG", "银华日利ETF"]
+];
 
-function switchVariant(v) {
-  currentVariant = v;
-  document.querySelectorAll('.mod-tab').forEach(function(tab) {
-    var active = tab.getAttribute('data-variant') === v;
-    tab.classList.toggle('active', active);
-    tab.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
-  render();
-}
+/** 内置分组：默认选中「五福组」 */
+const GROUP_PRESETS = [
+  {
+    id: "wufu", name: "五福组", codes: [
+    "518880.XSHG", "159980.XSHE", "159985.XSHE", "501018.XSHG", "161226.XSHE", "159981.XSHE", "513100.XSHG",
+    "513390.XSHG", "513870.XSHG", "159509.XSHE", "513290.XSHG", "513500.XSHG", "513650.XSHG", "159529.XSHE",
+    "513400.XSHG", "513850.XSHG", "513520.XSHG", "513000.XSHG", "513880.XSHG", "513030.XSHG", "513080.XSHG",
+    "159687.XSHE", "520830.XSHG", "513310.XSHG", "513730.XSHG", "159792.XSHE", "513130.XSHG", "513050.XSHG",
+    "159920.XSHE", "513210.XSHG", "513600.XSHG", "513690.XSHG", "513530.XSHG", "513830.XSHG", "520550.XSHG",
+    "517030.XSHG", "517100.XSHG", "510300.XSHG", "510500.XSHG", "510050.XSHG", "510210.XSHG", "159915.XSHE",
+    "588080.XSHG", "512100.XSHG", "563360.XSHG", "563300.XSHG", "512890.XSHG", "159967.XSHE", "512040.XSHG",
+    "159201.XSHE", "511380.XSHG", "511010.XSHG", "511220.XSHG"
+    ]
+  },
+  {
+    id: "industry", name: "行业主题全量组", codes: [
+    "518880.XSHG", "517520.XSHG", "518860.XSHG", "159985.XSHE", "159981.XSHE", "159518.XSHE", "513180.XSHG",
+    "159941.XSHE", "513050.XSHG", "159792.XSHE", "513120.XSHG", "513330.XSHG", "513500.XSHG", "159570.XSHE",
+    "513090.XSHG", "159509.XSHE", "159636.XSHE", "513300.XSHG", "513310.XSHG", "513980.XSHG", "513630.XSHG",
+    "159659.XSHE", "159920.XSHE", "513060.XSHG", "159892.XSHE", "513770.XSHG", "513390.XSHG", "513530.XSHG",
+    "513920.XSHG", "159605.XSHE", "159687.XSHE", "513400.XSHG", "513880.XSHG", "513520.XSHG", "513850.XSHG",
+    "513800.XSHG", "513030.XSHG", "513190.XSHG", "513070.XSHG", "513970.XSHG", "513080.XSHG", "159329.XSHE",
+    "513730.XSHG", "513200.XSHG", "520560.XSHG", "510300.XSHG", "588000.XSHG", "159915.XSHE", "510500.XSHG",
+    "512890.XSHG", "563360.XSHG", "510880.XSHG", "159338.XSHE", "159949.XSHE", "510050.XSHG", "515450.XSHG",
+    "510180.XSHG", "159781.XSHE", "512100.XSHG", "515080.XSHG", "510210.XSHG", "159307.XSHE", "588220.XSHG",
+    "512950.XSHG", "159263.XSHE", "159259.XSHE", "510810.XSHG", "512040.XSHG", "515800.XSHG", "159901.XSHE",
+    "563300.XSHG", "560050.XSHG", "159593.XSHE", "159207.XSHE", "588020.XSHG", "588330.XSHG", "512880.XSHG",
+    "588200.XSHG", "515880.XSHG", "159516.XSHE", "512000.XSHG", "159995.XSHE", "588170.XSHG", "512170.XSHG",
+    "512400.XSHG", "512480.XSHG", "159819.XSHE", "159326.XSHE", "159206.XSHE", "562500.XSHG", "512010.XSHG",
+    "159992.XSHE", "159870.XSHE", "159928.XSHE", "512070.XSHG", "515220.XSHG", "512690.XSHG", "512800.XSHG",
+    "159755.XSHE", "560860.XSHG", "159611.XSHE", "159869.XSHE", "159852.XSHE", "512710.XSHG", "516150.XSHG",
+    "159363.XSHE", "512660.XSHG", "515790.XSHG", "159851.XSHE", "159865.XSHE", "159980.XSHE", "159227.XSHE",
+    "159732.XSHE", "159859.XSHE", "516160.XSHG", "159736.XSHE", "512980.XSHG", "512930.XSHG", "560280.XSHG",
+    "515650.XSHG", "512200.XSHG", "159766.XSHE", "515030.XSHG", "588790.XSHG", "159625.XSHE", "516510.XSHG",
+    "560080.XSHG", "159267.XSHE", "560710.XSHG", "516670.XSHG", "159825.XSHE", "515400.XSHG", "515210.XSHG",
+    "159939.XSHE", "512580.XSHG", "159996.XSHE", "159745.XSHE", "159940.XSHE", "515250.XSHG", "560800.XSHG",
+    "516110.XSHG", "562910.XSHG", "517050.XSHG", "159856.XSHE", "159013.XSHE", "511880.XSHG"
+    ]
+  }
+];
 
-function fmtPct(v, signed) {
-  if (v === null || v === undefined) return '—';
-  return (signed && v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
-}
-function fmtYi(v) { return !v ? '—' : (v >= 1e8 ? (v/1e8).toFixed(1) + '亿' : (v/1e4).toFixed(0) + '万'); }
-function escapeHtml(value) {
-  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
-  });
-}
-function etfLink(code, content, name) {
-  if (!code) return content || '—';
-  var safeCode = String(code).replace(/[^\d]/g, '');
-  if (!safeCode) return content || '—';
-  return '<a class="etf-link" href="https://stockpage.10jqka.com.cn/' + safeCode
-    + '/" target="_blank" rel="noopener" title="在同花顺打开 ' + escapeHtml(name || safeCode) + '">' + content + '</a>';
-}
-function passIcon(p, active) {
-  if (active === false) return '<span class="na">—</span>';
-  return p ? '<span class="pass">✅</span>' : '<span class="fail">❌</span>';
-}
+const POOL_KEY = "etfmm.web.pool.v1";
+/** custom=true 表示名称由用户手填，刷新行情时不被接口返回的名称覆盖 */
+const makeETF = (code, name, custom) => ({
+  code, name, custom: !!custom,
+  raw: code.slice(0, 6),
+  secid: (code.endsWith(".XSHG") ? "1." : "0.") + code.slice(0, 6),
+  tencent: (code.endsWith(".XSHG") ? "sh" : "sz") + code.slice(0, 6)
+});
+const defaultPool = () => DEFAULT_POOL.map(([code, name]) => makeETF(code, name, false));
 
-async function load() {
+function loadPool() {
   try {
-    var resp = await fetch('/momentum_etf.json?_=' + Date.now());
-    if (!resp.ok) throw new Error('数据未生成');
-    DATA = await resp.json();
-  } catch(e) {
-    document.getElementById('topTbody').innerHTML = '<tr><td colspan="10"><div class="error">动量ETF数据尚未生成<br><small>请运行批量更新（ETF热点候选），或执行 momentum_etf.py</small></div></td></tr>';
+    const saved = JSON.parse(localStorage.getItem(POOL_KEY) || "null");
+    if (Array.isArray(saved)) {
+      const pool = saved
+        .filter((e) => e && /^\d{6}\.(XSHG|XSHE)$/.test(e.code))
+        .map((e) => makeETF(e.code, String(e.name || e.code.slice(0, 6)), e.custom));
+      if (pool.length) return pool;
+    }
+  } catch (_) { /* 忽略损坏的本地池 */ }
+  return defaultPool();
+}
+function savePool() {
+  try {
+    localStorage.setItem(POOL_KEY, JSON.stringify(
+      state.pool.map(({ code, name, custom }) => ({ code, name, custom }))
+    ));
+  } catch (_) {}
+}
+
+/** 支持 518880 / 518880.XSHG / SH518880 / sh 518880 等写法，缺市场后缀时按首位数字推断 */
+function normalizeCode(input) {
+  const s = String(input || "").toUpperCase().replace(/\s/g, "");
+  const m = /^(SH|SZ)?(\d{6})(?:\.(XSHG|XSHE))?$/.exec(s);
+  if (!m) return null;
+  const raw = m[2];
+  if (m[3]) return raw + "." + m[3];
+  if (m[1]) return raw + (m[1] === "SH" ? ".XSHG" : ".XSHE");
+  return raw + (/^[569]/.test(raw) ? ".XSHG" : ".XSHE");
+}
+
+/* ============================== 分组 ============================== */
+const GROUP_KEY = "etfmm.web.groups.v1";
+const ALL_GROUP = "all"; // 虚拟分组：全部标的，不可改名/删除
+const DEFAULT_GROUP = "wufu"; // 默认选中的分组
+const defaultGroups = () => GROUP_PRESETS.map((g) => ({ id: g.id, name: g.name, codes: g.codes.slice() }));
+
+function loadGroups() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(GROUP_KEY) || "null");
+    if (saved && Array.isArray(saved.groups) && saved.groups.length) {
+      const groups = saved.groups
+        .filter((g) => g && g.id && g.id !== ALL_GROUP)
+        .map((g) => ({
+          id: String(g.id),
+          name: String(g.name || "未命名"),
+          codes: Array.isArray(g.codes) ? g.codes.filter((c) => /^\d{6}\.(XSHG|XSHE)$/.test(c)) : []
+        }));
+      if (groups.length) {
+        const active = groups.some((g) => g.id === saved.activeGroup) || saved.activeGroup === ALL_GROUP
+          ? saved.activeGroup : groups[0].id;
+        return { groups, activeGroup: active };
+      }
+    }
+  } catch (_) { /* 忽略损坏的本地分组 */ }
+  return { groups: defaultGroups(), activeGroup: DEFAULT_GROUP };
+}
+function saveGroups() {
+  try {
+    localStorage.setItem(GROUP_KEY, JSON.stringify({
+      groups: state.groups.map(({ id, name, codes }) => ({ id, name, codes })),
+      activeGroup: state.activeGroup
+    }));
+  } catch (_) {}
+}
+const groupById = (id) => state.groups.find((g) => g.id === id) || null;
+const groupLabel = (id) => (groupById(id) ? groupById(id).name : "全部");
+/** 参与排名的标的：选中分组的成员；未选分组或分组已失效时为全部 */
+function activeETFs() {
+  const group = groupById(state.activeGroup);
+  if (!group) return state.pool;
+  const set = new Set(group.codes);
+  return state.pool.filter((e) => set.has(e.code));
+}
+/** 分组内仍在池中的标的数量 */
+function groupSize(group) {
+  const inPool = new Set(state.pool.map((e) => e.code));
+  return group.codes.filter((c) => inPool.has(c)).length;
+}
+/** 分组成员必须存在于池中：内置分组新增的标的自动补进池 */
+function ensurePoolCoverage() {
+  const have = new Set(state.pool.map((e) => e.code));
+  const names = new Map(DEFAULT_POOL);
+  let added = 0;
+  for (const group of state.groups) {
+    for (const code of group.codes) {
+      if (have.has(code)) continue;
+      state.pool.push(makeETF(code, names.get(code) || code.slice(0, 6), false));
+      have.add(code);
+      added++;
+    }
+  }
+  if (added) savePool();
+  return added;
+}
+
+/* ============================== 参数 ============================== */
+const FIELDS = [
+  { key: "lookbackDays", label: "动量回看天数", type: "int", min: 5, max: 250, def: 25 },
+  { key: "shortLookbackDays", label: "短期回看天数", type: "int", min: 2, max: 120, def: 10 },
+  { key: "useShortMomentumFilter", label: "启用短期动量过滤", type: "bool", def: true },
+  { key: "shortMomentumThreshold", label: "短期年化下限 (%)", type: "num", step: 1, def: 0 },
+  { key: "lossPct", label: "近三日单日跌幅上限 (%)", type: "num", step: 0.5, min: 0.1, def: 3 },
+  { key: "enableProfitProtection", label: "启用盈利保护", type: "bool", def: true },
+  { key: "profitProtectionLookback", label: "盈利保护回看天数", type: "int", min: 1, max: 60, def: 1 },
+  { key: "profitProtectionThreshold", label: "盈利保护回撤 (%)", type: "num", step: 0.5, min: 0.1, def: 5 },
+  { key: "minScoreThreshold", label: "分数下限", type: "num", step: 0.1, def: 0 },
+  { key: "maxScoreThreshold", label: "分数上限", type: "num", step: 1, def: 100 },
+  { key: "topN", label: "榜单条数", type: "int", min: 3, max: 30, def: 10 },
+  { key: "sortAsc", label: "倒序排名（分数从低到高）", type: "bool", def: false },
+  { key: "days", label: "回溯交易日数", type: "int", min: 2, max: 20, def: 5 }
+];
+const CFG_KEY = "etfmm.web.config.v1";
+const BAR_KEY = "etfmm.web.klines.v1";      // 旧版单键缓存，仅用于迁移
+const BAR_PREFIX = "etfmm.web.kline.v1.";   // 现版按标的分键缓存
+
+function defaultConfig() {
+  const c = {};
+  for (const f of FIELDS) c[f.key] = f.def;
+  return c;
+}
+function loadConfig() {
+  const cfg = defaultConfig();
+  try {
+    const saved = JSON.parse(localStorage.getItem(CFG_KEY) || "{}");
+    for (const f of FIELDS) if (saved[f.key] !== undefined) cfg[f.key] = saved[f.key];
+  } catch (_) { /* 忽略损坏的本地配置 */ }
+  return cfg;
+}
+function saveConfig(cfg) {
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (_) {}
+}
+
+const savedGroups = loadGroups();
+const state = {
+  cfg: loadConfig(), pool: loadPool(), poolOpen: false, limitUsed: 0,
+  groups: savedGroups.groups, activeGroup: savedGroups.activeGroup, editGroup: ALL_GROUP,
+  bars: new Map(), names: new Map(), days: [], activeDay: 0, busy: false
+};
+
+function barLimit(cfg) {
+  return Math.max(cfg.lookbackDays, cfg.shortLookbackDays, cfg.profitProtectionLookback) + 20 + cfg.days + 5;
+}
+
+/* ============================== 数学（复刻 Math.swift） ============================== */
+function linspace(start, end, count) {
+  if (count <= 1) return [start];
+  const step = (end - start) / (count - 1);
+  const out = new Array(count);
+  for (let i = 0; i < count; i++) out[i] = start + i * step;
+  return out;
+}
+function weightedLinearRegression(y, w) {
+  let sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < y.length; i++) {
+    sw += w[i]; sx += w[i] * i; sy += w[i] * y[i];
+    sxx += w[i] * i * i; sxy += w[i] * i * y[i];
+  }
+  const den = sw * sxx - sx * sx;
+  if (den === 0) return { slope: 0, intercept: y.length ? y[0] : 0 };
+  const slope = (sw * sxy - sx * sy) / den;
+  return { slope, intercept: (sy - slope * sx) / sw };
+}
+function momentumScore(series, lookbackDays) {
+  const recent = series.slice(Math.max(0, series.length - (lookbackDays + 1)));
+  const y = recent.map(Math.log);
+  const w = linspace(1, 2, y.length);
+  const reg = weightedLinearRegression(y, w);
+  const annRet = Math.exp(reg.slope * 250) - 1;
+  const mean = y.reduce((a, b) => a + b, 0) / y.length;
+  let ssRes = 0, ssTot = 0;
+  for (let i = 0; i < y.length; i++) {
+    const fitted = reg.slope * i + reg.intercept;
+    ssRes += w[i] * Math.pow(y[i] - fitted, 2);
+    ssTot += w[i] * Math.pow(y[i] - mean, 2);
+  }
+  const r2 = ssTot !== 0 ? 1 - ssRes / ssTot : 0;
+  return { annRet, r2, score: annRet * r2 };
+}
+
+/* ============================== 数据层 ============================== */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function jsonp(url, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const cb = "__etfmm_cb_" + Math.random().toString(36).slice(2);
+    const script = document.createElement("script");
+    let timer = 0;
+    const done = (err, data) => {
+      clearTimeout(timer);
+      delete window[cb];
+      script.remove();
+      err ? reject(err) : resolve(data);
+    };
+    window[cb] = (data) => done(null, data);
+    script.onerror = () => done(new Error("脚本加载失败"));
+    timer = setTimeout(() => done(new Error("请求超时")), timeout);
+    script.src = url + (url.includes("?") ? "&" : "?") + "cb=" + cb;
+    document.head.appendChild(script);
+  });
+}
+
+function toIso(compact) {
+  const s = String(compact);
+  return s.includes("-") ? s.slice(0, 10) : s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8);
+}
+
+async function fetchEastmoney(etf, limit) {
+  const url = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+    + "?secid=" + etf.secid
+    + "&fields1=f1,f2,f3,f4,f5,f6"
+    + "&fields2=f51,f52,f53,f54,f55,f56,f57,f59"
+    + "&klt=101&fqt=1&end=20500101&lmt=" + limit;
+  const json = await jsonp(url);
+  const rows = json && json.data && json.data.klines;
+  if (!Array.isArray(rows) || !rows.length) throw new Error("东财返回空数据");
+  const bars = rows.map((row) => {
+    const p = row.split(",");
+    return {
+      date: toIso(p[0]),
+      open: +p[1], close: +p[2], high: +p[3], low: +p[4],
+      volume: +p[5] || 0, amount: +p[6] || 0,
+      pct: p[7] === undefined || p[7] === "-" ? null : +p[7]
+    };
+  }).filter((b) => b.close > 0);
+  if (!bars.length) throw new Error("东财数据无效");
+  return { bars, name: (json.data.name || "").trim() };
+}
+
+async function fetchTencent(etf, limit) {
+  const url = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param="
+    + etf.tencent + ",day,,," + limit + ",qfq";
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("腾讯 HTTP " + res.status);
+  const json = await res.json();
+  const node = json && json.data && json.data[etf.tencent];
+  const rows = node && (node.qfqday || node.day);
+  if (!Array.isArray(rows) || !rows.length) throw new Error("腾讯返回空数据");
+  const bars = rows.map((r) => ({
+    date: toIso(r[0]),
+    open: +r[1], close: +r[2], high: +r[3], low: +r[4],
+    volume: +r[5] || 0, amount: 0, pct: null
+  })).filter((b) => b.close > 0);
+  if (!bars.length) throw new Error("腾讯数据无效");
+  const qt = node.qt && node.qt[etf.tencent];
+  return { bars, name: qt ? String(qt[1] || "").trim() : "" };
+}
+
+/** K线缓存按标的分键存储，避免每次增删都重写整个缓存 */
+function readBars(code) {
+  try {
+    const raw = localStorage.getItem(BAR_PREFIX + code);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+function writeBars(code, entry) {
+  try { localStorage.setItem(BAR_PREFIX + code, JSON.stringify(entry)); } catch (_) { /* 超配额则跳过 */ }
+}
+function removeBars(code) {
+  try { localStorage.removeItem(BAR_PREFIX + code); } catch (_) {}
+}
+/** 迁移早期版本的单键大缓存 */
+function migrateLegacyCache() {
+  let raw = null;
+  try { raw = localStorage.getItem(BAR_KEY); } catch (_) { return; }
+  if (!raw) return;
+  try {
+    const legacy = JSON.parse(raw);
+    for (const code of Object.keys(legacy)) {
+      const entry = legacy[code];
+      if (entry && Array.isArray(entry.bars) && entry.bars.length) writeBars(code, entry);
+    }
+  } catch (_) { /* 损坏则直接丢弃 */ }
+  try { localStorage.removeItem(BAR_KEY); } catch (_) {}
+}
+
+/** 名称优先级：用户手填 > 接口返回 > 池中原名 */
+function pickName(etf, fetchedName) {
+  if (etf.custom) return etf.name;
+  return (fetchedName && fetchedName.trim()) || etf.name;
+}
+
+async function loadAll(force, onProgress) {
+  const limit = barLimit(state.cfg);
+  const freshAfter = Date.now() - 20 * 60 * 1000;
+  const errors = [];
+  const staleUsed = [];
+  let done = 0;
+  let minLimit = Infinity;
+
+  const worker = async (etf) => {
+    const cached = readBars(etf.code);
+    const reusable = !!(cached && Array.isArray(cached.bars) && cached.bars.length);
+    if (!force && reusable && cached.limit >= limit && cached.at > freshAfter) {
+      state.bars.set(etf.code, cached.bars);
+      state.names.set(etf.code, pickName(etf, cached.name));
+      minLimit = Math.min(minLimit, cached.limit);
+      return;
+    }
+    // 东财在密集请求下会限流，失败后换源并退避重试
+    let result = null, firstError = null;
+    const attempts = [[fetchEastmoney, 0], [fetchTencent, 0], [fetchEastmoney, 800], [fetchTencent, 1600]];
+    for (const [fn, wait] of attempts) {
+      if (wait) await sleep(wait);
+      try { result = await fn(etf, limit); break; }
+      catch (e) { firstError = firstError || e; }
+    }
+    if (!result) {
+      // 网络不可用时回退到过期缓存，保证离线也能看到上次的榜单
+      if (reusable) {
+        state.bars.set(etf.code, cached.bars);
+        state.names.set(etf.code, pickName(etf, cached.name));
+        minLimit = Math.min(minLimit, cached.limit || 0);
+        staleUsed.push(etf.raw);
+      } else {
+        errors.push(etf.raw + " " + etf.name + "：" + (firstError ? firstError.message : "未知错误"));
+      }
+      return;
+    }
+    const name = pickName(etf, result.name);
+    state.bars.set(etf.code, result.bars);
+    state.names.set(etf.code, name);
+    minLimit = Math.min(minLimit, limit);
+    writeBars(etf.code, { at: Date.now(), limit, bars: result.bars, name });
+  };
+
+  // 只拉取当前分组内的标的，避免为暂时不看的分组浪费请求（切组时会按需补拉）
+  const targets = activeETFs();
+  const queue = targets.slice();
+  const runners = new Array(Math.min(4, queue.length)).fill(0).map(async (_, slot) => {
+    await sleep(slot * 120); // 错峰起跑，降低被限流概率
+    while (queue.length) {
+      await worker(queue.shift());
+      onProgress(++done, targets.length);
+    }
+  });
+  await Promise.all(runners);
+  // 实际可用的回看长度，供「重新计算」判断是否需要重新联网
+  state.limitUsed = Number.isFinite(minLimit) ? minLimit : 0;
+  return { errors, staleUsed, total: targets.length };
+}
+
+/* ============================== 排名（复刻 RankingEngine.swift） ============================== */
+const REASON = {
+  included: "入选",
+  stale: "当日无行情（停牌/未上市）",
+  insufficientData: "日线数据不足",
+  profitProtection: "盈利保护触发",
+  shortMomentumWeak: "短期动量不足",
+  recentLossExceeded: "近三日单日跌幅超限",
+  scoreOutOfRange: "分数阈值外"
+};
+
+/** 区间收益率：当日收盘 / N 个交易日前收盘 - 1，数据不足返回 null */
+function periodReturn(bars, idx, n) {
+  const from = idx - n;
+  if (from < 0 || !bars[from] || !bars[from].close) return null;
+  return bars[idx].close / bars[from].close - 1;
+}
+
+function evaluate(etf, bars, idx, cfg) {
+  const base = { code: etf.code, raw: etf.raw, name: state.names.get(etf.code) || etf.name };
+  const window = Math.max(cfg.lookbackDays, cfg.shortLookbackDays) + 20;
+  const from = Math.max(0, idx + 1 - window);
+  const series = [];
+  for (let i = from; i <= idx; i++) series.push(bars[i].close);
+  const price = bars[idx].close;
+  const prev = idx > 0 ? bars[idx - 1].close : price;
+  const pct = bars[idx].pct !== null && bars[idx].pct !== undefined
+    ? bars[idx].pct
+    : (prev ? (price / prev - 1) * 100 : 0);
+  const out = Object.assign(base, {
+    price, pct, ann: 0, r2: 0, score: 0, shortAnn: 0, reason: "included",
+    r5: periodReturn(bars, idx, 5),
+    r10: periodReturn(bars, idx, 10),
+    r20: periodReturn(bars, idx, 20)
+  });
+
+  if (series.length < cfg.lookbackDays) { out.reason = "insufficientData"; return out; }
+
+  if (cfg.enableProfitProtection) {
+    const start = idx + 1 - cfg.profitProtectionLookback;
+    if (start >= 0) {
+      let maxHigh = 0;
+      for (let i = start; i <= idx; i++) maxHigh = Math.max(maxHigh, bars[i].high);
+      if (price <= maxHigh * (1 - cfg.profitProtectionThreshold / 100)) {
+        out.reason = "profitProtection"; return out;
+      }
+    }
+  }
+
+  const n = series.length;
+  if (n >= cfg.shortLookbackDays + 1) {
+    const shortRet = series[n - 1] / series[n - 1 - cfg.shortLookbackDays] - 1;
+    out.shortAnn = Math.pow(1 + shortRet, 250 / cfg.shortLookbackDays) - 1;
+  }
+  if (cfg.useShortMomentumFilter && out.shortAnn < cfg.shortMomentumThreshold / 100) {
+    out.reason = "shortMomentumWeak"; return out;
+  }
+
+  const scored = momentumScore(series, cfg.lookbackDays);
+  out.ann = scored.annRet; out.r2 = scored.r2; out.score = scored.score;
+
+  if (n >= 4) {
+    const loss = 1 - cfg.lossPct / 100;
+    const worst = Math.min(
+      series[n - 1] / series[n - 2],
+      series[n - 2] / series[n - 3],
+      series[n - 3] / series[n - 4]
+    );
+    if (worst < loss) { out.reason = "recentLossExceeded"; return out; }
+  }
+
+  if (!(cfg.minScoreThreshold < out.score && out.score < cfg.maxScoreThreshold)) {
+    out.reason = "scoreOutOfRange"; return out;
+  }
+  return out;
+}
+
+/** 建立跨标的对齐的交易日轴：取出现频率过半的日期。 */
+function tradingAxis(days, etfs) {
+  const count = new Map();
+  let pools = 0;
+  for (const etf of etfs) {
+    const bars = state.bars.get(etf.code);
+    if (!bars || !bars.length) continue;
+    pools++;
+    for (const b of bars) count.set(b.date, (count.get(b.date) || 0) + 1);
+  }
+  if (!pools) return [];
+  // 池子很小时（如只剩 2-3 只）过半阈值容易漏掉交易日，此时取并集
+  const threshold = pools <= 4 ? 1 : Math.max(2, Math.ceil(pools * 0.5));
+  return [...count.entries()]
+    .filter(([, c]) => c >= threshold)
+    .map(([d]) => d)
+    .sort()
+    .slice(-days);
+}
+
+/** 某标的在该交易日的可用下标（缺该日则顺延到最后一根不晚于它的 K 线）。 */
+function indexAsOf(bars, date) {
+  let lo = 0, hi = bars.length - 1, found = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (bars[mid].date <= date) { found = mid; lo = mid + 1; } else { hi = mid - 1; }
+  }
+  return found;
+}
+
+function computeDays() {
+  const cfg = state.cfg;
+  const etfs = activeETFs(); // 只统计当前分组内的标的
+  const axis = tradingAxis(cfg.days, etfs);
+  const days = axis.map((date) => {
+    const metrics = [];
+    for (const etf of etfs) {
+      const bars = state.bars.get(etf.code);
+      if (!bars || !bars.length) continue;
+      const idx = indexAsOf(bars, date);
+      if (idx < 0) continue;
+      // 当日没有这只标的的K线（停牌 / 尚未上市）时不参与该日排名，
+      // 否则会用上一根旧K线冒充当日数据，造成分数与名次失真
+      if (bars[idx].date !== date) {
+        metrics.push({
+          code: etf.code, raw: etf.raw, name: state.names.get(etf.code) || etf.name,
+          price: bars[idx].close, pct: 0, ann: 0, r2: 0, score: 0, shortAnn: 0,
+          r5: null, r10: null, r20: null, reason: "stale"
+        });
+        continue;
+      }
+      metrics.push(evaluate(etf, bars, idx, cfg));
+    }
+    const included = metrics
+      .filter((m) => m.reason === "included")
+      .sort((a, b) => (cfg.sortAsc ? a.score - b.score : b.score - a.score));
+    const rankOf = new Map();
+    included.forEach((m, i) => rankOf.set(m.code, i + 1));
+    return {
+      date,
+      included,
+      rankOf,
+      filtered: metrics.filter((m) => m.reason !== "included"),
+      top: included.slice(0, cfg.topN)
+    };
+  });
+
+  // 排名变化：与前一交易日的完整入选榜对比
+  days.forEach((day, i) => {
+    const prev = i > 0 ? days[i - 1] : null;
+    day.top.forEach((m, j) => {
+      const rank = j + 1;
+      const prevRank = prev ? prev.rankOf.get(m.code) : undefined;
+      m.rank = rank;
+      m.prevRank = prevRank;
+      m.isNew = !prev ? false : prevRank === undefined || prevRank > state.cfg.topN;
+      m.delta = prevRank === undefined ? null : prevRank - rank;
+    });
+  });
+  return days;
+}
+
+/* ============================== 渲染 ============================== */
+const $ = (id) => document.getElementById(id);
+const fmtPct = (v) => (v * 100).toFixed(1) + "%";
+const sign = (v) => (v > 0 ? "+" : "") + v.toFixed(2);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const cssColor = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+const colorOf = (i) => "hsl(" + ((i * 137.508) % 360).toFixed(0)
+  + (document.documentElement.dataset.theme === "light" ? " 64% 43%)" : " 70% 62%)");
+/** 保留 App 的统一跳转约定：ETF 代码打开同花顺详情页。 */
+const xueqiuURL = (code) => "https://stockpage.10jqka.com.cn/" + code.slice(0, 6) + "/";
+
+function renderOverview() {
+  const day = state.days[state.days.length - 1];
+  const etfs = activeETFs();
+  const covered = etfs.filter((etf) => state.bars.has(etf.code)).length;
+  const leader = day && day.top.length ? day.top[0] : null;
+  const items = [
+    ["数据日期", day ? day.date : "—", day ? state.days.length + " 个历史交易日" : "等待行情", ""],
+    ["当前分组", groupLabel(state.activeGroup), covered + " / " + etfs.length + " 只已有行情", "name"],
+    ["通过过滤", day ? day.included.length + " / " + etfs.length : "—", "最新日入选 · 榜单展示 Top" + state.cfg.topN, ""],
+    ["当前榜首", leader ? leader.name : "—", leader ? leader.raw + " · 分数 " + leader.score.toFixed(2) : "最新日暂无入选", "name"]
+  ];
+  $("overviewCards").innerHTML = items.map((item) =>
+    '<div class="metric-card"><div class="metric-label">' + esc(item[0]) + '</div>'
+    + '<div class="metric-value ' + item[3] + '" title="' + esc(item[1]) + '">' + esc(item[1]) + '</div>'
+    + '<div class="metric-note">' + esc(item[2]) + '</div></div>'
+  ).join("");
+}
+
+function renderFields() {
+  $("fields").innerHTML = FIELDS.map((f) => {
+    const v = state.cfg[f.key];
+    if (f.type === "bool") {
+      return '<div class="field check"><input type="checkbox" id="cfg_' + f.key + '"'
+        + (v ? " checked" : "") + '><label for="cfg_' + f.key + '">' + f.label + "</label></div>";
+    }
+    const attrs = [
+      'type="number"', 'id="cfg_' + f.key + '"', 'value="' + v + '"',
+      f.step !== undefined ? 'step="' + f.step + '"' : 'step="1"',
+      f.min !== undefined ? 'min="' + f.min + '"' : "",
+      f.max !== undefined ? 'max="' + f.max + '"' : ""
+    ].join(" ");
+    return '<div class="field"><label for="cfg_' + f.key + '">' + f.label + "</label><input " + attrs + "></div>";
+  }).join("");
+}
+
+function readFields() {
+  for (const f of FIELDS) {
+    const el = $("cfg_" + f.key);
+    if (!el) continue;
+    if (f.type === "bool") { state.cfg[f.key] = el.checked; continue; }
+    let v = f.type === "int" ? parseInt(el.value, 10) : parseFloat(el.value);
+    if (!isFinite(v)) v = f.def;
+    if (f.min !== undefined) v = Math.max(f.min, v);
+    if (f.max !== undefined) v = Math.min(f.max, v);
+    state.cfg[f.key] = v;
+    el.value = v;
+  }
+  saveConfig(state.cfg);
+}
+
+function badge(m) {
+  if (m.isNew) return '<span class="badge n" title="新进榜单">NEW</span>';
+  if (m.delta === null || m.delta === undefined) return '<span class="badge f">—</span>';
+  if (m.delta > 0) return '<span class="badge u" title="上升 ' + m.delta + ' 位">↑' + m.delta + "</span>";
+  if (m.delta < 0) return '<span class="badge d" title="下降 ' + -m.delta + ' 位">↓' + -m.delta + "</span>";
+  return '<span class="badge f" title="名次不变">—</span>';
+}
+
+function renderTabs() {
+  $("tabs").innerHTML = state.days.map((d, i) =>
+    '<button data-i="' + i + '" class="' + (i === state.activeDay ? "on" : "") + '">'
+    + d.date.slice(5) + (i === state.days.length - 1 ? " 最新" : "") + "</button>"
+  ).join("");
+  $("tabs").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => { state.activeDay = +b.dataset.i; renderTabs(); renderTable(); };
+  });
+}
+
+function renderTable() {
+  const day = state.days[state.activeDay];
+  $("rankTitle").textContent = "Top" + state.cfg.topN + " 榜单"
+    + (state.cfg.sortAsc ? "（倒序·分数最低）" : "")
+    + (groupById(state.activeGroup) ? " · 分组「" + groupLabel(state.activeGroup) + "」" : "");
+  if (!day) { $("table").innerHTML = '<div class="msg">暂无数据</div>'; return; }
+  if (!day.top.length) {
+    $("table").innerHTML = '<div class="msg">' + day.date + " 无标的通过过滤条件</div>";
+  } else {
+    const retCell = (v) => (v === null || v === undefined
+      ? '<td class="muted">-</td>'
+      : '<td class="' + (v > 0 ? "up" : v < 0 ? "down" : "") + '">' + sign(v * 100) + "%</td>");
+    $("table").innerHTML =
+      '<div class="table-scroll"><table><thead><tr><th>#</th><th>名称</th><th>变化</th>'
+      + "<th>最新价</th><th>涨跌</th><th>5日</th><th>10日</th><th>20日</th>"
+      + "<th>分数</th><th class=\"hide-s\">年化</th><th class=\"hide-s\">R²</th></tr></thead><tbody>"
+      + day.top.map((m) => {
+        const cls = m.pct > 0 ? "up" : m.pct < 0 ? "down" : "";
+        return "<tr>"
+          + '<td class="rank">' + m.rank + "</td>"
+          + '<td><span class="nm">' + esc(m.name) + '</span><br>'
+          + '<a class="cd" href="' + xueqiuURL(m.code) + '" target="_blank" rel="noopener noreferrer"'
+          + ' title="在同花顺查看 ' + esc(m.name) + ' 的行情">' + m.raw + " ↗</a></td>"
+          + "<td>" + badge(m) + "</td>"
+          + "<td>" + m.price.toFixed(3) + "</td>"
+          + '<td class="' + cls + '">' + sign(m.pct) + "%</td>"
+          + retCell(m.r5) + retCell(m.r10) + retCell(m.r20)
+          + "<td>" + m.score.toFixed(2) + "</td>"
+          + '<td class="hide-s">' + fmtPct(m.ann) + "</td>"
+          + '<td class="hide-s">' + m.r2.toFixed(2) + "</td>"
+          + "</tr>";
+      }).join("")
+      + "</tbody></table></div>";
+  }
+
+  const groups = new Map();
+  for (const m of day.filtered) {
+    if (!groups.has(m.reason)) groups.set(m.reason, []);
+    groups.get(m.reason).push(m.name);
+  }
+  $("filteredBox").querySelector("summary").textContent =
+    "未入选明细（" + day.date + "，" + day.filtered.length + " 只）";
+  $("filtered").innerHTML = groups.size
+    ? [...groups.entries()].map(([r, names]) =>
+        '<div class="msg"><b>' + REASON[r] + "</b>（" + names.length + "）：" + esc(names.join("、")) + "</div>"
+      ).join("")
+    : '<div class="msg">全部标的均已入选</div>';
+}
+
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+function renderChart() {
+  const days = state.days, cfg = state.cfg;
+  const svg = $("chart");
+  if (days.length < 2) {
+    svg.innerHTML = ""; svg.removeAttribute("viewBox");
+    svg.style.width = "";
+    $("chartHint").textContent = "数据不足，无法绘制排名走势";
     return;
   }
-  render();
-}
 
-// ── 市场状态条 ──
-function renderStatus() {
-  var d = DATA;
-  var h = '<div class="market-strip">';
-  h += '<div class="market-badge ' + (d.is_weak ? 'weak' : 'normal') + '">'
-     + '<div class="st">' + (d.is_weak ? '🔴 走弱期' : '🟢 正常期') + '</div>'
-     + '<div class="days">' + (d.is_weak ? '已持续 ' + d.weak_days_count + ' / ' + d.max_weak_days + ' 交易日 · 策略用全球池' : '策略池：全球 + 中国 + 动态') + '</div></div>';
-  (d.indexes || []).forEach(function(ix) {
-    if (ix.close === null) return;
-    h += '<div class="idx-chip ' + (ix.above ? 'above' : 'below') + '">'
-       + '<div class="nm">' + escapeHtml(ix.name) + '</div>'
-       + '<div class="px">' + ix.close + '</div>'
-       + '<div class="ma">' + (ix.above ? '▲ 站上' : '▼ 破位') + ' MA10 ' + ix.ma + '</div></div>';
+  const rows = Math.min(cfg.topN, Math.max(...days.map((d) => d.top.length), 1));
+  const nameW = 128, rankW = 20, gap = 10;
+  const padL = nameW + rankW + gap * 2, padR = nameW + rankW + gap * 2;
+  const padT = 24, padB = 28, rowH = 32, colW = 96;
+  const w = padL + padR + (days.length - 1) * colW;
+  const h = padT + padB + Math.max(rows - 1, 1) * rowH;
+  const x = (i) => padL + i * colW;
+  const y = (rank) => padT + (rank - 1) * rowH;
+  const chartMuted = cssColor("--muted", "#8390a5");
+  const chartLine = cssColor("--line", "#293548");
+  const chartNew = cssColor("--new", "#e8b15b");
+  const text = (tx, ty, str, opts) => '<text x="' + tx + '" y="' + ty + '" fill="' + (opts.fill || chartMuted)
+    + '" font-size="' + (opts.size || 11) + '" text-anchor="' + (opts.anchor || "start") + '"'
+    + (opts.weight ? ' font-weight="' + opts.weight + '"' : "")
+    + (opts.opacity ? ' opacity="' + opts.opacity + '"' : "") + ">" + str + "</text>";
+
+  const members = new Map();
+  days.forEach((d, i) => d.top.forEach((m) => {
+    if (!members.has(m.code)) members.set(m.code, { name: m.name, points: [] });
+    members.get(m.code).points.push({ i, rank: m.rank, isNew: m.isNew });
+  }));
+  // 颜色按最新日名次分配，保证榜首色系稳定
+  const ordered = [...members.entries()].sort((a, b) => {
+    const pa = a[1].points[a[1].points.length - 1], pb = b[1].points[b[1].points.length - 1];
+    return (pb.i - pa.i) || (pa.rank - pb.rank);
   });
-  h += '</div>';
-  document.getElementById('statusSection').innerHTML = h;
-}
+  const colors = new Map(ordered.map(([code], k) => [code, colorOf(k)]));
 
-// ── 今日目标卡 ──
-function renderTarget() {
-  var d = DATA, v = (d.variants || {}).strategy || {};
-  var h = '';
-  if (v.target) {
-    var t = v.target;
-    h += '<div class="target-card">';
-    h += '<div class="target-label">策略目标 · ' + (d.is_weak ? '全球池' : '全球 + 中国 + 动态') + ' · 候选阈值 ≥ ' + v.candidate_threshold + '</div>';
-    h += '<div class="target-name">' + etfLink(t.code, escapeHtml(t.name) + '<span class="code">' + escapeHtml(t.code) + '</span>', t.name) + '</div>';
-    h += '<div class="target-metrics">';
-    h += '<div class="tm"><div class="v">' + t.score.toFixed(3) + '</div><div class="k">动量得分</div></div>';
-    h += '<div class="tm"><div class="v">' + fmtPct(t.annualized) + '</div><div class="k">年化收益</div></div>';
-    h += '<div class="tm"><div class="v">' + t.r_squared + '</div><div class="k">R²</div></div>';
-    h += '<div class="tm"><div class="v">' + (t.volume_ratio != null ? t.volume_ratio : '—') + '</div><div class="k">量比</div></div>';
-    h += '<div class="tm"><div class="v">' + t.price + '</div><div class="k">最新价</div></div>';
-    h += '<div class="tm"><div class="v ' + (t.change_pct > 0 ? 'up' : 'down') + '">' + (t.change_pct > 0 ? '+' : '') + t.change_pct + '%</div><div class="k">今日涨幅</div></div>';
-    h += '</div></div>';
-  } else {
-    var df = d.defensive_etf || {};
-    h += '<div class="target-card defensive">';
-    h += '<div class="target-label">🛡️ 无符合条件的ETF — 防御模式</div>';
-    h += '<div class="target-name">' + etfLink(df.code, escapeHtml(df.name || '防御ETF') + '<span class="code">' + escapeHtml(df.code || '') + '</span>', df.name) + '</div>';
-    h += '<div style="font-size:0.75em;color:#888;margin-top:4px">策略规则：无目标时转入货币基金避险</div>';
-    h += '</div>';
+  let g = "";
+  for (let r = 1; r <= rows; r++) {
+    g += '<line x1="' + x(0) + '" y1="' + y(r) + '" x2="' + x(days.length - 1) + '" y2="' + y(r)
+      + '" stroke="' + chartLine + '" stroke-width="1"/>';
   }
-  document.getElementById('targetSection').innerHTML = h;
-}
+  days.forEach((d, i) => {
+    g += text(x(i), h - 8, d.date.slice(5), { anchor: "middle" });
+  });
+  g += text(x(0), padT - 12, "首日", { anchor: "middle", size: 10, opacity: ".7" })
+    + text(x(days.length - 1), padT - 12, "最新", { anchor: "middle", size: 10, opacity: ".7" });
 
-// ── 中国池与动态池同时展示 ──
-function renderCompare() {
-  var variants = DATA.variants || {};
-  var china = variants.china || {}, dynamic = variants.dynamic || {};
-  var h = '<div class="section-title">中国池与动态池动量</div><div class="compare-grid">';
-  [['中国池', china, false], ['动态池 · ETF热点候选', dynamic, true]].forEach(function(group) {
-    var rows = (group[1].all || []).slice(0, 5);
-    h += '<div class="compare-col"><h3>' + group[0] + ' · 动量前5 · 通过过滤 ' + (group[1].top10 || []).length + ' 只</h3>';
-    if (rows.length) {
-      rows.forEach(function(m, i) {
-        var rec = m.recommendation || {};
-        h += '<div class="compare-item"><span class="rk">' + (i + 1) + '</span>'
-           + '<span class="nm">' + etfLink(m.code, escapeHtml(m.name), m.name) + '<small>' + m.code
-           + (rec.industry ? ' · ' + escapeHtml(rec.industry) : '') + '</small></span>'
-           + (m.passed_all ? '<span class="both-chip">通过</span>' : '')
-           + (group[2] && rec.rank ? '<span class="source-chip">ETF#' + rec.rank + '</span>' : '')
-           + '<span class="sc">' + m.score.toFixed(3) + '</span></div>';
-      });
-    } else {
-      h += '<div class="compare-empty">暂无通过当前过滤条件的 ETF</div>';
+  // 首末两日在图内直接标注名称，中途退出榜单的在最后一个节点旁标注
+  const firstDay = days[0], lastDay = days[days.length - 1];
+  firstDay.top.forEach((m) => {
+    const color = colors.get(m.code);
+    g += text(x(0) - gap - rankW, y(m.rank) + 4, esc(clip(m.name, 10)), { fill: color, anchor: "end" })
+      + text(x(0) - gap, y(m.rank) + 4, m.rank, { anchor: "end", size: 11 });
+  });
+  lastDay.top.forEach((m) => {
+    const color = colors.get(m.code);
+    g += text(x(days.length - 1) + gap, y(m.rank) + 4, m.rank, { anchor: "start", size: 11 })
+      + text(x(days.length - 1) + gap + rankW, y(m.rank) + 4,
+        esc(clip(m.name, 10)) + (m.isNew ? " NEW" : ""),
+        { fill: m.isNew ? chartNew : color, anchor: "start", weight: m.isNew ? 600 : 500 });
+  });
+
+  ordered.forEach(([code, info]) => {
+    const color = colors.get(code);
+    const pts = info.points;
+    let segment = [];
+    const flush = () => {
+      if (segment.length > 1) {
+        g += '<polyline points="' + segment.map((p) => x(p.i) + "," + y(p.rank)).join(" ")
+          + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linejoin="round" opacity=".85"/>';
+      }
+      segment = [];
+    };
+    pts.forEach((p) => {
+      if (segment.length && p.i !== segment[segment.length - 1].i + 1) flush();
+      segment.push(p);
+    });
+    flush();
+    pts.forEach((p) => {
+      g += '<circle cx="' + x(p.i) + '" cy="' + y(p.rank) + '" r="' + (p.isNew ? 6 : 4.5)
+        + '" fill="' + color + '"' + (p.isNew ? ' stroke="' + chartNew + '" stroke-width="2"' : "")
+        + '><title>' + esc(info.name) + " " + days[p.i].date + " 第" + p.rank + "名"
+        + (p.isNew ? "（新进）" : "") + "</title></circle>";
+    });
+    const tail = pts[pts.length - 1];
+    if (tail.i > 0 && tail.i < days.length - 1) {
+      g += text(x(tail.i) + 8, y(tail.rank) - 7, esc(clip(info.name, 8)) + " 退出",
+        { fill: color, size: 10, opacity: ".8" });
     }
-    h += '</div>';
   });
-  h += '</div>';
-  document.getElementById('compareSection').innerHTML = h;
-}
 
-// ── Top10 表 ──
-function renderTop() {
-  var h = '';
-  (V().top10 || []).forEach(function(m, i) {
-    h += '<tr>';
-    h += '<td>' + (i + 1) + '</td>';
-    h += '<td class="code">' + etfLink(m.code, m.code, m.name) + '</td>';
-    h += '<td class="nm">' + etfLink(m.code, escapeHtml(m.name), m.name) + '</td>';
-    h += '<td class="score-v">' + m.score.toFixed(3) + '</td>';
-    h += '<td class="' + (m.annualized > 0 ? 'up' : 'down') + '">' + fmtPct(m.annualized) + '</td>';
-    h += '<td>' + m.r_squared + '</td>';
-    h += '<td>' + (m.volume_ratio != null ? m.volume_ratio : '—') + '</td>';
-    h += '<td>' + (m.min_day_ratio != null ? fmtPct(m.min_day_ratio - 1) : '—') + '</td>';
-    h += '<td>' + (m.ma_value != null ? m.ma_value : '—') + '</td>';
-    h += '<td class="' + (m.change_pct > 0 ? 'up' : 'down') + '">' + (m.change_pct > 0 ? '+' : '') + m.change_pct + '%</td>';
-    h += '</tr>';
-  });
-  if (!h) h = '<tr><td colspan="10" style="text-align:center;color:#555;padding:20px">无通过全部过滤的ETF</td></tr>';
-  document.getElementById('topTbody').innerHTML = h;
-}
-
-// ── 全部评分表 ──
-function getSortedAll() {
-  var rows = (V().all || []).slice();
-  var key = sortState.key, dir = sortState.dir;
-  rows.sort(function(a, b) {
-    var va, vb;
-    if (key === 'code') { return dir === 'asc' ? a.code.localeCompare(b.code) : b.code.localeCompare(a.code); }
-    if (key === 'name') { return dir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name); }
-    if (key === 'score') { va = a.score; vb = b.score; }
-    else if (key === 'annualized') { va = a.annualized; vb = b.annualized; }
-    else if (key === 'r2') { va = a.r_squared; vb = b.r_squared; }
-    else if (key === 'vol') { va = a.volume_ratio != null ? a.volume_ratio : -1; vb = b.volume_ratio != null ? b.volume_ratio : -1; }
-    else if (key === 'minday') { va = a.min_day_ratio != null ? a.min_day_ratio : -1; vb = b.min_day_ratio != null ? b.min_day_ratio : -1; }
-    else if (key === 'amt') { va = a.avg_amount_20d; vb = b.avg_amount_20d; }
-    else { va = 0; vb = 0; }
-    return dir === 'asc' ? va - vb : vb - va;
-  });
-  return rows;
+  svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+  svg.setAttribute("width", w);
+  svg.setAttribute("height", h);
+  svg.innerHTML = g;
+  $("chartHint").textContent = "两侧直接标注 ETF 名称与名次，橙色圈与 NEW 表示新进榜单"
+    + (w > 360 ? "；窄屏可左右滑动查看" : "");
 }
 
 function renderAll() {
-  var weak = DATA.is_weak;
-  var topCodes = {};
-  (V().top10 || []).forEach(function(m) { topCodes[m.code] = true; });
-  var h = '';
-  getSortedAll().forEach(function(m) {
-    h += '<tr class="' + (topCodes[m.code] ? 'in-top' : '') + '">';
-    h += '<td class="code">' + etfLink(m.code, m.code, m.name) + '</td>';
-    h += '<td class="nm">' + etfLink(m.code, escapeHtml(m.name), m.name) + '</td>';
-    h += '<td class="score-v">' + m.score.toFixed(3) + '</td>';
-    h += '<td class="' + (m.annualized > 0 ? 'up' : 'down') + '">' + fmtPct(m.annualized) + '</td>';
-    h += '<td>' + m.r_squared + '</td>';
-    h += '<td>' + (m.volume_ratio != null ? m.volume_ratio : '—') + '</td>';
-    h += '<td>' + (m.min_day_ratio != null ? fmtPct(m.min_day_ratio - 1) : '—') + '</td>';
-    h += '<td>' + fmtYi(m.avg_amount_20d) + '</td>';
-    h += '<td style="font-size:0.85em">'
-       + passIcon(m.passed_score) + '得分 '
-       + passIcon(m.passed_r2, !weak) + 'R² '
-       + passIcon(m.passed_ma, weak) + 'MA '
-       + passIcon(m.passed_volume) + '量 '
-       + passIcon(m.passed_loss) + '风控</td>';
-    h += '</tr>';
-  });
-  document.getElementById('allTbody').innerHTML = h;
+  state.days = computeDays();
+  state.activeDay = Math.max(0, state.days.length - 1);
+  renderOverview();
+  renderTabs();
+  renderTable();
+  renderChart();
 }
 
-function renderSortHeaders() {
-  document.querySelectorAll('#allTbody').length; // noop
-  document.querySelectorAll('th.sortable').forEach(function(th) {
-    th.classList.remove('sort-active');
-    var old = th.querySelector('.sort-arrow');
-    if (old) old.remove();
-    if (th.getAttribute('data-sort') === sortState.key) {
-      th.classList.add('sort-active');
-      var arrow = document.createElement('span');
-      arrow.className = 'sort-arrow';
-      arrow.style.cssText = 'font-size:9px;margin-left:2px;color:var(--accent)';
-      arrow.textContent = sortState.dir === 'desc' ? '↓' : '↑';
-      th.appendChild(arrow);
-    }
-  });
+/* ============================== 交互 ============================== */
+function setBusy(busy) {
+  state.busy = busy;
+  for (const id of ["btnRefresh", "btnRecalc", "btnAdd", "btnResetPool"]) $(id).disabled = busy;
+}
+function setStatus(text, isError) {
+  const el = $("status");
+  el.className = "sub" + (isError ? " err" : "");
+  el.textContent = text;
+}
+function setProgress(done, total) {
+  $("bar").style.width = total ? (done / total * 100).toFixed(1) + "%" : "0";
 }
 
-function render() {
-  var d = DATA, v = V();
-  var modeChip = d.mode === 'intraday'
-    ? '<span class="mode-chip intraday">盘中信号 · 截至 ' + escapeHtml(d.asof || '?') + '</span>'
-    : '<span class="mode-chip close">收盘数据</span>';
-  var poolInfo = '池 ' + (v.pool_size || 0) + ' 只 · 流动性合格 ' + (v.pool_qualified || 0) + ' 只';
-  if ((currentVariant === 'dynamic' || currentVariant === 'combined') && d.dynamic_pool) {
-    var dp = d.dynamic_pool;
-    poolInfo += ' · 动态池来源 ' + escapeHtml(dp.source_date || '?') + (dp.stale ? '（上次快照）' : '');
+async function refresh(force) {
+  if (state.busy) return;
+  if (!activeETFs().length) {
+    setStatus("当前分组「" + groupLabel(state.activeGroup) + "」为空，请在「ETF 池」中添加或勾选标的", true);
+    return;
   }
-  document.getElementById('dateSub').innerHTML =
-    '数据日期: ' + escapeHtml(d.date || '?') + modeChip + ' · ' + poolInfo;
-  document.getElementById('weakNote').style.display = d.is_weak ? 'block' : 'none';
-  var p = d.params || {};
-  document.getElementById('footnote').innerHTML =
-    '动量得分 = 年化收益 × R²（' + p.lookback_days + '日对数价格加权回归，近期权重高）· '
-    + '过滤：得分∈[' + (p.score_range || [0,5]).join(',') + '] · R²>' + p.r2_threshold + '(正常期) · '
-    + '收盘>MA' + p.ma_lookback + '(走弱期) · 量比<' + p.volume_threshold + ' · 近3日单日跌幅≥' + Math.round((1 - p.loss) * 100) + '%<br>'
-    + '走弱期：沪深300/中小综指/创业板指/中证A500 ≥3/4 破 MA' + (p.weak_ma_lookback || 10) + ' 进入，≥3/4 站上退出，最长 ' + p.max_weak_days + ' 交易日 · '
-    + '动态池自动读取 ETF 热点候选（候选可为空）；中国池与动态池独立评分，正常期策略合并全球/中国/动态三池，走弱期策略仅用全球池。<br>'
-    + '流动性门槛：20日日均成交额 ≥ ' + fmtYi(p.min_avg_amount) + ' · 盘中刷新时量比按已交易分钟投影全天 · 更新于 ' + escapeHtml(d.updated_at || '?');
-  document.getElementById('topTitle').textContent = (VARIANT_LABELS[currentVariant] || currentVariant) + ' · 过滤后 Top10';
-  document.getElementById('allTitle').textContent = (VARIANT_LABELS[currentVariant] || currentVariant) + ' · 全部评分';
-  renderStatus();
-  renderTarget();
-  renderCompare();
-  renderTop();
+  setBusy(true);
+  setProgress(0, 1);
+  setStatus(force ? "正在拉取行情…" : "加载中…");
+  try {
+    const { errors, staleUsed, total } = await loadAll(force, (done, count) => {
+      setProgress(done, count);
+      setStatus("已获取 " + done + " / " + count);
+    });
+    if (!state.bars.size) {
+      setStatus("全部标的获取失败且无本地缓存，请检查网络后重试", true);
+      return;
+    }
+    renderAll();
+    const latest = state.days.length ? state.days[state.days.length - 1].date : "-";
+    setStatus("数据截至 " + latest + " ｜ " + groupLabel(state.activeGroup)
+      + " " + (total - errors.length) + "/" + total
+      + (staleUsed.length ? " ｜ " + staleUsed.length + " 只用了本地缓存" : "")
+      + (errors.length ? " ｜ " + errors.length + " 只失败" : "")
+      + " ｜ 更新于 " + new Date().toLocaleTimeString("zh-CN", { hour12: false }),
+      staleUsed.length > 0 || errors.length > 0);
+  } catch (e) {
+    setStatus("加载失败：" + (e && e.message ? e.message : e), true);
+  } finally {
+    setBusy(false);
+    setProgress(1, 1);
+  }
+}
+
+/* ============================== ETF 池管理 ============================== */
+function setPoolOpen(open) {
+  $("poolModal").className = open ? "modal open" : "modal";
+  state.poolOpen = open;
+  if (open) { renderGroupSelects(); renderPool(); }
+}
+
+function poolMsg(text, isError) {
+  const el = $("poolMsg");
+  el.className = "sub" + (isError ? " err" : "");
+  el.textContent = text;
+}
+
+/** 顶部「参与排名的分组」与弹窗「正在编辑的分组」两个下拉 */
+function renderGroupSelects() {
+  const options = (withAll) => (withAll
+    ? ['<option value="' + ALL_GROUP + '">全部（' + state.pool.length + "）</option>"]
+    : []).concat(state.groups.map((g) =>
+      '<option value="' + esc(g.id) + '">' + esc(g.name) + "（" + groupSize(g) + "）</option>"
+    )).join("");
+  const sel = $("groupSel");
+  sel.innerHTML = options(true);
+  sel.value = state.activeGroup;
+  const edit = $("groupEdit");
+  edit.innerHTML = '<option value="' + ALL_GROUP + '">全部（不可编辑成员）</option>' + options(false);
+  if (!groupById(state.editGroup)) state.editGroup = ALL_GROUP;
+  edit.value = state.editGroup;
+  const isAll = state.editGroup === ALL_GROUP;
+  $("btnGroupRename").disabled = isAll;
+  $("btnGroupDel").disabled = isAll;
+  $("groupName").value = isAll ? "" : groupLabel(state.editGroup);
+}
+
+function renderPool() {
+  const editing = groupById(state.editGroup);
+  const members = editing ? new Set(editing.codes) : null;
+  $("poolCount").textContent = state.pool.length;
+  $("poolList").innerHTML = state.pool.map((e) =>
+    '<div class="pool-item">'
+    + (editing
+      ? '<input class="mem" type="checkbox" data-code="' + e.code + '"'
+        + (members.has(e.code) ? " checked" : "")
+        + ' title="属于分组「' + esc(editing.name) + '」">'
+      : "")
+    + '<span class="pn" title="' + esc(e.name) + '">' + esc(e.name) + "</span>"
+    + '<a class="cd" href="' + xueqiuURL(e.code) + '" target="_blank" rel="noopener noreferrer">' + e.raw + "</a>"
+    + '<button class="del" data-code="' + e.code + '" title="移除 ' + esc(e.name) + '">✕</button>'
+    + "</div>"
+  ).join("");
+  $("poolList").querySelectorAll("button.del").forEach((b) => {
+    b.onclick = () => removeETF(b.dataset.code);
+  });
+  $("poolList").querySelectorAll("input.mem").forEach((c) => {
+    c.onchange = () => toggleMembership(c.dataset.code, c.checked);
+  });
+}
+
+/* ---------- 分组增删改 ---------- */
+function switchGroup(id) {
+  state.activeGroup = groupById(id) ? id : ALL_GROUP;
+  saveGroups();
+  renderGroupSelects();
+  const etfs = activeETFs();
+  const missing = etfs.filter((e) => !state.bars.has(e.code));
+  if (missing.length) { // 该分组的标的还没抓过，按需补拉
+    setStatus("切换到「" + groupLabel(state.activeGroup) + "」，需补拉 " + missing.length + " 只行情…");
+    refresh(false);
+    return;
+  }
   renderAll();
-  renderSortHeaders();
+  setStatus("当前分组：" + groupLabel(state.activeGroup) + "（" + etfs.length + " 只）");
 }
 
-// ── 独立刷新（只重算动量，不动其他板块数据）──
-function refreshData() {
-  var btn = document.getElementById('refreshBtn');
-  btn.disabled = true;
-  btn.textContent = '⏳ 计算中...';
-  fetch('/api/momentum-etf/recalc', {method: 'POST'})
-    .then(function(r) {
-      if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || '更新失败'); });
-      return r.json();
-    })
-    .then(function(res) {
-      btn.textContent = '🔄 更新数据';
-      btn.disabled = false;
-      load();
-    })
-    .catch(function(e) {
-      btn.textContent = '🔄 更新数据';
-      btn.disabled = false;
-      alert('动量ETF更新失败: ' + e.message);
-    });
+function addGroup() {
+  const name = $("groupName").value.trim();
+  if (!name) { poolMsg("请先填写分组名称", true); return; }
+  if (state.groups.some((g) => g.name === name)) { poolMsg("已存在同名分组「" + name + "」", true); return; }
+  const group = { id: "g" + Date.now().toString(36), name, codes: [] };
+  state.groups.push(group);
+  state.editGroup = group.id;
+  saveGroups();
+  renderGroupSelects();
+  renderPool();
+  poolMsg("已新建分组「" + name + "」，请在下方勾选成员");
 }
 
-// ── 池子编辑器 ──
-var PARAM_FIELDS = [
-  ['lookback_days', '动量回看天数', 1, 2, 250],
-  ['score_range_min', '得分下限', 0.1, -100, 100],
-  ['score_range_max', '得分上限', 0.1, -100, 100],
-  ['score_threshold_ratio', '候选阈值系数', 0.05, 0, 1],
-  ['r2_threshold', 'R²阈值(正常期)', 0.05, 0, 1],
-  ['ma_lookback', 'MA周期(走弱期)', 1, 1, 250],
-  ['volume_lookback', '量比均量天数', 1, 1, 60],
-  ['volume_threshold', '量比阈值', 0.1, 0.01, 20],
-  ['loss', '单日跌幅下限(如0.97)', 0.01, 0.5, 1],
-  ['weak_ma_lookback', '走弱期MA周期', 1, 2, 250],
-  ['max_weak_days', '走弱期最长天数', 1, 1, 250],
-  ['min_avg_amount', '流动性阈值(元)', 1000000, 0, 10000000000000]
-];
-
-function openEditor() {
-  fetch('/api/momentum-etf/config?_=' + Date.now())
-    .then(function(r) { return r.json(); })
-    .then(function(cfg) {
-      POOL_DRAFT = {
-        global_pool: (cfg.global_pool || []).map(function(e) { return {code:e.code, name:e.name || ''}; }),
-        china_pool: (cfg.china_pool || []).map(function(e) { return {code:e.code, name:e.name || ''}; })
-      };
-      renderPoolEditor();
-      var p = cfg.params || {};
-      var h = '';
-      PARAM_FIELDS.forEach(function(f) {
-        var v = f[0] === 'score_range_min' ? (p.score_range || [0,5])[0]
-              : f[0] === 'score_range_max' ? (p.score_range || [0,5])[1]
-              : p[f[0]];
-        h += '<div class="param-item"><label>' + f[1] + '</label>'
-           + '<input id="param_' + f[0] + '" type="number" step="' + f[2] + '" min="' + f[3]
-           + '" max="' + f[4] + '" value="' + (v != null ? v : '') + '"></div>';
-      });
-      document.getElementById('paramsGrid').innerHTML = h;
-      document.getElementById('saveStatus').textContent = '';
-      document.getElementById('editorOverlay').classList.add('active');
-    })
-    .catch(function(e) { alert('读取配置失败: ' + e.message); });
+function renameGroup() {
+  const group = groupById(state.editGroup);
+  if (!group) { poolMsg("「全部」不可重命名", true); return; }
+  const name = $("groupName").value.trim();
+  if (!name) { poolMsg("请填写新的分组名称", true); return; }
+  if (state.groups.some((g) => g.name === name && g.id !== group.id)) {
+    poolMsg("已存在同名分组「" + name + "」", true); return;
+  }
+  const old = group.name;
+  group.name = name;
+  saveGroups();
+  renderGroupSelects();
+  if (state.activeGroup === group.id) renderAll();
+  poolMsg("分组「" + old + "」已重命名为「" + name + "」");
 }
 
-function closeEditor() {
-  document.getElementById('editorOverlay').classList.remove('active');
+function deleteGroup() {
+  const group = groupById(state.editGroup);
+  if (!group) { poolMsg("「全部」不可删除", true); return; }
+  state.groups = state.groups.filter((g) => g.id !== group.id);
+  state.editGroup = ALL_GROUP;
+  if (state.activeGroup === group.id) state.activeGroup = ALL_GROUP;
+  saveGroups();
+  renderGroupSelects();
+  renderPool();
+  renderAll();
+  poolMsg("已删除分组「" + group.name + "」（标的仍在池中）");
 }
 
-function renderPoolEditor() {
-  [['global_pool','global'], ['china_pool','china']].forEach(function(def) {
-    var key = def[0], prefix = def[1], rows = POOL_DRAFT[key] || [];
-    document.getElementById(prefix + 'PoolCount').textContent = rows.length + ' 只';
-    document.getElementById(prefix + 'PoolList').innerHTML = rows.map(function(item) {
-      return '<div class="pool-row"><span class="pool-code">' + item.code + '</span>'
-        + '<span class="pool-name">' + escapeHtml(item.name || '未命名ETF') + '</span>'
-        + '<button class="remove-btn" onclick="removePoolItem(\'' + key + '\',\'' + item.code + '\')" title="移除 ' + item.code + '">×</button></div>';
-    }).join('') || '<div class="compare-empty">池内暂无 ETF</div>';
-  });
-  var entries = ((DATA || {}).dynamic_pool || {}).entries || [];
-  document.getElementById('dynamicPoolCount').textContent = entries.length + ' 只';
-  document.getElementById('dynamicPoolList').innerHTML = entries.map(function(item) {
-    return '<div class="pool-row dynamic"><span class="pool-count">#' + item.rank + '</span>'
-      + '<span class="pool-code">' + etfLink(item.code, item.code, item.name) + '</span>'
-      + '<span class="pool-name">' + etfLink(item.code, escapeHtml(item.name), item.name)
-      + '<span class="pool-industry">' + escapeHtml(item.industry || '') + '</span></span></div>';
-  }).join('') || '<div class="compare-empty">今日暂无可执行的 ETF 热点候选</div>';
+function toggleMembership(code, on) {
+  const group = groupById(state.editGroup);
+  if (!group) return;
+  const has = group.codes.includes(code);
+  if (on && !has) group.codes.push(code);
+  if (!on && has) group.codes = group.codes.filter((c) => c !== code);
+  saveGroups();
+  renderGroupSelects();
+  if (state.activeGroup === group.id) {
+    if (on && !state.bars.has(code)) { refresh(false); } else { renderAll(); }
+  }
+  poolMsg("分组「" + group.name + "」现有 " + groupSize(group) + " 只标的");
 }
 
-function addPoolItem(key) {
-  var prefix = key === 'global_pool' ? 'global' : 'china';
-  var codeEl = document.getElementById(prefix + 'Code');
-  var nameEl = document.getElementById(prefix + 'Name');
-  var code = codeEl.value.trim(), name = nameEl.value.trim();
-  var status = document.getElementById('saveStatus');
-  if (!/^\d{6}$/.test(code)) {
-    status.className = 'save-status warn';
-    status.textContent = '请输入6位 ETF 代码';
-    codeEl.focus();
+function dropCached(code) {
+  state.bars.delete(code);
+  state.names.delete(code);
+  removeBars(code);
+}
+
+function refreshAfterPoolChange() {
+  if (activeETFs().length) { renderAll(); return; }
+  state.days = [];
+  renderOverview();
+  renderTabs();
+  renderTable();
+  renderChart();
+}
+
+async function addETF() {
+  if (state.busy) { poolMsg("正在加载行情，请稍候再操作", true); return; }
+  const code = normalizeCode($("poolCode").value);
+  if (!code) { poolMsg("代码格式不正确，示例：518880、SH518880、159915.XSHE", true); return; }
+  if (state.pool.some((e) => e.code === code)) {
+    poolMsg("池中已存在 " + code.slice(0, 6), true);
     return;
   }
-  var existing = (POOL_DRAFT[key] || []).find(function(item) { return item.code === code; });
-  if (existing) {
-    if (name) existing.name = name;
-  } else {
-    POOL_DRAFT[key].push({code:code, name:name});
-  }
-  codeEl.value = '';
-  nameEl.value = '';
-  status.textContent = '';
-  renderPoolEditor();
-  codeEl.focus();
-}
+  const inputName = $("poolName").value.trim();
+  const etf = makeETF(code, inputName || code.slice(0, 6), !!inputName);
 
-function removePoolItem(key, code) {
-  POOL_DRAFT[key] = (POOL_DRAFT[key] || []).filter(function(item) { return item.code !== code; });
-  renderPoolEditor();
-}
-
-function saveConfig(recalc) {
-  var status = document.getElementById('saveStatus');
-  var payload = {
-    global_pool: POOL_DRAFT.global_pool,
-    china_pool: POOL_DRAFT.china_pool,
-    params: {}
-  };
-  var invalidParam = false;
-  PARAM_FIELDS.forEach(function(f) {
-    if (invalidParam) return;
-    var el = document.getElementById('param_' + f[0]);
-    if (!el.checkValidity()) {
-      status.className = 'save-status warn';
-      status.textContent = f[1] + ' 必须在 ' + f[3] + ' 到 ' + f[4] + ' 之间';
-      el.focus();
-      invalidParam = true;
+  setBusy(true);
+  poolMsg("正在校验 " + etf.raw + " 的行情…");
+  try {
+    const limit = barLimit(state.cfg);
+    let result = null, firstError = null;
+    for (const fn of [fetchEastmoney, fetchTencent]) {
+      try { result = await fn(etf, limit); break; }
+      catch (e) { firstError = firstError || e; }
+    }
+    if (!result) {
+      poolMsg("添加失败，未取到 " + etf.raw + " 的行情：" + (firstError ? firstError.message : "未知错误"), true);
       return;
     }
-    var v = parseFloat(el.value);
-    if (!isNaN(v)) payload.params[f[0]] = v;
-  });
-  if (invalidParam) return;
-  if (payload.params.score_range_min >= payload.params.score_range_max) {
-    status.className = 'save-status warn';
-    status.textContent = '得分下限必须小于得分上限';
-    document.getElementById('param_score_range_min').focus();
-    return;
+    etf.name = inputName || result.name || etf.raw;
+    state.pool.push(etf);
+    savePool();
+    // 正在编辑某个分组时，新标的直接加入该分组
+    const editing = groupById(state.editGroup);
+    if (editing) { editing.codes.push(etf.code); saveGroups(); }
+    state.bars.set(etf.code, result.bars);
+    state.names.set(etf.code, etf.name);
+    writeBars(etf.code, { at: Date.now(), limit, bars: result.bars, name: etf.name });
+    $("poolCode").value = "";
+    $("poolName").value = "";
+    renderGroupSelects();
+    renderPool();
+    refreshAfterPoolChange();
+    poolMsg("已添加 " + etf.name + "（" + etf.raw + "，" + result.bars.length + " 根日线）"
+      + (editing ? "，并加入分组「" + editing.name + "」" : "") + "，榜单已重算");
+  } finally {
+    setBusy(false);
   }
-  status.className = 'save-status';
-  status.textContent = '保存中...';
-  fetch('/api/momentum-etf/config', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
-  }).then(function(r) {
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || '保存失败'); });
-    if (!recalc) {
-      status.className = 'save-status ok';
-      status.textContent = '✅ 已保存，下次更新生效';
-      return;
-    }
-    status.textContent = '重算中(约20-40秒)...';
-    return fetch('/api/momentum-etf/recalc', {method: 'POST'}).then(function(rr) {
-      if (!rr.ok) throw new Error('重算失败');
-      status.className = 'save-status ok';
-      status.textContent = '✅ 已保存并重算完成';
-      closeEditor();
-      load();
-    });
-  }).catch(function(e) {
-    status.className = 'save-status warn';
-    status.textContent = '❌ ' + e.message;
-  });
 }
 
-// ── 排序 ──
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('thead').forEach(function(thead) {
-    thead.addEventListener('click', function(e) {
-      var th = e.target.closest('th.sortable');
-      if (!th) return;
-      var key = th.getAttribute('data-sort');
-      if (sortState.key === key) {
-        sortState = { key: key, dir: sortState.dir === 'desc' ? 'asc' : 'desc' };
-      } else {
-        sortState = { key: key, dir: (key === 'code' || key === 'name') ? 'asc' : 'desc' };
-      }
-      renderAll();
-      renderSortHeaders();
-    });
-  });
-  [['globalCode','global_pool'], ['globalName','global_pool'], ['chinaCode','china_pool'], ['chinaName','china_pool']].forEach(function(def) {
-    document.getElementById(def[0]).addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') { e.preventDefault(); addPoolItem(def[1]); }
-    });
-  });
-});
+function removeETF(code) {
+  if (state.busy) { poolMsg("正在加载行情，请稍候再操作", true); return; }
+  const index = state.pool.findIndex((e) => e.code === code);
+  if (index < 0) return;
+  const [removed] = state.pool.splice(index, 1);
+  savePool();
+  for (const g of state.groups) g.codes = g.codes.filter((c) => c !== code); // 同步移出所有分组
+  saveGroups();
+  dropCached(code);
+  renderGroupSelects();
+  renderPool();
+  refreshAfterPoolChange();
+  poolMsg("已移除 " + removed.name + "（" + removed.raw + "），榜单已重算");
+}
 
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeEditor(); });
-load();
+function resetPool() {
+  if (state.busy) { poolMsg("正在加载行情，请稍候再操作", true); return; }
+  const previous = state.pool.map((e) => e.code);
+  state.pool = defaultPool();
+  state.groups = defaultGroups();
+  state.activeGroup = DEFAULT_GROUP;
+  state.editGroup = ALL_GROUP;
+  const kept = new Set(state.pool.map((e) => e.code));
+  for (const code of previous) if (!kept.has(code)) dropCached(code); // 清理自定义标的的孤儿缓存
+  savePool();
+  saveGroups();
+  renderGroupSelects();
+  renderPool();
+  poolMsg("已恢复默认池（" + state.pool.length + " 只）与内置分组，正在补齐缺失行情…");
+  refresh(false);
+}
+
+/* ============================== 交互 ============================== */
+/** 参数变化后本地重算；已抓取的回看长度不够时才重新联网 */
+function recalc() {
+  readFields();
+  if (!state.bars.size) { refresh(false); return; }
+  if (state.limitUsed < barLimit(state.cfg)) { refresh(true); return; }
+  renderAll();
+  setStatus("已按当前参数重新计算（使用本地缓存数据）");
+}
+
+$("btnConfig").onclick = () => {
+  const open = $("config").classList.toggle("open");
+  $("btnConfig").setAttribute("aria-expanded", open ? "true" : "false");
+};
+$("btnRecalc").onclick = () => recalc();
+$("btnRefresh").onclick = () => { readFields(); refresh(true); };
+$("btnAdd").onclick = () => addETF();
+$("btnResetPool").onclick = () => resetPool();
+$("btnPool").onclick = () => setPoolOpen(true);
+$("btnPoolClose").onclick = () => setPoolOpen(false);
+$("poolModal").onclick = (e) => { if (e.target === $("poolModal")) setPoolOpen(false); };
+document.onkeydown = (e) => { if (e.key === "Escape" && state.poolOpen) setPoolOpen(false); };
+$("poolCode").onkeydown = (e) => { if (e.key === "Enter") addETF(); };
+$("poolName").onkeydown = (e) => { if (e.key === "Enter") addETF(); };
+$("groupSel").onchange = () => switchGroup($("groupSel").value);
+$("groupEdit").onchange = () => { state.editGroup = $("groupEdit").value; renderGroupSelects(); renderPool(); };
+$("btnGroupAdd").onclick = () => addGroup();
+$("btnGroupRename").onclick = () => renameGroup();
+$("btnGroupDel").onclick = () => deleteGroup();
+$("groupName").onkeydown = (e) => { if (e.key === "Enter") (groupById(state.editGroup) ? renameGroup() : addGroup()); };
+
+migrateLegacyCache();
+ensurePoolCoverage();
+renderFields();
+renderGroupSelects();
+renderPool();
+refresh(false);
 </script>
 <script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
 </body>
 </html>

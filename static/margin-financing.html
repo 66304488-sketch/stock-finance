@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script src="/theme.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>板块融资融券</title>
+<style>
+  :root{--bg:#0c111a;--panel:#131b28;--panel-2:#172131;--line:#293548;--text:#c8d1df;--muted:#7e8999;--faint:#596577;--accent:#61afef;--up:#e06c75;--down:#52c47a;--gold:#e5c07b}
+  *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  button,select,input{font:inherit}.container{max-width:1440px;margin:0 auto;padding:16px 18px 36px}
+  .top{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:13px}.title{flex:1;min-width:250px}.title h1{font-size:21px;margin:0;color:var(--text);letter-spacing:.2px}.title p{margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
+  .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.control,.btn{height:34px;border:1px solid var(--line);border-radius:7px;background:var(--panel-2);color:var(--text);padding:0 10px}.btn{cursor:pointer}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .source-note{border:1px solid #e5c07b44;background:#e5c07b0d;color:#cbb889;border-radius:8px;padding:8px 11px;font-size:11px;line-height:1.55;margin-bottom:13px}
+  .cards{display:grid;grid-template-columns:repeat(6,minmax(145px,1fr));gap:9px;margin-bottom:13px}.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}.card{padding:11px 12px}.card .k{color:var(--muted);font-size:11px}.card .v{font-size:20px;font-weight:750;margin-top:4px;font-variant-numeric:tabular-nums;color:var(--text)}.card .s{font-size:10px;color:var(--faint);margin-top:3px}.positive{color:var(--up)!important}.negative{color:var(--down)!important}
+  .overview{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(300px,1fr);gap:10px;margin-bottom:13px}.panel{min-width:0}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}.panel-title{font-size:13px;font-weight:700}.panel-note{font-size:10px;color:var(--faint)}.chart-wrap{overflow-x:auto;padding:10px}.chart-wrap svg{display:block;width:100%;min-width:620px;height:auto}
+  .drivers{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}.driver-col h3{font-size:11px;color:var(--muted);margin:0 0 6px}.driver{display:grid;grid-template-columns:1fr auto;gap:8px;padding:6px 7px;border-radius:6px;font-size:11px}.driver:nth-child(even){background:var(--panel-2)}.driver .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.driver .m{font-variant-numeric:tabular-nums}
+  .table-panel{overflow:hidden}.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)}.toolbar input{height:32px;min-width:210px;flex:1;max-width:330px;background:var(--bg);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:0 9px}.toolbar .count{margin-left:auto;color:var(--faint);font-size:11px}
+  .table-scroll{overflow:auto;max-height:58vh}table{width:100%;border-collapse:collapse;font-size:11px}th{position:sticky;top:0;z-index:1;background:var(--panel-2);color:var(--muted);font-size:10px;font-weight:650;text-align:right;padding:8px 7px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}th:first-child,td:first-child{text-align:left}td{text-align:right;padding:8px 7px;border-bottom:1px solid #223043;white-space:nowrap;font-variant-numeric:tabular-nums}tr:hover td{background:#61afef09}.industry-link{border:0;background:transparent;color:var(--text);font-weight:650;padding:0;cursor:pointer;text-align:left}.industry-link:hover{color:var(--accent);text-decoration:underline}.state{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:1px 7px;font-size:10px}.state.grow{color:var(--up);border-color:#e06c7555;background:#e06c7510}.state.fall{color:var(--down);border-color:#52c47a55;background:#52c47a10}.state.flat{color:var(--muted)}.spark{display:inline-block;width:82px;height:24px;vertical-align:middle}.empty{padding:36px;text-align:center;color:var(--muted)}
+  .modal-bg{display:none;position:fixed;inset:0;z-index:1000;background:#000b;align-items:center;justify-content:center;padding:18px}.modal-bg.on{display:flex}.modal{width:min(1120px,96vw);max-height:90vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 18px 60px #0008}.modal-head{display:flex;align-items:flex-start;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line)}.modal-head h2{font-size:16px;margin:0}.modal-sub{font-size:11px;color:var(--muted);margin-top:3px}.close{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}.close:hover{color:var(--text)}.modal-body{overflow:auto;padding:0 14px 14px}.stock-link{color:var(--accent);text-decoration:none}.stock-link:hover{text-decoration:underline}
+  .foot{margin-top:11px;color:var(--faint);font-size:10px;line-height:1.65}
+  @media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}.overview{grid-template-columns:1fr}}
+  @media(max-width:660px){.container{padding:11px}.cards{grid-template-columns:repeat(2,1fr)}.title h1{font-size:18px}.controls{width:100%}.control,.btn{flex:1}.drivers{grid-template-columns:1fr}.toolbar .count{width:100%;margin-left:0}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="top">
+    <div class="title">
+      <h1>📐 板块融资融券</h1>
+      <p id="asOf">读取交易所融资融券明细并按行业聚合</p>
+    </div>
+    <div class="controls">
+      <select id="schemeSelect" class="control" aria-label="行业分类">
+        <option value="sw">申万一级</option>
+        <option value="ths">同花顺</option>
+        <option value="sw3">申万三级</option>
+      </select>
+      <button class="btn" id="reloadBtn">↻ 重新加载</button>
+    </div>
+  </div>
+  <div class="source-note" id="sourceNote">融资融券数据为交易所 T+1 披露；页面采用沪深两所共同完整日，避免单边提前发布造成行业总量失真。</div>
+  <div class="cards" id="cards"></div>
+  <div class="overview">
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">全市场融资余额 · 20日轨迹</div><div class="panel-note">行业覆盖标的合计</div></div>
+      <div class="chart-wrap" id="marketChart"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">当日融资余额变化</div><div class="panel-note">余额增加 / 回落前列</div></div>
+      <div class="drivers" id="drivers"></div>
+    </section>
+  </div>
+  <section class="panel table-panel">
+    <div class="panel-head"><div class="panel-title" id="tableTitle">行业融资融券明细</div><div class="panel-note">点击行业查看个股</div></div>
+    <div class="toolbar">
+      <input id="searchInput" type="search" placeholder="搜索行业">
+      <select id="stateSelect" class="control" aria-label="余额状态">
+        <option value="">全部状态</option><option value="增加">余额增加</option><option value="回落">余额回落</option><option value="连续">连续变化</option><option value="震荡">震荡</option>
+      </select>
+      <span class="count" id="rowCount"></span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th data-sort="industry">行业</th><th data-sort="state">状态</th><th data-sort="financing_balance">融资余额</th>
+          <th data-sort="financing_change">较前日</th><th data-sort="financing_change_pct">日变化%</th><th data-sort="financing_change_5d_pct">5日变化%</th>
+          <th data-sort="financing_buy">融资买入</th><th data-sort="buy_intensity">买入强度</th><th data-sort="short_balance">融券余额</th>
+          <th data-sort="total_balance">两融余额</th><th data-sort="balance_share">余额份额</th><th data-sort="stock_count">标的数</th><th>10日轨迹</th>
+        </tr></thead>
+        <tbody id="industryBody"></tbody>
+      </table>
+    </div>
+  </section>
+  <div class="foot">融资余额变化是相邻交易日余额差，并不等同于交易所“融资净买入”，其中可能包含偿还、强平及权益调整。融资买入强度＝融资买入额÷本页覆盖标的成交额；沪市融券余额按融券余量×收盘价估算，深市采用交易所披露金额。仅供研究，不构成投资建议。</div>
+</div>
+
+<div class="modal-bg" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="detailTitle">行业个股明细</h2><div class="modal-sub" id="detailSub"></div></div><button class="close" id="closeModal" aria-label="关闭">×</button></div>
+    <div class="modal-body"><div class="table-scroll" style="max-height:72vh"><table><thead><tr>
+      <th>#</th><th>代码</th><th>名称</th><th>市场</th><th>融资余额</th><th>余额变化</th><th>融资买入</th><th>买入强度</th><th>融券余额</th><th>两融余额</th>
+    </tr></thead><tbody id="detailBody"></tbody></table></div></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+var DATA=null,currentScheme='sw',sortState={key:'financing_change',dir:'desc'};
+var $=function(id){return document.getElementById(id)};
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function num(v){v=Number(v);return isFinite(v)?v:0}
+function fmtYi(v){return (num(v)/1e8).toLocaleString('zh-CN',{minimumFractionDigits:1,maximumFractionDigits:1})+'亿'}
+function fmtWan(v){return (num(v)/1e4).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:0})+'万'}
+function signedMoney(v){var n=num(v);return (n>0?'+':'')+fmtYi(n)}
+function pct(v,d){if(v==null||!isFinite(Number(v)))return '—';var n=Number(v);return (n>0?'+':'')+n.toFixed(d==null?2:d)+'%'}
+function cls(v){return num(v)>0?'positive':num(v)<0?'negative':''}
+function schemeLabel(v){return {sw:'申万一级',ths:'同花顺',sw3:'申万三级'}[v]||v}
+function stockLink(code,label,title){code=String(code||'').trim();label=String(label==null?code:label);if(!/^\d{6}$/.test(code))return esc(label);return '<a class="stock-link" href="https://stockpage.10jqka.com.cn/'+code+'/" target="_blank" rel="noopener noreferrer" title="'+esc(title||label)+'">'+esc(label)+'</a>'}
+function latestDate(){return (DATA&&DATA.dates&&DATA.dates.length)?DATA.dates[DATA.dates.length-1]:null}
+
+function marketSeries(key){
+  var n=(DATA.dates||[]).length,out=new Array(n).fill(0);
+  (DATA.industries||[]).forEach(function(row){var a=(row.daily||{})[key]||[];for(var i=0;i<n;i++)out[i]+=num(a[i])});return out;
+}
+function renderCards(){
+  var m=DATA.market||{},c=DATA.coverage||{},items=[
+    ['融资余额',fmtYi(m.financing_balance),'覆盖标的合计',''],
+    ['余额较前日',signedMoney(m.financing_change),'相邻完整交易日',cls(m.financing_change)],
+    ['融资买入额',fmtYi(m.financing_buy),'当日实际买入额',''],
+    ['买入强度',pct(m.buy_intensity),'融资买入÷成交额',''],
+    ['融券余额',fmtYi(m.short_balance),'沪估算 / 深披露',''],
+    ['两融标的',String(m.stock_count||0)+'只','价格覆盖 '+Math.round(num(c.price_coverage_ratio)*100)+'%','']
+  ];
+  $('cards').innerHTML=items.map(function(x){return '<div class="card"><div class="k">'+x[0]+'</div><div class="v '+x[3]+'">'+x[1]+'</div><div class="s">'+x[2]+'</div></div>'}).join('');
+}
+function renderChart(){
+  var vals=marketSeries('financing_balance'),dates=DATA.dates||[];
+  if(vals.length<2){$('marketChart').innerHTML='<div class="empty">历史数据不足</div>';return}
+  var w=820,h=190,pl=62,pr=18,pt=16,pb=30,min=Math.min.apply(null,vals),max=Math.max.apply(null,vals),span=Math.max(max-min,1);
+  min-=span*.08;max+=span*.08;span=max-min;
+  var x=function(i){return pl+i*(w-pl-pr)/Math.max(vals.length-1,1)},y=function(v){return pt+(max-v)/span*(h-pt-pb)};
+  var path=vals.map(function(v,i){return (i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)}).join(' '),g='';
+  for(var j=0;j<4;j++){var gy=pt+j*(h-pt-pb)/3,gv=max-j*span/3;g+='<line x1="'+pl+'" y1="'+gy+'" x2="'+(w-pr)+'" y2="'+gy+'" stroke="var(--line)"/><text x="'+(pl-8)+'" y="'+(gy+4)+'" text-anchor="end" fill="var(--muted)" font-size="10">'+(gv/1e8).toFixed(0)+'亿</text>'}
+  g+='<path d="'+path+'" fill="none" stroke="var(--accent)" stroke-width="2.2"/>';
+  vals.forEach(function(v,i){g+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="3.2" fill="var(--accent)"><title>'+esc(dates[i].full_label)+' '+fmtYi(v)+'</title></circle>';if(i===0||i===vals.length-1||i%5===0)g+='<text x="'+x(i)+'" y="'+(h-8)+'" text-anchor="middle" fill="var(--muted)" font-size="10">'+esc((dates[i].label||'').replace('月','/').replace('日',''))+'</text>'});
+  $('marketChart').innerHTML='<svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="全市场融资余额20日轨迹">'+g+'</svg>';
+}
+function renderDrivers(){
+  var rows=(DATA.industries||[]).slice(),up=rows.filter(function(r){return num(r.financing_change)>0}).sort(function(a,b){return num(b.financing_change)-num(a.financing_change)}).slice(0,6),down=rows.filter(function(r){return num(r.financing_change)<0}).sort(function(a,b){return num(a.financing_change)-num(b.financing_change)}).slice(0,6);
+  function col(title,list){return '<div class="driver-col"><h3>'+title+'</h3>'+((list.length?list.map(function(r){return '<div class="driver"><span class="n">'+esc(r.industry)+'</span><span class="m '+cls(r.financing_change)+'">'+signedMoney(r.financing_change)+'</span></div>'}).join(''):'<div class="empty" style="padding:12px">暂无</div>'))+'</div>'}
+  $('drivers').innerHTML=col('余额增加',up)+col('余额回落',down);
+}
+function spark(values){
+  values=(values||[]).slice(-10).map(num);if(values.length<2)return '—';var w=82,h=24,min=Math.min.apply(null,values),max=Math.max.apply(null,values),span=Math.max(max-min,1),pts=values.map(function(v,i){return (i*w/(values.length-1)).toFixed(1)+','+(h-2-(v-min)/span*(h-4)).toFixed(1)}).join(' '),color=values[values.length-1]>=values[0]?'var(--up)':'var(--down)';return '<svg class="spark" viewBox="0 0 '+w+' '+h+'"><polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="1.7"/></svg>'
+}
+function stateTag(value){var type=value.indexOf('增加')>=0?'grow':value.indexOf('回落')>=0?'fall':'flat';return '<span class="state '+type+'">'+esc(value)+'</span>'}
+function compare(a,b,key){var av=a[key],bv=b[key];if(key==='industry'||key==='state')return String(av||'').localeCompare(String(bv||''),'zh-CN');return num(av)-num(bv)}
+function filteredRows(){var q=$('searchInput').value.trim().toLowerCase(),state=$('stateSelect').value,rows=(DATA.industries||[]).filter(function(r){return (!q||String(r.industry).toLowerCase().indexOf(q)>=0)&&(!state||String(r.state).indexOf(state)>=0)});rows.sort(function(a,b){var c=compare(a,b,sortState.key);return sortState.dir==='asc'?c:-c});return rows}
+function renderTable(){
+  var rows=filteredRows();$('rowCount').textContent='显示 '+rows.length+' / '+(DATA.industries||[]).length+' 个行业';
+  $('industryBody').innerHTML=rows.map(function(r){return '<tr><td><button class="industry-link" data-industry="'+esc(r.industry)+'">'+esc(r.industry)+'</button></td><td>'+stateTag(r.state||'震荡')+'</td><td>'+fmtYi(r.financing_balance)+'</td><td class="'+cls(r.financing_change)+'">'+(r.financing_change==null?'—':signedMoney(r.financing_change))+'</td><td class="'+cls(r.financing_change_pct)+'">'+pct(r.financing_change_pct)+'</td><td class="'+cls(r.financing_change_5d_pct)+'">'+pct(r.financing_change_5d_pct)+'</td><td>'+fmtYi(r.financing_buy)+'</td><td>'+pct(r.buy_intensity)+'</td><td>'+fmtYi(r.short_balance)+'</td><td>'+fmtYi(r.total_balance)+'</td><td>'+pct(r.balance_share)+'</td><td>'+num(r.stock_count)+'</td><td>'+spark((r.daily||{}).financing_balance)+'</td></tr>'}).join('')||'<tr><td colspan="13" class="empty">没有符合条件的行业</td></tr>';
+  document.querySelectorAll('th[data-sort]').forEach(function(th){th.style.color=th.dataset.sort===sortState.key?'var(--accent)':''});
+}
+function openDetail(industry){
+  var rows=((DATA.details||{})[industry]||[]),date=latestDate();$('detailTitle').textContent=industry+' · 个股融资融券';$('detailSub').textContent=(date?date.full_label:'')+' · 按融资余额排序 · '+rows.length+'只';
+  $('detailBody').innerHTML=rows.map(function(r,i){return '<tr><td>'+(i+1)+'</td><td>'+stockLink(r.code,r.code+' ↗',r.name)+'</td><td>'+stockLink(r.code,r.name,r.name)+'</td><td>'+esc(r.market)+'</td><td>'+fmtYi(r.financing_balance)+'</td><td class="'+cls(r.financing_change)+'">'+(r.financing_change==null?'—':signedMoney(r.financing_change))+'</td><td>'+fmtYi(r.financing_buy)+'</td><td>'+pct(r.buy_intensity)+'</td><td>'+fmtWan(r.short_balance)+'</td><td>'+fmtYi(r.total_balance)+'</td></tr>'}).join('')||'<tr><td colspan="10" class="empty">暂无个股明细</td></tr>';$('detailModal').classList.add('on')
+}
+function render(){
+  var date=latestDate(),src=DATA.source||{},ex=src.exchange_latest||{},cov=DATA.coverage||{};
+  $('asOf').textContent=(DATA.scheme_label||schemeLabel(currentScheme))+' · 共同完整日 '+(date?date.full_label:'—')+' · '+num(cov.margin_stocks)+'只两融标的';
+  var lag=(ex.sse&&ex.szse&&ex.sse!==ex.szse)?'；沪市已发布 '+ex.sse+'，深市已发布 '+ex.szse+'，当前采用共同完整日 '+ex.complete:'；沪深两所均已发布至 '+(ex.complete||'—');
+  $('sourceNote').textContent='交易所 T+1 披露'+lag+'。分类未覆盖标的归入“其他”；融资买入强度使用对应标的成交额计算。';
+  $('tableTitle').textContent=(DATA.scheme_label||schemeLabel(currentScheme))+' · 行业融资融券明细';renderCards();renderChart();renderDrivers();renderTable();
+}
+async function load(scheme){
+  currentScheme=scheme;$('schemeSelect').value=scheme;$('reloadBtn').disabled=true;$('reloadBtn').textContent='读取中…';
+  try{var response=await fetch('/api/margin-financing?scheme='+encodeURIComponent(scheme)+'&_='+Date.now(),{cache:'no-store'});if(!response.ok){var msg='HTTP '+response.status;try{var e=await response.json();msg=e.detail||msg}catch(_){}throw new Error(msg)}var next=await response.json();if(next.scheme&&next.scheme!==scheme)throw new Error('返回分类与请求不一致');DATA=next;try{var p=new URLSearchParams(location.search);p.set('scheme',scheme);history.replaceState(null,'','?'+p.toString())}catch(_){}render()}catch(e){document.querySelector('.container').innerHTML='<div class="empty">融资融券数据读取失败：'+esc(e.message)+'<br>请先在设置中更新“融资融券”数据。</div>'}finally{$('reloadBtn').disabled=false;$('reloadBtn').textContent='↻ 重新加载'}
+}
+$('schemeSelect').addEventListener('change',function(){load(this.value)});$('reloadBtn').addEventListener('click',function(){load(currentScheme)});$('searchInput').addEventListener('input',renderTable);$('stateSelect').addEventListener('change',renderTable);
+document.querySelector('thead').addEventListener('click',function(e){var th=e.target.closest('th[data-sort]');if(!th)return;var key=th.dataset.sort;if(sortState.key===key)sortState.dir=sortState.dir==='desc'?'asc':'desc';else sortState={key:key,dir:key==='industry'||key==='state'?'asc':'desc'};renderTable()});
+$('industryBody').addEventListener('click',function(e){var btn=e.target.closest('.industry-link');if(btn)openDetail(btn.dataset.industry)});$('closeModal').addEventListener('click',function(){$('detailModal').classList.remove('on')});$('detailModal').addEventListener('click',function(e){if(e.target===this)this.classList.remove('on')});document.addEventListener('keydown',function(e){if(e.key==='Escape')$('detailModal').classList.remove('on')});
+(function(){var scheme=new URLSearchParams(location.search).get('scheme');if(['sw','ths','sw3'].indexOf(scheme)<0)scheme='sw';load(scheme)})();
+</script>
+<script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
+</body>
+</html>

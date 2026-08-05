@@ -26,7 +26,7 @@ MIN_PERCENTILE_HISTORY = 20
 PARTICIPATION_WINDOW = 60
 PRICE_VOL_WINDOW = 20
 STOCK_ACTIVITY_WINDOW = 20
-OUTPUT_DATES = 20
+OUTPUT_DATES = 80  # 校准概率需要 >=60 个样本交易日(heatmap_opportunity.minimum_days),留未来收益窗口余量
 RETURN_NOISE_PCT = 0.05
 STRENGTH_NOISE = 0.15
 
@@ -604,7 +604,8 @@ SERIES_FIELDS = (
     "active_participants", "effective_participants",
     "effective_participation_ratio", "eligible_stocks",
     "internal_top5", "price_change_pct", "excess_return_pct",
-    "price_strength", "price_response_pctile", "persistence", "coherence",
+    "price_strength", "price_response_pctile", "price_result_pctile",
+    "active_breadth_pctile", "persistence", "coherence",
     "momentum_score", "acceleration", "efficiency_gap", "state",
     "state_label", "risk_level", "risk_label", "risk_pattern",
 )

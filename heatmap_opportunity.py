@@ -229,7 +229,8 @@ def validate_inputs(
 
     gap_dates = [] if mode == "intraday" else _history_gap_dates(highs, lows)
     if gap_dates:
-        reasons.append("历史序列存在整市场空白日期")
+        # 空白日期会从分位数历史(valid_indexes)中剔除，仅降级提示而非全板停用
+        warnings.append(f"历史序列存在{len(gap_dates)}个整市场空白日期，已从分位历史剔除")
 
     coverage = highs.get("coverage") or lows.get("coverage") or {}
     active = _number(coverage.get("active"), 0) or 0
@@ -246,13 +247,14 @@ def validate_inputs(
     flow_date = _date_key((flow or {}).get("as_of") or (flow or {}).get("trade_date"))
     flow_aligned = bool(latest and flow_date and latest == flow_date)
     if mode == "daily" and not flow_aligned:
-        reasons.append("成交动能与热力图日期不一致")
+        # 动能分位相对其自身历史计算，日期错位时仍可作参考背景，降级而非停用
+        warnings.append("成交动能与热力图日期不一致，动能仅作参考背景")
     elif mode == "intraday":
         warnings.append("成交动能仅作为上一收盘日风险背景，不参与盘中确认")
 
     flow_coverage = _number((((flow or {}).get("data_quality") or {}).get("coverage") or {}).get("ratio"))
     if mode == "daily" and flow is not None and flow_coverage is not None and flow_coverage < 0.9:
-        reasons.append("成交动能覆盖不足90%")
+        warnings.append("成交动能覆盖不足90%")
 
     peer_mismatch = False
     if peer_totals:
@@ -261,9 +263,13 @@ def validate_inputs(
             if item.get("date") == latest and item.get("highs") is not None and item.get("lows") is not None
         ]
         if len(comparable) >= 2:
-            peer_mismatch = len({(item["highs"], item["lows"]) for item in comparable}) > 1
+            # 不同分类的覆盖率天然不同(如三级分类存在未归类股票),只在差异显著时降级提示
+            for key in ("highs", "lows"):
+                values = [item[key] for item in comparable]
+                if max(values) - min(values) > max(10, 0.05 * max(values)):
+                    peer_mismatch = True
             if peer_mismatch:
-                reasons.append("三套行业分类的全市场事件总数不一致")
+                warnings.append("部分行业分类的全市场事件总数差异超过5%，跨分类比较需谨慎")
 
     if stale:
         warnings.append("盘中快照已超过实时新鲜度阈值")
@@ -401,6 +407,22 @@ def _series_metrics(
     }
 
 
+def _current_adjusted_net(
+    high_row: dict,
+    low_row: dict,
+    total: int,
+    market_high_rate: float,
+    market_low_rate: float,
+    kappa: float = 20.0,
+) -> float:
+    """当日行业规模收缩后的净扩散,与 _series_metrics 同口径。"""
+    high = float(_count(high_row))
+    low = float(_count(low_row))
+    adjusted_high = (high + kappa * market_high_rate) / (total + kappa)
+    adjusted_low = (low + kappa * market_low_rate) / (total + kappa)
+    return (adjusted_high - adjusted_low) * 100
+
+
 def _risk_evidence(flow_row: dict | None) -> tuple[list[str], list[str]]:
     if not flow_row:
         return [], ["缺少成交动能风险背景"]
@@ -436,6 +458,7 @@ def _daily_stage(
     breadth_percentile: float,
     acceleration_percentile: float,
     net_breadth: float,
+    strength_percentile: float,
     trend_percentile: float,
     activity_percentile: float,
     participation_percentile: float,
@@ -469,6 +492,16 @@ def _daily_stage(
         return "relative" if permission.get("state") == "defense" else "emerging"
     if positives >= 2 and net_breadth > 0 and persistence >= 2:
         return "relative" if permission.get("state") == "defense" else "extending"
+    # 强度通道:扩散相对自身历史不新鲜(持续强势会被自身分位压回50),
+    # 但在当日全市场横截面中仍居前,且趋势与成交参与配合,视为延续
+    if (
+        strength_percentile >= 80
+        and net_breadth > 0
+        and trend_percentile >= 55
+        and activity_percentile >= 55
+        and len(risk_domains) <= 1
+    ):
+        return "relative" if permission.get("state") == "defense" else "extending"
     if weak >= 2:
         return "declining"
     return "dormant"
@@ -483,6 +516,7 @@ def _daily_industry(
     market_high_rates: list[float],
     market_low_rates: list[float],
     valid_indexes: list[int],
+    strength_percentile: float,
     quality: dict,
     permission: dict,
 ) -> dict:
@@ -511,6 +545,7 @@ def _daily_industry(
         breadth_percentile=series["breadth_percentile"],
         acceleration_percentile=series["acceleration_percentile"],
         net_breadth=series["adjusted_net_breadth_pct"],
+        strength_percentile=strength_percentile,
         trend_percentile=trend_percentile,
         activity_percentile=activity_percentile,
         participation_percentile=participation_percentile,
@@ -520,18 +555,25 @@ def _daily_industry(
         risk_pattern=risk_pattern,
     )
 
+    breadth_component = max(series["breadth_percentile"], strength_percentile)
     confirmations = {
         "trend": trend_percentile >= 60 and excess_return > 0,
-        "breadth": series["breadth_percentile"] >= 60 and series["adjusted_net_breadth_pct"] > 0,
+        "breadth": breadth_component >= 60 and series["adjusted_net_breadth_pct"] > 0,
         "activity": activity_percentile >= 60,
         "participation": participation_percentile >= 60,
     }
     why: list[str] = []
     if confirmations["breadth"]:
-        why.append(
-            f"净扩散 {series['adjusted_net_breadth_pct']:+.1f}% · 自身历史"
-            f"{series['breadth_percentile']:.0f}分位"
-        )
+        if series["breadth_percentile"] >= 60:
+            why.append(
+                f"净扩散 {series['adjusted_net_breadth_pct']:+.1f}% · 自身历史"
+                f"{series['breadth_percentile']:.0f}分位"
+            )
+        else:
+            why.append(
+                f"净扩散 {series['adjusted_net_breadth_pct']:+.1f}% · 横截面强度"
+                f"{strength_percentile:.0f}分位"
+            )
     if series["acceleration_percentile"] >= 65:
         why.append(
             f"扩散加速度 {series['acceleration_pp']:+.1f}pct · "
@@ -557,7 +599,7 @@ def _daily_industry(
 
     base_score = (
         0.25 * trend_percentile
-        + 0.25 * series["breadth_percentile"]
+        + 0.25 * breadth_component
         + 0.20 * activity_percentile
         + 0.15 * series["acceleration_percentile"]
         + 0.15 * participation_percentile
@@ -587,6 +629,7 @@ def _daily_industry(
         "high_rate_pct": round(high_count / total * 100, 2),
         "low_rate_pct": round(low_count / total * 100, 2),
         **{key: value for key, value in series.items() if key not in {"raw", "adjusted"}},
+        "strength_percentile": round(strength_percentile, 1),
         "trend_percentile": round(trend_percentile, 1),
         "activity_percentile": round(activity_percentile, 1),
         "participation_percentile": round(participation_percentile, 1),
@@ -709,68 +752,130 @@ def _intraday_industry(
 
 
 def _historical_calibration(highs: dict, lows: dict, flow: dict | None) -> dict:
-    """Small, causal diagnostic sample; never presents an uncalibrated probability."""
+    """Small, causal diagnostic sample; never presents an uncalibrated probability.
+
+    阶段判定与实盘共用 _daily_stage(同口径 kappa 收缩、横截面强度、
+    市场闸门降级),保证校准概率对应实盘信号。
+    """
     flow_rows = _flow_map(flow)
     high_rows = _row_map(highs)
     low_rows = _row_map(lows)
     date_keys = _date_keys(highs)
+    chronological = [date for date in reversed(date_keys) if date]
+    gap_dates = set(_history_gap_dates(highs, lows))
+    valid_dates = [date for date in chronological if date not in gap_dates]
+    date_index = {date: index for index, date in enumerate(date_keys)}
+
+    high_total = _total(highs)
+    low_total = _total(lows)
+    total_market = max(int(_number(high_total.get("total"), 0) or 0), 1)
+    # 与实盘 market_permission 同口径:动能市场广度序列(若有)参与 defense 判定
+    market_breadth_by_date = {}
+    for item in ((flow or {}).get("market") or {}).get("series") or []:
+        key = _date_key(item.get("date"))
+        if key:
+            market_breadth_by_date[key] = _number(item.get("breadth"))
+    market_rates: dict[str, tuple[float, float]] = {}
+    permissions: dict[str, dict] = {}
+    for date in valid_dates:
+        index = date_index[date]
+        market_high = _count(high_total, index) / total_market
+        market_low = _count(low_total, index) / total_market
+        market_rates[date] = (market_high, market_low)
+        high_count = _count(high_total, index)
+        low_count = _count(low_total, index)
+        net_rate = (high_count - low_count) / total_market * 100
+        ratio = high_count / low_count if low_count > 0 else (
+            math.inf if high_count else 1.0
+        )
+        breadth = market_breadth_by_date.get(date)
+        state = "defense" if (
+            net_rate <= -3
+            or ratio < 0.6
+            or (breadth is not None and breadth < -0.25)
+        ) else "watch"
+        permissions[date] = {"state": state}
+
+    totals = {
+        industry: max(int(_number(row.get("total"), 0) or 0), 1)
+        for industry, row in high_rows.items()
+    }
+    net_series: dict[str, list[float | None]] = {}
+    for industry, high_row in high_rows.items():
+        low_row = low_rows.get(industry)
+        if not low_row:
+            continue
+        high_counts = high_row.get("daily_counts") or []
+        low_counts = low_row.get("daily_counts") or []
+        total = totals[industry]
+        series: list[float | None] = []
+        for date in valid_dates:
+            index = date_index[date]
+            if index >= len(high_counts) or index >= len(low_counts):
+                series.append(None)
+                continue
+            market_high, market_low = market_rates[date]
+            adjusted_high = (float(_number(high_counts[index], 0) or 0) + 20.0 * market_high) / (total + 20.0)
+            adjusted_low = (float(_number(low_counts[index], 0) or 0) + 20.0 * market_low) / (total + 20.0)
+            series.append((adjusted_high - adjusted_low) * 100)
+        net_series[industry] = series
+
     returns_by_stage: dict[str, dict[int, list[float]]] = defaultdict(
         lambda: defaultdict(list)
     )
     event_dates: dict[str, set[str]] = defaultdict(set)
+    quality_ok = {"can_score": True}
 
-    for industry, high_row in high_rows.items():
-        low_row = low_rows.get(industry)
+    for industry, series in net_series.items():
         flow_row = flow_rows.get(industry)
-        if not low_row or not flow_row:
+        if not flow_row:
             continue
         flow_series = {
             _date_key(item.get("date")): item
             for item in flow_row.get("series") or []
             if _date_key(item.get("date"))
         }
-        total = max(int(_number(high_row.get("total"), 0) or 0), 1)
-        high_counts = high_row.get("daily_counts") or []
-        low_counts = low_row.get("daily_counts") or []
-        chronological = list(reversed(date_keys))
-        net_history: list[float] = []
-        for date in chronological:
-            source_index = date_keys.index(date)
-            if source_index >= len(high_counts) or source_index >= len(low_counts):
+        history: list[float] = []
+        for position, date in enumerate(valid_dates):
+            net = series[position]
+            if net is None:
                 continue
-            net = (
-                float(_number(high_counts[source_index], 0) or 0)
-                - float(_number(low_counts[source_index], 0) or 0)
-            ) / total * 100
             item = flow_series.get(date)
             if not item:
-                net_history.append(net)
+                history.append(net)
                 continue
-            breadth_p = _percentile_rank(net, net_history)
-            previous = net_history[-3:]
-            acceleration = net - _mean(previous)
+            priors = history
+            breadth_p = _percentile_rank(net, priors)
+            acceleration = net - _mean(priors[-3:])
             acceleration_history = [
-                net_history[index] - _mean(net_history[max(0, index - 3):index])
-                for index in range(1, len(net_history))
+                priors[index] - _mean(priors[max(0, index - 3):index])
+                for index in range(1, len(priors))
             ]
             acceleration_p = _percentile_rank(acceleration, acceleration_history)
-            trend_positive = (_number(item.get("excess_return_pct"), 0) or 0) > 0
-            activity_p = float(_number(item.get("activity_pctile"), 50) or 50)
-            risk_level = str(item.get("risk_level") or "normal")
-            risk_pattern = str(item.get("risk_pattern") or "normal")
-            if risk_level == "danger" or risk_pattern == "upside_exhaustion":
-                stage = "crowded"
-            elif breadth_p >= 60 and acceleration_p >= 70 and trend_positive and activity_p >= 55:
-                stage = "emerging"
-            elif breadth_p >= 60 and trend_positive and activity_p >= 60:
-                stage = "confirmed"
-            elif breadth_p < 45 and not trend_positive:
-                stage = "declining"
-            else:
-                stage = "dormant"
-            position = chronological.index(date)
+            cross_section = [
+                other[position]
+                for other in net_series.values()
+                if other[position] is not None
+            ]
+            strength_p = _percentile_rank(net, cross_section)
+            risk_domains, _ = _risk_evidence(item)
+            stage = _daily_stage(
+                quality=quality_ok,
+                permission=permissions[date],
+                breadth_percentile=breadth_p,
+                acceleration_percentile=acceleration_p,
+                net_breadth=net,
+                strength_percentile=strength_p,
+                trend_percentile=float(_number(item.get("price_result_pctile"), 50) or 50),
+                activity_percentile=float(_number(item.get("activity_pctile"), 50) or 50),
+                participation_percentile=float(_number(item.get("active_breadth_pctile"), 50) or 50),
+                persistence=int(_number(item.get("persistence"), 0) or 0),
+                risk_domains=risk_domains,
+                risk_level=str(item.get("risk_level") or "normal"),
+                risk_pattern=str(item.get("risk_pattern") or "normal"),
+            )
             for horizon in (1, 3, 5):
-                future_dates = chronological[position + 1:position + 1 + horizon]
+                future_dates = valid_dates[position + 1:position + 1 + horizon]
                 if len(future_dates) < horizon:
                     continue
                 returns = [
@@ -781,7 +886,7 @@ def _historical_calibration(highs: dict, lows: dict, flow: dict | None) -> dict:
                     continue
                 returns_by_stage[stage][horizon].append(sum(float(value) for value in returns))
                 event_dates[stage].add(date)
-            net_history.append(net)
+            history.append(net)
 
     stages = {}
     for stage, horizons in returns_by_stage.items():
@@ -840,6 +945,8 @@ def build_opportunity_snapshot(
     high_map = _row_map(highs)
     low_map = _row_map(lows)
     flow_rows = _flow_map(flow)
+    # 动能日期错位时只作背景:阶段判定与评分不使用错位分位数(降级已在 quality 体现)
+    flow_usable = mode != "daily" or quality.get("flow_aligned", True)
     names = sorted(high_map.keys() & low_map.keys())
     industries: list[dict] = []
 
@@ -863,15 +970,32 @@ def build_opportunity_snapshot(
         market_low_rates = [
             _count(low_total, index) / total_market for index in range(length)
         ]
+        # 横截面强度:当日调整后净扩散在全部行业中的分位,弥补自身历史分位
+        # 对持续强势行业的系统性低估
+        current_net = {}
+        for name in names:
+            total = max(int(_number(high_map[name].get("total"), 0) or 0), 1)
+            current_net[name] = _current_adjusted_net(
+                high_map[name],
+                low_map[name],
+                total,
+                market_high_rates[0] if market_high_rates else 0,
+                market_low_rates[0] if market_low_rates else 0,
+            )
+        strength_percentiles = {
+            name: _percentile_rank(value, current_net.values())
+            for name, value in current_net.items()
+        }
         industries = [
             _daily_industry(
                 name,
                 high_map[name],
                 low_map[name],
-                flow_rows.get(name),
+                flow_rows.get(name) if flow_usable else None,
                 market_high_rates=market_high_rates,
                 market_low_rates=market_low_rates,
                 valid_indexes=valid_indexes,
+                strength_percentile=strength_percentiles.get(name, 50.0),
                 quality=quality,
                 permission=permission,
             )
@@ -926,6 +1050,7 @@ def build_opportunity_snapshot(
         "methodology": {
             "opportunity_definition": "状态迁移×扩散×相对趋势×成交参与－独立风险",
             "breadth": "行业规模收缩后的(创新高－创新低)/有效成分数",
+            "strength": "当日调整后净扩散的全行业横截面分位,弥补自身历史分位对持续强势的低估",
             "acceleration": "相对最近3个有效交易日的净扩散变化及自身历史分位",
             "confirmation": "相对收益、成交参与、活跃广度与有效参与者",
             "risk": "价格延伸、成交集中、拥挤、持仓和流动性脆弱性独立展示",

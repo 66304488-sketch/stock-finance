@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<script src="/theme.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>成交动能</title>
@@ -13,7 +14,7 @@
     --safe:#61c49a; --mono:"SF Mono","Menlo","Consolas",monospace;
   }
   * { box-sizing:border-box; }
-  html,body { min-height:100%; margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+  html,body { min-height:100%; margin:0; background: var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
   button,select,input { font:inherit; }
   button:focus-visible,select:focus-visible,input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .shell { max-width:1580px; margin:0 auto; padding:18px 20px 34px; }
@@ -23,27 +24,27 @@
   .title-wrap p { margin:5px 0 0; color:var(--muted); font-size:12px; }
   .toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
   .control, .ghost-btn {
-    min-height:34px; border:1px solid var(--line); border-radius:8px; background:var(--panel);
+    min-height:34px; border:1px solid var(--line); border-radius:8px; background: var(--panel);
     color:var(--text); padding:6px 10px;
   }
   .control { cursor:pointer; }
   .control:disabled,.ghost-btn:disabled { opacity:.55; cursor:wait; }
   .ghost-btn { cursor:pointer; color:var(--muted); }
-  .ghost-btn:hover { border-color:#46556c; color:var(--text); }
+  .ghost-btn:hover { border-color:var(--c-46556c, #46556c); color:var(--text); }
 
   .hero {
-    position:relative; overflow:hidden; background:linear-gradient(125deg,#172234,#101924);
+    position:relative; overflow:hidden; background:linear-gradient(125deg,var(--c-172234, #172234),var(--c-101924, #101924));
     border:1px solid var(--line); border-radius:14px; padding:17px 19px; margin-bottom:12px;
   }
-  .hero:before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--accent); }
-  .hero.hero-up:before { background:var(--up); }
-  .hero.hero-down:before { background:var(--down); }
+  .hero:before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background: var(--accent); }
+  .hero.hero-up:before { background: var(--up); }
+  .hero.hero-down:before { background: var(--down); }
   .hero-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
   .hero-kicker { color:var(--muted); font-size:11px; letter-spacing:.09em; text-transform:uppercase; }
   .hero-title { margin-top:5px; font-size:22px; font-weight:750; letter-spacing:.01em; }
-  .hero-reason { margin-top:7px; color:#aeb9ca; font-size:13px; line-height:1.55; }
+  .hero-reason { margin-top:7px; color:var(--c-aeb9ca, #aeb9ca); font-size:13px; line-height:1.55; }
   .evidence-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:13px; }
-  .evidence-chip { background:#0c1420aa; border:1px solid #2b394d; border-radius:8px; padding:7px 10px; min-width:130px; }
+  .evidence-chip { background: var(--c-0c1420aa, #0c1420aa); border:1px solid var(--c-2b394d, #2b394d); border-radius:8px; padding:7px 10px; min-width:130px; }
   .evidence-chip small { display:block; color:var(--faint); font-size:10px; margin-bottom:3px; }
   .evidence-chip strong { font:700 13px var(--mono); }
   .metric-up { color:var(--up); }
@@ -52,57 +53,89 @@
 
   .risk-badge,.state-badge {
     display:inline-flex; align-items:center; gap:5px; white-space:nowrap; border-radius:999px;
-    border:1px solid var(--line); background:#111925; padding:4px 8px; font-size:11px; font-weight:650;
+    border:1px solid var(--line); background: var(--c-111925, #111925); padding:4px 8px; font-size:11px; font-weight:650;
   }
-  .risk-badge:before { content:""; width:6px; height:6px; border-radius:50%; background:var(--safe); }
-  .risk-watch { color:var(--watch); border-color:#e8b15b66; }
-  .risk-watch:before { background:var(--watch); }
-  .risk-warning { color:var(--warning); border-color:#ee844877; }
-  .risk-warning:before { background:var(--warning); }
+  .risk-badge:before { content:""; width:6px; height:6px; border-radius:50%; background: var(--safe); }
+  .risk-watch { color:var(--watch); border-color:var(--c-e8b15b66, #e8b15b66); }
+  .risk-watch:before { background: var(--watch); }
+  .risk-warning { color:var(--warning); border-color:var(--c-ee844877, #ee844877); }
+  .risk-warning:before { background: var(--warning); }
   .risk-danger { color:var(--danger); border-color:#ff526788; }
-  .risk-danger:before { background:var(--danger); }
+  .risk-danger:before { background: var(--danger); }
   .risk-unknown { color:var(--muted); }
-  .state-badge { color:#c8d2e0; font-weight:550; }
+  .state-badge { color:var(--c-c8d2e0, #c8d2e0); font-weight:550; }
 
   .date-strip { display:flex; gap:5px; overflow:auto; padding:1px 0 10px; scrollbar-width:thin; }
-  .date-tab { border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:7px; padding:5px 9px; font-size:11px; cursor:pointer; white-space:nowrap; }
-  .date-tab.active { color:#08101c; border-color:var(--accent); background:var(--accent); font-weight:700; }
+  .date-tab { border:1px solid var(--line); background: var(--panel); color:var(--muted); border-radius:7px; padding:5px 9px; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .date-tab.active { color:#08101c; border-color:var(--accent); background: var(--accent); font-weight:700; }
 
   .dashboard-grid { display:grid; grid-template-columns:minmax(620px,1.7fr) minmax(300px,.8fr); gap:12px; margin-bottom:12px; }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .panel { background: var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
   .panel-head { min-height:45px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 14px; border-bottom:1px solid var(--line); }
   .panel-title { font-size:13px; font-weight:700; }
   .panel-note { color:var(--faint); font-size:10px; }
-  .compass-wrap { position:relative; min-height:420px; padding:5px 8px 8px; }
+  .compass-panel { min-width:0; }
+  .compass-head-actions { display:flex; align-items:center; justify-content:flex-end; gap:7px; flex-wrap:wrap; }
+  .compass-toolbar { display:flex; align-items:center; gap:4px; }
+  .compass-tool {
+    min-width:29px; min-height:27px; padding:3px 7px; cursor:pointer;
+    color:var(--muted); border:1px solid var(--line); border-radius:6px;
+    background:var(--c-0e1723, #0e1723); font-size:9px; white-space:nowrap;
+  }
+  .compass-tool:hover:not(:disabled),.compass-tool[aria-pressed="true"] { color:var(--text); border-color:var(--accent); }
+  .compass-tool[aria-pressed="true"] { background:var(--up-soft); }
+  .compass-tool:disabled { opacity:.4; cursor:default; }
+  .compass-zoom-level { min-width:39px; color:var(--muted); text-align:center; font:9px var(--mono); }
+  .compass-wrap {
+    position:relative; min-height:420px; padding:5px 8px 8px; overflow:hidden;
+    border-radius:7px; touch-action:none; user-select:none; -webkit-user-select:none;
+  }
   #compassSvg { display:block; width:100%; height:auto; min-height:410px; }
+  #compassWrap.zoomed { cursor:grab; }
+  #compassWrap.panning { cursor:grabbing; }
+  #compassWrap.box-zoom-mode { cursor:crosshair; }
+  .compass-selection {
+    display:none; position:absolute; z-index:6; pointer-events:none; border:1px solid var(--accent);
+    border-radius:3px; background:color-mix(in srgb,var(--accent) 15%,transparent);
+    box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent) inset;
+  }
+  .compass-panel.compass-expanded {
+    position:fixed; inset:12px; z-index:45; margin:0; display:flex; flex-direction:column;
+    overflow:hidden; background:var(--panel); box-shadow:0 18px 70px #000c;
+  }
+  .compass-panel.compass-expanded .panel-head { padding-right:320px; }
+  .compass-panel.compass-expanded #compassWrap { flex:1; min-height:0; }
+  .compass-panel.compass-expanded #compassWrap svg { height:100%; min-height:440px; }
+  body.compass-modal-open { overflow:hidden; }
   .quadrant-label { fill:#647288; font-size:12px; font-weight:650; pointer-events:none; }
   .axis-label { fill:#78869b; font-size:10px; pointer-events:none; }
   .grid-line { stroke:#354157; stroke-width:1; stroke-dasharray:4 5; }
   .zero-line { stroke:#66758d; stroke-width:1.2; }
-  .bubble { cursor:pointer; transition:opacity .15s,stroke-width .15s; }
-  .bubble:hover { opacity:1 !important; stroke-width:3.2 !important; }
+  .bubble { transition:opacity .15s,stroke-width .15s; }
+  .bubble-hit { fill:transparent; stroke:none; pointer-events:all; cursor:pointer; }
+  .bubble-group:hover .bubble,.bubble-group:focus .bubble { opacity:1 !important; stroke-width:3.2 !important; }
   .bubble-label { fill:#dce4ef; font-size:9px; pointer-events:none; paint-order:stroke; stroke:#0c111a; stroke-width:3px; stroke-linejoin:round; }
   .quad-hit { cursor:pointer; fill:transparent; }
   .quad-hit:hover { fill:#ffffff08; }
 
   .side-stack { display:grid; grid-template-rows:auto 1fr; gap:12px; min-width:0; }
   .structure-body { padding:13px 14px 14px; }
-  .stacked { display:flex; width:100%; height:12px; overflow:hidden; border-radius:999px; background:#202b3c; margin:8px 0 11px; }
+  .stacked { display:flex; width:100%; height:12px; overflow:hidden; border-radius:999px; background: var(--c-202b3c, #202b3c); margin:8px 0 11px; }
   .stack-seg { min-width:2px; cursor:pointer; }
   .legend-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px 12px; }
   .legend-item { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; cursor:pointer; }
-  .legend-item strong { color:#d7dfeb; font:650 11px var(--mono); }
+  .legend-item strong { color:var(--c-d7dfeb, #d7dfeb); font:650 11px var(--mono); }
   .balance-list { display:grid; gap:9px; margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
   .balance-row { display:grid; grid-template-columns:74px 1fr 46px; align-items:center; gap:8px; font-size:10px; color:var(--muted); }
-  .balance-track { position:relative; height:7px; border-radius:4px; background:#202b3a; overflow:hidden; }
-  .balance-track:after { content:""; position:absolute; left:50%; top:0; bottom:0; width:1px; background:#64738a; }
+  .balance-track { position:relative; height:7px; border-radius:4px; background: var(--c-202b3a, #202b3a); overflow:hidden; }
+  .balance-track:after { content:""; position:absolute; left:50%; top:0; bottom:0; width:1px; background: #64738a; }
   .balance-fill { position:absolute; top:0; bottom:0; border-radius:4px; }
-  .balance-val { text-align:right; font:10px var(--mono); color:#c5cfdd; }
+  .balance-val { text-align:right; font:10px var(--mono); color:var(--c-c5cfdd, #c5cfdd); }
   .risk-list { list-style:none; margin:0; padding:12px 14px 14px; display:grid; gap:8px; max-height:245px; overflow:auto; }
-  .risk-item { border-left:2px solid var(--watch); background:#0f1723; border-radius:3px 7px 7px 3px; padding:8px 9px; }
+  .risk-item { border-left:2px solid var(--watch); background: var(--c-0f1723, #0f1723); border-radius:3px 7px 7px 3px; padding:8px 9px; }
   .risk-item.warning { border-left-color:var(--warning); }
   .risk-item.danger { border-left-color:var(--danger); }
-  .risk-item .name { color:#dbe3ee; font-size:11px; font-weight:650; }
+  .risk-item .name { color:var(--c-dbe3ee, #dbe3ee); font-size:11px; font-weight:650; }
   .risk-item .why { margin-top:3px; color:var(--muted); font-size:10px; line-height:1.45; }
   .empty-note { color:var(--faint); font-size:11px; line-height:1.55; padding:10px 0; }
 
@@ -113,49 +146,51 @@
   .row-count { margin-left:auto; color:var(--faint); font:10px var(--mono); }
   .table-scroll { max-height:64vh; overflow:auto; }
   table { width:100%; border-collapse:collapse; font-size:11px; }
-  th { position:sticky; top:0; z-index:2; background:#182231; color:#7f8ba0; font-weight:600; padding:9px 7px; border-bottom:1px solid #364359; text-align:right; white-space:nowrap; user-select:none; }
+  th { position:sticky; top:0; z-index:2; background: var(--c-182231, #182231); color:#7f8ba0; font-weight:600; padding:9px 7px; border-bottom:1px solid var(--c-364359, #364359); text-align:right; white-space:nowrap; user-select:none; }
   th:first-child,td:first-child { text-align:left; }
   th.sortable { cursor:pointer; }
   th.sortable:hover,th.sort-active { color:var(--accent); }
-  td { padding:8px 7px; border-bottom:1px solid #202b3b; text-align:right; white-space:nowrap; color:#b8c3d2; }
+  td { padding:8px 7px; border-bottom:1px solid var(--c-202b3b, #202b3b); text-align:right; white-space:nowrap; color:var(--c-b8c3d2, #b8c3d2); }
   tbody tr { cursor:pointer; }
-  tbody tr:hover td { background:#1a2534; }
-  .industry-name { color:#e7edf6; font-weight:650; }
-  .sub-value { color:var(--faint); font-size:9px; margin-top:2px; }
+  tbody tr:hover td { background: var(--c-1a2534, #1a2534); }
+  .industry-name { color:var(--c-e7edf6, #e7edf6); font-weight:650; }
+  .sub-value { display:block; color:var(--faint); font-size:9px; margin-top:2px; }
   .percentile-cell { display:inline-flex; align-items:center; justify-content:flex-end; gap:5px; }
-  .microbar { width:35px; height:4px; border-radius:3px; background:#263246; overflow:hidden; }
-  .microbar i { display:block; height:100%; border-radius:3px; background:var(--accent); }
+  .microbar { width:35px; height:4px; border-radius:3px; background: var(--c-263246, #263246); overflow:hidden; }
+  .microbar i { display:block; height:100%; border-radius:3px; background: var(--accent); }
   .sort-arrow { margin-left:3px; color:var(--accent); }
   .proxy-note { color:#647187; font-size:10px; line-height:1.6; padding:12px 3px 0; text-align:center; }
-  .proxy-note strong { color:#9aa8bb; }
+  .proxy-note strong { color:var(--c-9aa8bb, #9aa8bb); }
 
-  .drawer-shade { position:fixed; inset:0; background:#04070c88; opacity:0; pointer-events:none; transition:opacity .2s; z-index:50; }
+  .drawer-shade { position:fixed; inset:0; background: var(--c-04070c88, #04070c88); opacity:0; pointer-events:none; transition:opacity .2s; z-index:50; }
   .drawer-shade.active { opacity:1; pointer-events:auto; }
   .drawer {
-    position:fixed; z-index:51; top:0; right:0; bottom:0; width:min(560px,94vw); background:#101824;
-    border-left:1px solid #354158; box-shadow:-14px 0 34px #0008; transform:translateX(102%);
+    position:fixed; z-index:51; top:0; right:0; bottom:0; width:min(560px,94vw); background: var(--c-101824, #101824);
+    border-left:1px solid var(--c-354158, #354158); box-shadow:-14px 0 34px #0008; transform:translateX(102%);
     transition:transform .24s ease; overflow:auto;
   }
   .drawer.active { transform:translateX(0); }
-  .drawer-head { position:sticky; top:0; z-index:3; display:flex; justify-content:space-between; gap:14px; align-items:flex-start; background:#111a27ee; backdrop-filter:blur(10px); border-bottom:1px solid var(--line); padding:16px 18px; }
+  .drawer-head { position:sticky; top:0; z-index:3; display:flex; justify-content:space-between; gap:14px; align-items:flex-start; background: var(--c-111a27ee, #111a27ee); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); padding:16px 18px; }
   .drawer-title { margin:0; font-size:18px; }
   .drawer-sub { margin-top:6px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-  .drawer-close { background:none; border:0; color:var(--muted); font-size:25px; line-height:1; cursor:pointer; padding:0 3px; }
+  .drawer-close { background: none; border:0; color:var(--muted); font-size:25px; line-height:1; cursor:pointer; padding:0 3px; }
   .drawer-section { padding:15px 18px; border-bottom:1px solid var(--line); }
-  .drawer-section h3 { margin:0 0 10px; color:#aab6c7; font-size:12px; }
-  .reason-list { margin:0; padding-left:17px; color:#aeb9c9; font-size:11px; line-height:1.65; }
-  .trajectory { width:100%; min-height:300px; display:block; border:1px solid #263247; background:#0d1520; border-radius:8px; }
+  .drawer-section h3 { margin:0 0 10px; color:var(--c-aab6c7, #aab6c7); font-size:12px; }
+  .reason-list { margin:0; padding-left:17px; color:var(--c-aeb9c9, #aeb9c9); font-size:11px; line-height:1.65; }
+  .trajectory { width:100%; min-height:300px; display:block; border:1px solid var(--c-263247, #263247); background: var(--c-0d1520, #0d1520); border-radius:8px; }
   .track-label { fill:#718096; font-size:9px; }
   .track-grid { stroke:#2b374a; stroke-width:1; }
-  .top-stock-table th { position:static; font-size:10px; background:#182231; }
+  .top-stock-table th { position:static; font-size:10px; background: var(--c-182231, #182231); }
   .top-stock-table td { font-size:10px; }
+  .stock-link { display:inline-block; color:var(--c-d8e2f0, #d8e2f0); text-decoration:none; }
+  .stock-link:hover,.stock-link:focus-visible { color:var(--accent); text-decoration:underline; }
   .quality-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .quality-item { background:#0d1520; border:1px solid #263247; border-radius:7px; padding:8px; }
+  .quality-item { background: var(--c-0d1520, #0d1520); border:1px solid var(--c-263247, #263247); border-radius:7px; padding:8px; }
   .quality-item small { color:var(--faint); font-size:9px; display:block; }
-  .quality-item strong { font:650 11px var(--mono); color:#cbd5e3; }
+  .quality-item strong { font:650 11px var(--mono); color:var(--c-cbd5e3, #cbd5e3); }
 
   .loading,.error-box { min-height:220px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px; text-align:center; line-height:1.7; }
-  .spinner { width:16px; height:16px; margin-right:8px; border:2px solid #3a475b; border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+  .spinner { width:16px; height:16px; margin-right:8px; border:2px solid var(--c-3a475b, #3a475b); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
   @media (max-width:980px) {
@@ -170,6 +205,9 @@
     .side-stack { grid-template-columns:1fr; }
     .compass-wrap { min-height:330px; padding:0; }
     #compassSvg { min-height:330px; }
+    .panel-head { align-items:flex-start; }
+    .compass-head-actions { justify-content:flex-start; }
+    .compass-panel.compass-expanded .panel-head { padding-right:14px; }
     .quality-grid { grid-template-columns:1fr; }
   }
 </style>
@@ -187,7 +225,7 @@
         <option value="ths">同花顺</option>
         <option value="sw3">申万三级</option>
       </select>
-      <button id="reloadBtn" class="ghost-btn" type="button">刷新数据</button>
+      <button id="reloadBtn" class="ghost-btn" type="button" title="只重新读取已生成的数据,不更新;更新数据请用右上角状态条">↻ 重新加载</button>
     </div>
   </header>
 
@@ -197,15 +235,25 @@
   <nav id="dateStrip" class="date-strip" aria-label="交易日期"></nav>
 
   <section class="dashboard-grid">
-    <article class="panel">
+    <article class="panel compass-panel" id="compassPanel">
       <div class="panel-head">
         <div>
           <div class="panel-title">量价罗盘</div>
-          <div class="panel-note">点象限筛选 · 点气泡查看 20 日轨迹</div>
+          <div class="panel-note">滚轮或 ＋/− 缩放 · 放大后拖拽平移 · 点气泡查看 20 日轨迹</div>
         </div>
-        <div class="panel-note">气泡=成交占比　颜色=涨跌　外圈=风险</div>
+        <div class="compass-head-actions">
+          <div class="panel-note">气泡=成交占比　颜色=涨跌　外圈=风险</div>
+          <div class="compass-toolbar" role="group" aria-label="量价罗盘缩放工具">
+            <button class="compass-tool" id="compassZoomOut" type="button" aria-label="缩小量价罗盘" title="缩小">−</button>
+            <output class="compass-zoom-level" id="compassZoomLevel" aria-live="polite">100%</output>
+            <button class="compass-tool" id="compassZoomIn" type="button" aria-label="放大量价罗盘" title="放大">＋</button>
+            <button class="compass-tool" id="compassReset" type="button" disabled>复位</button>
+            <button class="compass-tool" id="compassBoxZoom" type="button" aria-pressed="false" title="在图中拖出矩形，放大该区域">▣ 框选</button>
+            <button class="compass-tool" id="compassExpand" type="button" aria-pressed="false">⛶ 放大查看</button>
+          </div>
+        </div>
       </div>
-      <div id="compassWrap" class="compass-wrap">
+      <div id="compassWrap" class="compass-wrap" tabindex="0" role="region" aria-label="行业量价罗盘；支持滚轮缩放、框选放大和拖拽平移">
         <div class="loading"><span class="spinner"></span>构建量价结构…</div>
       </div>
     </article>
@@ -304,12 +352,21 @@
 var flowData = null;
 var activeDate = null;
 var currentScheme = 'sw';
+function syncSchemeUrl(scheme){try{var p=new URLSearchParams(location.search);p.set('scheme',scheme);history.replaceState(null,'','?'+p.toString());}catch(e){}}
+(function(){var s=new URLSearchParams(location.search).get('scheme');if(['sw','ths','sw3'].indexOf(s)>=0){currentScheme=s;var sel=document.getElementById('schemeSelect');if(sel)sel.value=s;}})();
 var requestGeneration = 0;
 var activeController = null;
 var selectedIndustry = null;
 var sortState = {key:'priority', dir:'desc'};
 var filters = {quadrant:'all', state:'all', search:''};
 var metricCache = new Map();
+var COMPASS_MAX_SCALE = 10;
+var compassView = {scale:1, centerX:0, centerY:50};
+var compassPlot = null;
+var compassGesture = null;
+var compassRenderFrame = null;
+var compassBoxZoomEnabled = false;
+var compassSuppressClick = false;
 
 var QUADRANTS = {
   volume_up_price_up:{label:'放量上涨', color:'#c65e61', soft:'#ef6a6716'},
@@ -323,6 +380,13 @@ function escapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
   });
+}
+function stockLink(code, content, name) {
+  var safeCode=String(code==null?'':code).trim();
+  if(!/^\d{6}$/.test(safeCode))return content||'—';
+  return '<a class="stock-link" href="https://stockpage.10jqka.com.cn/'+safeCode+
+    '/" target="_blank" rel="noopener noreferrer" title="在同花顺打开'+
+    escapeHtml(name||safeCode)+'">'+(content||escapeHtml(safeCode))+'</a>';
 }
 function encodedArg(value) {
   return encodeURIComponent(String(value == null ? '' : value)).replace(/'/g, '%27');
@@ -689,52 +753,205 @@ function renderDateStrip() {
   }).join('');
 }
 
-function renderCompass(metrics) {
-  var width=820,height=430,left=66,right=790,top=28,bottom=383,midX=(left+right)/2,midY=(top+bottom)/2;
-  function xPos(m) {
-    var z=finite(m.priceStrength);
-    if(z===null)z=finite(m.price)!==null?m.price/1.5:0;
-    return left+(clamp(z,-3,3)+3)/6*(right-left);
+function compassWindow() {
+  compassView.scale=clamp(compassView.scale,1,COMPASS_MAX_SCALE);
+  var spanX=6/compassView.scale,spanY=100/compassView.scale;
+  compassView.centerX=clamp(compassView.centerX,-3+spanX/2,3-spanX/2);
+  compassView.centerY=clamp(compassView.centerY,spanY/2,100-spanY/2);
+  return {minX:compassView.centerX-spanX/2,maxX:compassView.centerX+spanX/2,
+    minY:compassView.centerY-spanY/2,maxY:compassView.centerY+spanY/2,spanX:spanX,spanY:spanY};
+}
+function compassIsZoomed(){return compassView.scale>1.001;}
+function updateCompassControls() {
+  var panel=document.getElementById('compassPanel'),wrap=document.getElementById('compassWrap');
+  if(!panel||!wrap)return;
+  var zoomed=compassIsZoomed(),expanded=panel.classList.contains('compass-expanded');
+  document.getElementById('compassZoomLevel').textContent=Math.round(compassView.scale*100)+'%';
+  document.getElementById('compassZoomOut').disabled=!zoomed;
+  document.getElementById('compassZoomIn').disabled=compassView.scale>=COMPASS_MAX_SCALE-.001;
+  document.getElementById('compassReset').disabled=!zoomed;
+  document.getElementById('compassExpand').textContent=expanded?'↙ 返回':'⛶ 放大查看';
+  document.getElementById('compassExpand').setAttribute('aria-pressed',String(expanded));
+  document.getElementById('compassBoxZoom').setAttribute('aria-pressed',String(compassBoxZoomEnabled));
+  document.getElementById('compassBoxZoom').textContent=compassBoxZoomEnabled?'▣ 框选中':'▣ 框选';
+  wrap.classList.toggle('zoomed',zoomed&&!compassBoxZoomEnabled);
+  wrap.classList.toggle('box-zoom-mode',compassBoxZoomEnabled);
+}
+function scheduleCompassRender() {
+  if(compassRenderFrame!==null)return;
+  compassRenderFrame=1;
+  requestAnimationFrame(function(){compassRenderFrame=null;if(flowData)renderCompass(currentMetrics());});
+}
+function setCompassBoxZoom(enabled) {
+  compassBoxZoomEnabled=!!enabled;
+  var selection=document.getElementById('compassSelection');if(selection)selection.style.display='none';
+  updateCompassControls();
+}
+function resetCompassView(shouldRender) {
+  compassView.scale=1;compassView.centerX=0;compassView.centerY=50;
+  setCompassBoxZoom(false);updateCompassControls();
+  if(shouldRender!==false)scheduleCompassRender();
+}
+function zoomCompassAt(multiplier,anchorX,anchorY) {
+  var current=compassWindow(),nextScale=clamp(compassView.scale*multiplier,1,COMPASS_MAX_SCALE);
+  if(Math.abs(nextScale-compassView.scale)<.0001)return;
+  var ax=finite(anchorX),ay=finite(anchorY);if(ax===null)ax=compassView.centerX;if(ay===null)ay=compassView.centerY;
+  ax=clamp(ax,current.minX,current.maxX);ay=clamp(ay,current.minY,current.maxY);
+  var ratioX=(ax-current.minX)/current.spanX,ratioY=(ay-current.minY)/current.spanY;
+  var nextSpanX=6/nextScale,nextSpanY=100/nextScale;
+  compassView.scale=nextScale;
+  compassView.centerX=(ax-ratioX*nextSpanX)+nextSpanX/2;
+  compassView.centerY=(ay-ratioY*nextSpanY)+nextSpanY/2;
+  compassWindow();updateCompassControls();scheduleCompassRender();
+}
+function compassClientPlotRect() {
+  var wrap=document.getElementById('compassWrap'),svg=wrap&&wrap.querySelector('svg');
+  if(!svg||!compassPlot)return null;
+  var rect=svg.getBoundingClientRect();if(!rect.width||!rect.height)return null;
+  return {left:rect.left+compassPlot.left/compassPlot.w*rect.width,
+    right:rect.left+compassPlot.right/compassPlot.w*rect.width,
+    top:rect.top+compassPlot.top/compassPlot.h*rect.height,
+    bottom:rect.top+compassPlot.bottom/compassPlot.h*rect.height,
+    width:compassPlot.plotWidth/compassPlot.w*rect.width,
+    height:compassPlot.plotHeight/compassPlot.h*rect.height};
+}
+function compassDomainAt(clientX,clientY) {
+  var rect=compassClientPlotRect();if(!rect||!compassPlot)return null;
+  var xRatio=clamp((clientX-rect.left)/rect.width,0,1),yRatio=clamp((clientY-rect.top)/rect.height,0,1),view=compassPlot.view;
+  return {x:view.minX+xRatio*view.spanX,y:view.maxY-yRatio*view.spanY};
+}
+function closestCompassBubble(clientX,clientY) {
+  var wrap=document.getElementById('compassWrap'),svg=wrap&&wrap.querySelector('svg');if(!svg||!compassPlot)return null;
+  var rect=svg.getBoundingClientRect();if(!rect.width||!rect.height)return null;
+  var svgX=(clientX-rect.left)*compassPlot.w/rect.width,svgY=(clientY-rect.top)*compassPlot.h/rect.height,best=null,bestDistance=Infinity;
+  wrap.querySelectorAll('.bubble-hit').forEach(function(hit){
+    var dx=svgX-Number(hit.getAttribute('cx')),dy=svgY-Number(hit.getAttribute('cy')),distance=dx*dx+dy*dy,r=Number(hit.getAttribute('r'));
+    if(distance<=r*r&&distance<bestDistance){best=hit.closest('.bubble-group');bestDistance=distance;}
+  });
+  return best;
+}
+function toggleCompassExpanded(force) {
+  var panel=document.getElementById('compassPanel');
+  var expanded=force===undefined?!panel.classList.contains('compass-expanded'):!!force;
+  panel.classList.toggle('compass-expanded',expanded);document.body.classList.toggle('compass-modal-open',expanded);
+  updateCompassControls();scheduleCompassRender();
+}
+function bindCompassInteractions() {
+  var wrap=document.getElementById('compassWrap');
+  document.getElementById('compassZoomIn').addEventListener('click',function(){zoomCompassAt(1.3);});
+  document.getElementById('compassZoomOut').addEventListener('click',function(){zoomCompassAt(1/1.3);});
+  document.getElementById('compassReset').addEventListener('click',function(){resetCompassView();});
+  document.getElementById('compassBoxZoom').addEventListener('click',function(){setCompassBoxZoom(!compassBoxZoomEnabled);wrap.focus();});
+  document.getElementById('compassExpand').addEventListener('click',function(){toggleCompassExpanded();});
+  wrap.addEventListener('wheel',function(event){
+    if(!flowData)return;event.preventDefault();setCompassBoxZoom(false);
+    var point=compassDomainAt(event.clientX,event.clientY);zoomCompassAt(event.deltaY<0?1.24:1/1.24,point&&point.x,point&&point.y);
+  },{passive:false});
+  wrap.addEventListener('pointerdown',function(event){
+    if(event.button!==0||(!compassBoxZoomEnabled&&!compassIsZoomed()))return;
+    if(!compassBoxZoomEnabled&&event.target.closest&&event.target.closest('[data-industry]'))return;
+    var plotRect=compassClientPlotRect();if(!plotRect)return;
+    var startX=clamp(event.clientX,plotRect.left,plotRect.right),startY=clamp(event.clientY,plotRect.top,plotRect.bottom);
+    compassGesture={mode:compassBoxZoomEnabled?'box':'pan',pointerId:event.pointerId,startX:startX,startY:startY,
+      currentX:startX,currentY:startY,centerX:compassView.centerX,centerY:compassView.centerY,
+      spanX:compassPlot.view.spanX,spanY:compassPlot.view.spanY,plotRect:plotRect,moved:false};
+    if(wrap.setPointerCapture)wrap.setPointerCapture(event.pointerId);
+    if(compassGesture.mode==='pan')wrap.classList.add('panning');
+    event.preventDefault();
+  });
+  wrap.addEventListener('pointermove',function(event){
+    if(!compassGesture||event.pointerId!==compassGesture.pointerId)return;
+    var g=compassGesture,x=clamp(event.clientX,g.plotRect.left,g.plotRect.right),y=clamp(event.clientY,g.plotRect.top,g.plotRect.bottom);
+    g.currentX=x;g.currentY=y;g.moved=g.moved||Math.abs(x-g.startX)>4||Math.abs(y-g.startY)>4;
+    if(g.mode==='pan'){
+      compassView.centerX=g.centerX-(x-g.startX)/Math.max(g.plotRect.width,1)*g.spanX;
+      compassView.centerY=g.centerY+(y-g.startY)/Math.max(g.plotRect.height,1)*g.spanY;
+      compassWindow();scheduleCompassRender();return;
+    }
+    var wrapRect=wrap.getBoundingClientRect(),selection=document.getElementById('compassSelection');if(!selection)return;
+    selection.style.display='block';selection.style.left=(Math.min(g.startX,x)-wrapRect.left)+'px';selection.style.top=(Math.min(g.startY,y)-wrapRect.top)+'px';
+    selection.style.width=Math.abs(x-g.startX)+'px';selection.style.height=Math.abs(y-g.startY)+'px';
+  });
+  function finishGesture(event){
+    if(!compassGesture||(event.pointerId!==undefined&&event.pointerId!==compassGesture.pointerId))return;
+    var g=compassGesture,selection=document.getElementById('compassSelection');if(selection)selection.style.display='none';
+    if(g.mode==='box'&&g.moved){
+      var first=compassDomainAt(g.startX,g.startY),last=compassDomainAt(g.currentX,g.currentY);
+      var pixelWidth=Math.abs(g.currentX-g.startX),pixelHeight=Math.abs(g.currentY-g.startY);
+      if(first&&last&&pixelWidth>=12&&pixelHeight>=12){
+        var factor=Math.min(g.plotRect.width/pixelWidth,g.plotRect.height/pixelHeight)*.92;
+        compassView.centerX=(first.x+last.x)/2;compassView.centerY=(first.y+last.y)/2;
+        compassView.scale=clamp(compassView.scale*factor,1,COMPASS_MAX_SCALE);compassWindow();scheduleCompassRender();
+      }
+      setCompassBoxZoom(false);
+    }
+    if(g.moved||g.mode==='box'){compassSuppressClick=true;setTimeout(function(){compassSuppressClick=false;},0);}
+    if(wrap.releasePointerCapture&&wrap.hasPointerCapture&&wrap.hasPointerCapture(g.pointerId))wrap.releasePointerCapture(g.pointerId);
+    compassGesture=null;wrap.classList.remove('panning');updateCompassControls();
   }
-  function yPos(m) {
-    var p=finite(m.activity);
-    if(p===null)p=finite(m.shareRatio)!==null?clamp((m.shareRatio-0.25)/2.25*100,0,100):50;
-    return bottom-clamp(p,0,100)/100*(bottom-top);
+  wrap.addEventListener('pointerup',finishGesture);wrap.addEventListener('pointercancel',finishGesture);
+  wrap.addEventListener('keydown',function(event){
+    var industry=event.target.closest&&event.target.closest('[data-industry]');
+    if(industry&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openDrawer(industry.dataset.industry);return;}
+    if(event.key==='+'||event.key==='='){event.preventDefault();zoomCompassAt(1.3);}
+    else if(event.key==='-'){event.preventDefault();zoomCompassAt(1/1.3);}
+    else if(event.key==='0'){event.preventDefault();resetCompassView();}
+  });
+  updateCompassControls();
+}
+function renderCompass(metrics) {
+  var wrap=document.getElementById('compassWrap'),expanded=document.getElementById('compassPanel').classList.contains('compass-expanded');
+  var width=expanded?Math.max(820,wrap.clientWidth||820):820,height=expanded?Math.max(500,wrap.clientHeight||500):430;
+  var left=66,right=width-30,top=28,bottom=height-47,plotWidth=right-left,plotHeight=bottom-top,view=compassWindow();
+  function metricX(m){var z=finite(m.priceStrength);if(z===null)z=finite(m.price)!==null?m.price/1.5:0;return clamp(z,-3,3);}
+  function metricY(m){var p=finite(m.activity);if(p===null)p=finite(m.shareRatio)!==null?clamp((m.shareRatio-.25)/2.25*100,0,100):50;return clamp(p,0,100);}
+  function xPos(value){return left+(value-view.minX)/view.spanX*plotWidth;}
+  function yPos(value){return bottom-(value-view.minY)/view.spanY*plotHeight;}
+  function quadrant(key,x1,x2,y1,y2,fill){
+    var minX=Math.max(x1,view.minX),maxX=Math.min(x2,view.maxX),minY=Math.max(y1,view.minY),maxY=Math.min(y2,view.maxY);
+    if(minX>=maxX||minY>=maxY)return '';
+    var rx=xPos(minX),ry=yPos(maxY),rw=xPos(maxX)-rx,rh=yPos(minY)-ry;
+    return '<rect x="'+rx.toFixed(1)+'" y="'+ry.toFixed(1)+'" width="'+rw.toFixed(1)+'" height="'+rh.toFixed(1)+'" fill="'+fill+'"/>'+
+      '<rect class="quad-hit" data-quadrant="'+key+'" x="'+rx.toFixed(1)+'" y="'+ry.toFixed(1)+'" width="'+rw.toFixed(1)+'" height="'+rh.toFixed(1)+'"/>';
   }
   var maxShare=Math.max.apply(null,metrics.map(function(m){return m.share||0;}).concat([1]));
-  var svg='<svg id="compassSvg" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="行业量价罗盘">'+
-    '<rect x="'+left+'" y="'+top+'" width="'+(midX-left)+'" height="'+(midY-top)+'" fill="#52a7d813"/>'+
-    '<rect x="'+midX+'" y="'+top+'" width="'+(right-midX)+'" height="'+(midY-top)+'" fill="#ef6a6713"/>'+
-    '<rect x="'+left+'" y="'+midY+'" width="'+(midX-left)+'" height="'+(bottom-midY)+'" fill="#52a7d808"/>'+
-    '<rect x="'+midX+'" y="'+midY+'" width="'+(right-midX)+'" height="'+(bottom-midY)+'" fill="#ef6a6708"/>'+
-    '<rect class="quad-hit" data-quadrant="volume_up_price_down" x="'+left+'" y="'+top+'" width="'+(midX-left)+'" height="'+(midY-top)+'"/>'+
-    '<rect class="quad-hit" data-quadrant="volume_up_price_up" x="'+midX+'" y="'+top+'" width="'+(right-midX)+'" height="'+(midY-top)+'"/>'+
-    '<rect class="quad-hit" data-quadrant="volume_down_price_down" x="'+left+'" y="'+midY+'" width="'+(midX-left)+'" height="'+(bottom-midY)+'"/>'+
-    '<rect class="quad-hit" data-quadrant="volume_down_price_up" x="'+midX+'" y="'+midY+'" width="'+(right-midX)+'" height="'+(bottom-midY)+'"/>'+
-    '<line class="zero-line" x1="'+midX+'" y1="'+top+'" x2="'+midX+'" y2="'+bottom+'"/>'+
-    '<line class="zero-line" x1="'+left+'" y1="'+midY+'" x2="'+right+'" y2="'+midY+'"/>'+
-    '<line class="grid-line" x1="'+left+'" y1="'+(top+(bottom-top)*.2)+'" x2="'+right+'" y2="'+(top+(bottom-top)*.2)+'"/>'+
-    '<line class="grid-line" x1="'+left+'" y1="'+(top+(bottom-top)*.8)+'" x2="'+right+'" y2="'+(top+(bottom-top)*.8)+'"/>'+
-    '<text class="quadrant-label" x="'+(left+16)+'" y="'+(top+21)+'">放量下跌</text>'+
-    '<text class="quadrant-label" text-anchor="end" x="'+(right-16)+'" y="'+(top+21)+'">放量上涨</text>'+
-    '<text class="quadrant-label" x="'+(left+16)+'" y="'+(bottom-13)+'">缩量下跌</text>'+
-    '<text class="quadrant-label" text-anchor="end" x="'+(right-16)+'" y="'+(bottom-13)+'">缩量上涨</text>'+
-    '<text class="axis-label" x="'+left+'" y="'+(bottom+27)+'">← 标准化价格结果：下跌</text>'+
-    '<text class="axis-label" text-anchor="end" x="'+right+'" y="'+(bottom+27)+'">上涨 →</text>'+
-    '<text class="axis-label" transform="translate(15 '+midY+') rotate(-90)" text-anchor="middle">相对参与历史分位 · 上放量 / 下缩量</text>';
-  var sorted=metrics.slice().sort(function(a,b){return b.share-a.share;});
-  sorted.forEach(function(m,index){
-    var r=clamp(5+Math.sqrt((m.share||0)/maxShare)*19,5,24);
+  var svg='<svg id="compassSvg" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="行业量价罗盘，当前缩放 '+Math.round(compassView.scale*100)+'%">'+
+    '<defs><clipPath id="capital-flow-compass-clip"><rect x="'+left+'" y="'+top+'" width="'+plotWidth+'" height="'+plotHeight+'"/></clipPath></defs><g clip-path="url(#capital-flow-compass-clip)">'+
+    quadrant('volume_up_price_down',-3,0,50,100,'#52a7d813')+quadrant('volume_up_price_up',0,3,50,100,'#ef6a6713')+
+    quadrant('volume_down_price_down',-3,0,0,50,'#52a7d808')+quadrant('volume_down_price_up',0,3,0,50,'#ef6a6708');
+  [20,80].forEach(function(value){if(value>=view.minY&&value<=view.maxY)svg+='<line class="grid-line" x1="'+left+'" y1="'+yPos(value).toFixed(1)+'" x2="'+right+'" y2="'+yPos(value).toFixed(1)+'"/>';});
+  if(view.minX<=0&&view.maxX>=0)svg+='<line class="zero-line" x1="'+xPos(0).toFixed(1)+'" y1="'+top+'" x2="'+xPos(0).toFixed(1)+'" y2="'+bottom+'"/>';
+  if(view.minY<=50&&view.maxY>=50)svg+='<line class="zero-line" x1="'+left+'" y1="'+yPos(50).toFixed(1)+'" x2="'+right+'" y2="'+yPos(50).toFixed(1)+'"/>';
+  svg+='</g>';
+  if(view.minX<0&&view.maxY>50)svg+='<text class="quadrant-label" x="'+(left+16)+'" y="'+(top+21)+'">放量下跌</text>';
+  if(view.maxX>0&&view.maxY>50)svg+='<text class="quadrant-label" text-anchor="end" x="'+(right-16)+'" y="'+(top+21)+'">放量上涨</text>';
+  if(view.minX<0&&view.minY<50)svg+='<text class="quadrant-label" x="'+(left+16)+'" y="'+(bottom-13)+'">缩量下跌</text>';
+  if(view.maxX>0&&view.minY<50)svg+='<text class="quadrant-label" text-anchor="end" x="'+(right-16)+'" y="'+(bottom-13)+'">缩量上涨</text>';
+  svg+='<text class="axis-label" x="'+left+'" y="'+(bottom+27)+'">← 标准化价格结果：'+view.minX.toFixed(2)+'</text>'+
+    '<text class="axis-label" text-anchor="end" x="'+right+'" y="'+(bottom+27)+'">'+view.maxX.toFixed(2)+' →</text>'+
+    '<text class="axis-label" transform="translate(15 '+((top+bottom)/2)+') rotate(-90)" text-anchor="middle">相对参与历史分位 · '+view.minY.toFixed(0)+'–'+view.maxY.toFixed(0)+'</text>'+
+    '<g clip-path="url(#capital-flow-compass-clip)">';
+  var visible=metrics.map(function(m){return {metric:m,x:metricX(m),y:metricY(m)};})
+    .filter(function(item){return item.x>=view.minX&&item.x<=view.maxX&&item.y>=view.minY&&item.y<=view.maxY;})
+    .sort(function(a,b){return (b.metric.share||0)-(a.metric.share||0);});
+  var labelSlots=[],labelLimit=currentScheme==='sw3'?(compassIsZoomed()?90:24):(compassIsZoomed()?60:30);
+  visible.forEach(function(item,index){
+    var m=item.metric,px=xPos(item.x),py=yPos(item.y),r=clamp(5+Math.sqrt((m.share||0)/maxShare)*19,5,24);
     var fill=m.price===null?'#98a4b7':m.price>=0?'#ef6a67':'#52a7d8';
     var stroke={normal:'#dce5ef55',unknown:'#66758d',watch:'#e8b15b',warning:'#ee8448',danger:'#ff5267'}[m.risk]||'#66758d';
-    var strokeWidth=RISK_RANK[m.risk]>=1?3:1.2;
-    var label=index<30||m.share>=1.5?'<text class="bubble-label" text-anchor="middle" x="'+xPos(m)+'" y="'+(yPos(m)-r-3)+'">'+escapeHtml(m.industry)+'</text>':'';
-    svg+='<g class="bubble-group" data-industry="'+escapeHtml(m.industry)+'">'+
-      '<circle class="bubble" data-industry="'+escapeHtml(m.industry)+'" cx="'+xPos(m).toFixed(1)+'" cy="'+yPos(m).toFixed(1)+'" r="'+r.toFixed(1)+'" fill="'+fill+'" fill-opacity=".72" stroke="'+stroke+'" stroke-width="'+strokeWidth+'">'+
-      '<title>'+escapeHtml(m.industry+'｜'+m.stateLabel+'｜价格 '+formatSigned(m.price,2,'%')+'｜参与 '+(m.activity===null?'—':m.activity.toFixed(0)+'%')+'｜方向 '+formatSigned(m.direction,0,'%')+'｜'+m.riskLabel)+'</title></circle>'+label+'</g>';
+    var strokeWidth=RISK_RANK[m.risk]>=1?3:1.2,hitR=Math.max(r+6,currentScheme==='sw3'?14:12),showLabel=index<labelLimit||m.share>=1.5;
+    if(showLabel){var halfWidth=Math.min(56,Math.max(12,String(m.industry).length*5)),labelY=py-r-4;
+      showLabel=!labelSlots.some(function(slot){return Math.abs(slot.x-px)<slot.half+halfWidth+3&&Math.abs(slot.y-labelY)<12;});
+      if(showLabel)labelSlots.push({x:px,y:labelY,half:halfWidth});}
+    svg+='<g class="bubble-group" data-industry="'+escapeHtml(m.industry)+'" role="button" tabindex="0" aria-label="'+escapeHtml(m.industry+'，'+m.stateLabel+'，打开20日轨迹')+'">'+
+      '<title>'+escapeHtml(m.industry+'｜'+m.stateLabel+'｜价格 '+formatSigned(m.price,2,'%')+'｜参与 '+(m.activity===null?'—':m.activity.toFixed(0)+'%')+'｜方向 '+formatSigned(m.direction,0,'%')+'｜'+m.riskLabel)+'</title>'+
+      '<circle class="bubble" pointer-events="none" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+r.toFixed(1)+'" fill="'+fill+'" fill-opacity=".72" stroke="'+stroke+'" stroke-width="'+strokeWidth+'"/>'+
+      '<circle class="bubble-hit" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+hitR.toFixed(1)+'"/>'+
+      (showLabel?'<text class="bubble-label" text-anchor="middle" x="'+px.toFixed(1)+'" y="'+(py-r-3).toFixed(1)+'">'+escapeHtml(m.industry)+'</text>':'')+'</g>';
   });
-  svg+='</svg>';
-  document.getElementById('compassWrap').innerHTML=svg;
+  svg+='</g></svg><div id="compassSelection" class="compass-selection" aria-hidden="true"></div>';
+  wrap.innerHTML=svg;compassPlot={w:width,h:height,left:left,right:right,top:top,bottom:bottom,plotWidth:plotWidth,plotHeight:plotHeight,view:view};
+  updateCompassControls();
 }
 
 function renderStructure(metrics) {
@@ -968,7 +1185,8 @@ function renderTopStocks(metric,row) {
     var change=pricePercent(pick(stock,['change_pct','price_change_pct','return_pct'],null));
     var amount=finite(pick(stock,['amount','turnover'],null));
     var contribution=ratioPercent(pick(stock,['contribution','share','amount_share'],null));
-    html+='<tr><td>'+escapeHtml(name)+'<div class="sub-value">'+escapeHtml(code)+'</div></td>'+
+    var stockCell=stockLink(code,escapeHtml(name)+'<span class="sub-value">'+escapeHtml(code)+'</span>',name);
+    html+='<tr><td>'+stockCell+'</td>'+
       '<td class="'+directionClass(change)+'">'+formatSigned(change,2,'%')+'</td><td>'+formatAmount(amount)+'</td>'+
       '<td>'+(contribution===null?'—':contribution.toFixed(1)+'%')+'</td></tr>';
   });
@@ -1062,6 +1280,7 @@ async function loadScheme(scheme) {
     document.getElementById('stateFilter').value='all';
     document.getElementById('industrySearch').value='';
     closeDrawer();
+    resetCompassView(false);
     renderAll();
     return true;
   } catch(error) {
@@ -1084,7 +1303,8 @@ async function switchScheme(nextScheme) {
   var previous=currentScheme;
   if(nextScheme===previous){await loadScheme(previous);return;}
   var ok=await loadScheme(nextScheme);
-  if(!ok)document.getElementById('schemeSelect').value=previous;
+  if(ok)syncSchemeUrl(nextScheme);
+  else document.getElementById('schemeSelect').value=previous;
 }
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -1112,7 +1332,8 @@ document.addEventListener('DOMContentLoaded',function(){
     var row=event.target.closest('tr[data-industry]');if(row)openDrawer(row.dataset.industry);
   });
   document.getElementById('compassWrap').addEventListener('click',function(event){
-    var bubble=event.target.closest('.bubble');if(bubble){openDrawer(bubble.dataset.industry);return;}
+    if(compassSuppressClick)return;
+    var bubble=closestCompassBubble(event.clientX,event.clientY);if(bubble){openDrawer(bubble.dataset.industry);return;}
     var quadrant=event.target.closest('[data-quadrant]');if(quadrant)setQuadrantFilter(quadrant.dataset.quadrant);
   });
   document.getElementById('structureBody').addEventListener('click',function(event){
@@ -1123,7 +1344,14 @@ document.addEventListener('DOMContentLoaded',function(){
   });
   document.getElementById('drawerShade').addEventListener('click',closeDrawer);
   document.getElementById('drawerClose').addEventListener('click',closeDrawer);
-  document.addEventListener('keydown',function(event){if(event.key==='Escape')closeDrawer();});
+  document.addEventListener('keydown',function(event){
+    if(event.key!=='Escape')return;
+    if(selectedIndustry!==null){closeDrawer();return;}
+    if(compassBoxZoomEnabled){setCompassBoxZoom(false);return;}
+    if(document.getElementById('compassPanel').classList.contains('compass-expanded'))toggleCompassExpanded(false);
+  });
+  window.addEventListener('resize',function(){if(flowData)scheduleCompassRender();});
+  bindCompassInteractions();
   loadScheme(currentScheme);
 });
 function currentMetrics() {
@@ -1137,5 +1365,6 @@ function setQuadrantFilter(key) {
 }
 </script>
 <script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
 </body>
 </html>

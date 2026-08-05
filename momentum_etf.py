@@ -26,6 +26,8 @@ import re
 import shutil
 import tempfile
 import time
+from bisect import bisect_right
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, time as dt_time
 
@@ -52,6 +54,8 @@ WEAK_INDEXES = [
 DYNAMIC_POOL_CACHE = "momentum_dynamic_pool.json"
 ETF_RECOMMEND_FILE = "etf_recommend_sw3.json"
 DYNAMIC_TOP_N = 10
+RANK_HISTORY_LIMIT = 20
+RANK_HISTORY_METHOD_REPLAY = "replayed_current_universe"
 
 
 # ------------------------------------------------------------------
@@ -172,6 +176,8 @@ def _fetch_spot_batch(codes: list[str]) -> dict:
 def _elapsed_trade_minutes(now: datetime | None = None) -> int | None:
     """盘中已经过的交易分钟数；盘前返回 None（按昨收），盘后返回 240"""
     now = now or datetime.now()
+    if now.weekday() >= 5:
+        return 240
     t = now.time()
     if t < dt_time(9, 30):
         return None
@@ -420,17 +426,18 @@ def _etf_metrics(code: str, name: str, rows: list[dict], params: dict, is_weak: 
     last_label = valid[-1]["date"]
     if spot and spot.get("price") and spot.get("volume"):
         kline_last = valid[-1]["date"].replace("-", "")
+        spot_is_today = spot.get("date") == datetime.now().strftime("%Y%m%d")
         if spot["date"] > kline_last:
             closes.append(spot["price"])
             volumes.append(spot["volume"])
             last_label = f"{spot['date']} {spot.get('time', '')}".strip()
-            intraday = elapsed is not None and elapsed < 240
+            intraday = spot_is_today and elapsed is not None and elapsed < 240
         elif spot["date"] == kline_last:
             # K线已含当日bar（腾讯盘中会带）→ 用实时价量替换
             closes[-1] = spot["price"]
             volumes[-1] = spot["volume"]
             last_label = f"{spot['date']} {spot.get('time', '')}".strip()
-            intraday = elapsed is not None and elapsed < 240
+            intraday = spot_is_today and elapsed is not None and elapsed < 240
 
     scored = _momentum_score(closes, lookback)
     if scored is None:
@@ -463,6 +470,11 @@ def _etf_metrics(code: str, name: str, rows: list[dict], params: dict, is_weak: 
     amount_window = amounts[-21:-1] if intraday and len(amounts) > 20 else amounts[-20:]
     avg_amount = float(np.mean(amount_window))
 
+    def period_return(days: int):
+        if len(closes) <= days or not closes[-days - 1]:
+            return None
+        return round(float(closes[-1] / closes[-days - 1] - 1), 4)
+
     m = {
         "code": code,
         "name": name,
@@ -471,6 +483,9 @@ def _etf_metrics(code: str, name: str, rows: list[dict], params: dict, is_weak: 
         "r_squared": round(float(r2), 3),
         "price": round(float(closes[-1]), 3),
         "change_pct": round(float(closes[-1] / closes[-2] - 1) * 100, 2) if len(closes) >= 2 else 0.0,
+        "return_5d": period_return(5),
+        "return_10d": period_return(10),
+        "return_20d": period_return(20),
         "volume_ratio": round(float(volume_ratio), 2) if volume_ratio is not None else None,
         "min_day_ratio": round(float(min(day_ratios)), 4) if day_ratios else None,
         "ma_value": round(float(ma_value), 3) if ma_value else None,
@@ -481,6 +496,7 @@ def _etf_metrics(code: str, name: str, rows: list[dict], params: dict, is_weak: 
         "passed_volume": bool(volume_ratio is not None and volume_ratio < params["volume_threshold"]),
         "passed_loss": bool(passed_loss),
         "last_date": last_label,
+        "intraday": bool(intraday),
     }
     # 复刻 apply_filters：R²仅正常期、MA仅走弱期，其余始终启用
     m["passed_all"] = (
@@ -490,6 +506,18 @@ def _etf_metrics(code: str, name: str, rows: list[dict], params: dict, is_weak: 
         and m["passed_volume"]
         and m["passed_loss"]
     )
+    filter_reasons = []
+    if not m["passed_score"]:
+        filter_reasons.append("得分阈值外")
+    if not is_weak and not m["passed_r2"]:
+        filter_reasons.append("R²不足")
+    if is_weak and not m["passed_ma"]:
+        filter_reasons.append("走弱期未站上MA")
+    if not m["passed_volume"]:
+        filter_reasons.append("量比超限或缺失")
+    if not m["passed_loss"]:
+        filter_reasons.append("近3日单日跌幅超限")
+    m["filter_reasons"] = filter_reasons
     return m
 
 
@@ -528,6 +556,177 @@ def _variant_result(metrics_by_code: dict, pool_names: dict, params: dict, is_we
     }
 
 
+def _rank_history_snapshot(payload: dict) -> dict | None:
+    """提取一次真实输出的过滤后排名快照，供页面展示名次变化。"""
+    date = str(payload.get("date") or "").strip()
+    variants = payload.get("variants") or {}
+    if not date or not isinstance(variants, dict):
+        return None
+    snapshot_variants = {}
+    for key in ("china", "dynamic", "combined", "global", "strategy"):
+        rows = (variants.get(key) or {}).get("top10") or []
+        snapshot_variants[key] = [
+            {
+                "rank": index + 1,
+                "code": row.get("code"),
+                "name": row.get("name"),
+                "score": row.get("score"),
+                "annualized": row.get("annualized"),
+                "r_squared": row.get("r_squared"),
+            }
+            for index, row in enumerate(rows[:10])
+            if re.fullmatch(r"\d{6}", str(row.get("code") or ""))
+        ]
+    return {
+        "date": date,
+        "updated_at": payload.get("updated_at"),
+        "mode": payload.get("mode"),
+        "method": payload.get("history_method") or "observed",
+        "universe_note": payload.get("history_universe_note"),
+        "market_regime": payload.get("history_market_regime"),
+        "variants": snapshot_variants,
+    }
+
+
+def _merge_rank_history(previous: dict | None, current: dict,
+                        limit: int = RANK_HISTORY_LIMIT,
+                        replayed: list[dict] | None = None) -> list[dict]:
+    """合并历史回算与真实快照；同日真实生成结果永远优先。"""
+    snapshots = list(replayed or [])
+    if isinstance(previous, dict):
+        snapshots.extend(
+            item for item in (previous.get("rank_history") or [])
+            if (isinstance(item, dict) and item.get("date")
+                and item.get("method") != RANK_HISTORY_METHOD_REPLAY)
+        )
+        previous_snapshot = _rank_history_snapshot(previous)
+        if previous_snapshot:
+            snapshots.append(previous_snapshot)
+    current_snapshot = _rank_history_snapshot(current)
+    if current_snapshot:
+        snapshots.append(current_snapshot)
+    by_date = {str(item["date"]): item for item in snapshots}
+    return [by_date[key] for key in sorted(by_date)[-max(1, int(limit)):]]
+
+
+def _bar_date_key(row: dict) -> str:
+    digits = re.sub(r"\D", "", str(row.get("date") or ""))
+    return digits[:8] if len(digits) >= 8 else ""
+
+
+def _historical_weak_flags(index_klines: dict[str, list[dict]], params: dict) -> dict[str, bool]:
+    """只用每个历史日及此前指数收盘，重放正常/走弱状态机。"""
+    lookback = int(params.get("weak_ma_lookback", 10))
+    max_weak_days = int(params.get("max_weak_days", 20))
+    prepared = {}
+    all_dates = set()
+    for code, rows in index_klines.items():
+        by_date = {
+            _bar_date_key(row): float(row["close"])
+            for row in rows
+            if _bar_date_key(row) and row.get("close") is not None
+        }
+        prepared[code] = by_date
+        all_dates.update(by_date)
+
+    closes = {code: [] for code in prepared}
+    is_weak, weak_age = False, 0
+    flags = {}
+    for date in sorted(all_dates):
+        above = below = covered = 0
+        for code, by_date in prepared.items():
+            if date not in by_date:
+                continue
+            closes[code].append(by_date[date])
+            if len(closes[code]) < lookback:
+                continue
+            covered += 1
+            ma_value = float(np.mean(closes[code][-lookback:]))
+            if closes[code][-1] > ma_value:
+                above += 1
+            else:
+                below += 1
+        if covered >= 3:
+            if is_weak:
+                weak_age += 1
+                if weak_age >= max_weak_days or above >= 3:
+                    is_weak, weak_age = False, 0
+            elif below >= 3:
+                is_weak, weak_age = True, 0
+        flags[date] = is_weak
+    return flags
+
+
+def _historical_rank_dates(klines: dict[str, list[dict]], limit: int,
+                           exclude_dates: set[str] | None = None) -> list[str]:
+    exclude_dates = exclude_dates or set()
+    counts = Counter()
+    covered_series = 0
+    for rows in klines.values():
+        dates = {
+            _bar_date_key(row) for row in rows
+            if _bar_date_key(row) and float(row.get("volume") or 0) > 0
+        }
+        if dates:
+            covered_series += 1
+            counts.update(dates)
+    threshold = 1 if covered_series <= 4 else max(2, math.ceil(covered_series * 0.5))
+    dates = [
+        date for date, count in counts.items()
+        if count >= threshold and date not in exclude_dates
+    ]
+    return sorted(dates)[-max(1, int(limit)):]
+
+
+def _replay_rank_history(klines: dict[str, list[dict]], all_names: dict[str, str],
+                         variant_pools: dict[str, dict[str, str]], params: dict,
+                         min_amount: float, weak_flags: dict[str, bool],
+                         exclude_dates: set[str] | None = None,
+                         limit: int = RANK_HISTORY_LIMIT) -> list[dict]:
+    """按当前池成员和参数逐日回算，不把当前动态池冒充历史候选池。"""
+    dates = _historical_rank_dates(klines, limit, exclude_dates)
+    prepared = {}
+    for code, rows in klines.items():
+        ordered = sorted(
+            ((_bar_date_key(row), row) for row in rows if _bar_date_key(row)),
+            key=lambda item: item[0],
+        )
+        prepared[code] = ([item[0] for item in ordered], [item[1] for item in ordered])
+
+    normal_strategy_names = {**variant_pools.get("global", {}),
+                             **variant_pools.get("combined", {})}
+    snapshots = []
+    for date in dates:
+        is_weak = bool(weak_flags.get(date, False))
+        metrics_by_code = {}
+        for code, (keys, rows) in prepared.items():
+            end = bisect_right(keys, date)
+            if not end or keys[end - 1] != date:
+                continue
+            metric = _etf_metrics(code, all_names.get(code, code), rows[:end], params, is_weak)
+            if metric is None or metric["avg_amount_20d"] < min_amount:
+                continue
+            metrics_by_code[code] = metric
+        day_pools = dict(variant_pools)
+        day_pools["strategy"] = (variant_pools.get("global", {})
+                                 if is_weak else normal_strategy_names)
+        variants = {
+            key: _variant_result(metrics_by_code, pool, params, is_weak)
+            for key, pool in day_pools.items()
+        }
+        snapshot = _rank_history_snapshot({
+            "date": date,
+            "mode": "close",
+            "history_method": RANK_HISTORY_METHOD_REPLAY,
+            "history_universe_note": "按当前池成员与当前参数逐日历史回算",
+            "history_market_regime": "weak" if is_weak else "normal",
+            "variants": variants,
+        })
+        if snapshot:
+            snapshots.append(snapshot)
+    return snapshots
+
+
 def update_momentum_etf() -> dict:
     cfg = load_pool_config()
     params = cfg["params"]
@@ -553,13 +752,22 @@ def update_momentum_etf() -> dict:
         "strategy": strategy_names,
     }
 
-    # 拉全部所需代码的 K线 + 盘中实时价（所有池共享）
+    # 拉全部所需代码的 K线 + 盘中实时价（所有池共享）。额外长度用于历史逐日回算。
     all_names = {}
     for p in variant_pools.values():
         all_names.update(p)
+    kline_datalen = max(
+        KLINE_DATALEN,
+        int(params.get("lookback_days", 25)) + RANK_HISTORY_LIMIT
+        + max(int(params.get("ma_lookback", 10)),
+              int(params.get("volume_lookback", 5)), 20) + 8,
+    )
     klines, fails = {}, 0
     with ThreadPoolExecutor(max_workers=10) as pool_exec:
-        futures = {pool_exec.submit(_sina_kline, _etf_symbol(c), KLINE_DATALEN): c for c in all_names}
+        futures = {
+            pool_exec.submit(_sina_kline, _etf_symbol(c), kline_datalen): c
+            for c in all_names
+        }
         for f in as_completed(futures):
             code = futures[f]
             rows = f.result()
@@ -580,7 +788,7 @@ def update_momentum_etf() -> dict:
                          spot=spots.get(code), elapsed=elapsed)
         if m is None:
             continue
-        if m["last_date"] and " " in str(m["last_date"]):
+        if m.get("intraday"):
             intraday_count += 1
         if m["avg_amount_20d"] < min_amount:
             illiquid_codes.add(code)
@@ -615,7 +823,45 @@ def update_momentum_etf() -> dict:
         "target": variants["strategy"]["target"],
         "params": params,
     }
-    _atomic_json_dump(result, data_path(OUTPUT_FILE))
+
+    # 历史轨迹：回算最近20个交易日；盘中当日由真实实时快照负责，不用未完成日K冒充收盘。
+    index_history_length = max(
+        90,
+        RANK_HISTORY_LIMIT + int(params.get("weak_ma_lookback", 10))
+        + int(params.get("max_weak_days", 20)) + 30,
+    )
+    index_klines = {}
+    with ThreadPoolExecutor(max_workers=4) as pool_exec:
+        index_futures = {
+            pool_exec.submit(_sina_kline, item["code"], index_history_length): item["code"]
+            for item in WEAK_INDEXES
+        }
+        for future in as_completed(index_futures):
+            rows = future.result()
+            if rows:
+                index_klines[index_futures[future]] = rows
+    weak_flags = _historical_weak_flags(index_klines, params)
+    replayed_history = _replay_rank_history(
+        klines,
+        all_names,
+        variant_pools,
+        params,
+        min_amount,
+        weak_flags,
+        {str(result["date"])} if result["mode"] == "intraday" else set(),
+    )
+    previous = None
+    output_path = data_path(OUTPUT_FILE)
+    if os.path.exists(output_path):
+        try:
+            with open(output_path, encoding="utf-8") as f:
+                previous = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            previous = None
+    result["rank_history"] = _merge_rank_history(
+        previous, result, replayed=replayed_history
+    )
+    _atomic_json_dump(result, output_path)
     for key, label in (("china", "中国池"), ("dynamic", "动态池"),
                        ("combined", "中动态合并池"), ("global", "全球池"),
                        ("strategy", "策略池")):

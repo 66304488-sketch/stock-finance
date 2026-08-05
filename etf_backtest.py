@@ -27,8 +27,9 @@ from momentum_etf import WEAK_INDEXES, _etf_symbol, load_pool_config
 from runtime_paths import data_path
 
 OUTPUT_FILE = "etf_backtest.json"
-BACKTEST_DATES = 120         # 足够覆盖滚动验证；数据不足时自然缩短
-FORWARD_DAYS = 10            # 后续观察窗
+BACKTEST_DATES = 170         # 校准需要 >=60 独立预测日且 >=500 样本;数据不足时自然缩短
+SHORT_HORIZONS = (1, 2, 3, 4, 5)
+FORWARD_DAYS = max(SHORT_HORIZONS)  # 短线观察窗只保留 T+1 至 T+5
 KLINE_DATALEN = 320          # 覆盖评分、回测日、观察窗和非同步交易余量
 BENCHMARK_CODE = "510300"
 ROUND_TRIP_COST_BPS = 20.0
@@ -120,7 +121,7 @@ def _forward_perf(
     ``benchmark_rows`` 同时充当交易日历。ETF 在 T+1 无行情（例如停牌）
     时不把之后的首次成交错当成 T+1，直接视为不可评估。
     """
-    horizon_map = {1: "t1", 3: "t3", 5: "t5", 10: "t10"}
+    horizon_map = {day: f"t{day}" for day in SHORT_HORIZONS}
 
     def empty_result(entry_date=None):
         result = {"entry": None, "entry_date": entry_date, "fwd_days": 0}
@@ -299,7 +300,7 @@ def _annotate_forward_outcomes(picks: list[dict]) -> list[dict]:
     for pick in picks:
         by_date.setdefault(pick["date"], []).append(pick)
     for rows in by_date.values():
-        for day in (5, 10):
+        for day in SHORT_HORIZONS:
             suffix = f"t{day}"
             eligible = [
                 row for row in rows
@@ -514,8 +515,8 @@ def _calibrate_scores(
 
     split_i = max(1, min(len(dates) - 1, int(len(dates) * 0.70)))
     validation_dates = set(dates[split_i:])
-    # 避免训练期 T+10 标签与验证起点重叠。
-    embargo = max(day, 10)
+    # 避免训练期 T+5 标签与验证起点重叠。
+    embargo = max(day, FORWARD_DAYS)
     train_dates = set(dates[:max(0, split_i - embargo)])
     train = [row for row in rows if row["date"] in train_dates]
     validation = [row for row in rows if row["date"] in validation_dates]
@@ -693,14 +694,14 @@ def _summary(picks: list[dict]) -> dict:
     worst = min(with_ret, key=lambda p: p["ret_t5"], default=None)
     shrink = lambda p: p and {"label": p["label"], "code": p["code"],
                               "date": p["date"], "ret_t5": p["ret_t5"]}
-    return {
+    result = {
         "total": len(picks),
-        "t1": horizon("ret_t1"), "t3": horizon("ret_t3"),
-        "t5": horizon("ret_t5"), "t10": horizon("ret_t10"),
         "now": horizon("ret_now"),
         "avg_max_up": avg("max_up"), "avg_max_dd": avg("max_dd"),
         "best": shrink(best), "worst": shrink(worst),
     }
+    result.update({f"t{day}": horizon(f"ret_t{day}") for day in SHORT_HORIZONS})
+    return result
 
 
 # ------------------------------------------------------------------
@@ -886,19 +887,21 @@ def run_backtest() -> dict:
         _join_universe_outcomes(picks, outcome_universe)
 
     industry_eval = {
-        "t5": _clustered_evaluation(industry_picks, 5, expected_dates=rec_dates),
-        "t10": _clustered_evaluation(industry_picks, 10, expected_dates=rec_dates),
+        f"t{day}": _clustered_evaluation(
+            industry_picks, day, expected_dates=rec_dates
+        ) for day in SHORT_HORIZONS
     }
     momentum_eval = {
-        "t5": _clustered_evaluation(momentum_picks, 5, expected_dates=rec_dates),
-        "t10": _clustered_evaluation(momentum_picks, 10, expected_dates=rec_dates),
+        f"t{day}": _clustered_evaluation(
+            momentum_picks, day, expected_dates=rec_dates
+        ) for day in SHORT_HORIZONS
     }
     baseline_eval = {
-        "t5": _clustered_evaluation(baseline_scored, 5, expected_dates=rec_dates),
-        "t10": _clustered_evaluation(baseline_scored, 10, expected_dates=rec_dates),
+        f"t{day}": _clustered_evaluation(
+            baseline_scored, day, expected_dates=rec_dates
+        ) for day in SHORT_HORIZONS
     }
     calibration_t5 = _calibrate_scores(industry_picks, 5)
-    calibration_t10 = _calibrate_scores(industry_picks, 10)
 
     result = {
         "model_version": "etf-hotspot-v3",
@@ -906,6 +909,7 @@ def run_backtest() -> dict:
         "signal_rule": "推荐日收盘后生成，仅使用截至当日收盘的数据",
         "entry_rule": "下一市场交易日（T+1）开盘价；停牌/无当日行情则不评估",
         "forward_days": FORWARD_DAYS,
+        "horizons": [f"t{day}" for day in SHORT_HORIZONS],
         "benchmark": {
             "code": BENCHMARK_CODE,
             "name": code_names[BENCHMARK_CODE],
@@ -917,7 +921,7 @@ def run_backtest() -> dict:
         },
         "hotspot_definition": "净绝对收益>0、净超额>0、当日横截面forward_percentile>=80",
         "dates": rec_dates,
-        "sample_note": "统计先按预测日聚类；相邻日期的远期窗口仍会重叠，不应把明细行视作独立样本。",
+        "sample_note": "只评估T+1至T+5；统计先按预测日聚类，相邻日期的远期窗口仍会重叠，不应把明细行视作独立样本。",
         "feature_availability": {
             "point_in_time": ["行业宽度与方向参与代理", "ETF复权OHLCV", "市场温度", "510300基准"],
             "unavailable_historically": ["行业拥挤外部证据", "交易所ETF历史份额变化"],
@@ -931,14 +935,15 @@ def run_backtest() -> dict:
             "code_count": len({row["code"] for row in outcome_universe}),
             "rows": outcome_universe,
         },
-        # 推荐模块直接读取根 calibration，将分数映射为 T+5 热点概率。
+        # 推荐模块直接读取根 calibration，将分数映射为 T+5 热点概率；
+        # T+1 至 T+4 用于观察短线路径，不各自拟合小样本概率。
         "calibration": calibration_t5,
-        "calibration_by_horizon": {"t5": calibration_t5, "t10": calibration_t10},
+        "calibration_by_horizon": {"t5": calibration_t5},
         "industry": {
             "picks": industry_picks,
             "summary": _summary(industry_picks),
             "evaluation": industry_eval,
-            "calibration": {"t5": calibration_t5, "t10": calibration_t10},
+            "calibration": {"t5": calibration_t5},
         },
         "momentum": {
             "picks": momentum_picks,

@@ -7,6 +7,94 @@ STATIC = Path(__file__).with_name("static")
 
 
 class UiContractTest(unittest.TestCase):
+    def test_decision_center_closes_the_nine_item_loop(self):
+        app = (STATIC / "app.html").read_text(encoding="utf-8")
+        page = (STATIC / "decision-center.html").read_text(encoding="utf-8")
+        server = Path("server.py").read_text(encoding="utf-8")
+        self.assertIn('data-tab="decision"', app)
+        self.assertIn('src="/decision-center.html"', app)
+        for endpoint in (
+            '@app.get("/api/decision-center")',
+            '@app.get("/api/decision-center/industry")',
+            '@app.get("/api/decision-center/portfolio")',
+        ):
+            self.assertIn(endpoint, server)
+        for text in (
+            "市场环境总开关",
+            "当前值、一阶变化和二阶变化",
+            "驱动原因：证据归因与事件日志",
+            "板块内部结构与传导",
+            "可交易性与成本",
+            "触发、确认、失效与风险升级",
+            "组合风险",
+            "统一提醒与冷却",
+            "概率可信度",
+            "decision-alert-acks-v1",
+            "decision-events-v1",
+            "/api/decision-center/industry?",
+            "/api/decision-center/portfolio?",
+        ):
+            self.assertIn(text, page)
+
+    def test_decision_center_boots_with_mocked_payload(self):
+        script = r"""
+const fs = require('fs');
+const assert = require('assert');
+const {JSDOM, VirtualConsole} = require('jsdom');
+const html = fs.readFileSync('static/decision-center.html', 'utf8');
+const card = {
+  industry:'测试行业', lane:'opportunity', attention_score:72, summary:'首次转强，等待确认', source_date:'20260106',
+  change:{label:'首次转强',state:'first_strength',flags:['first_strength'],evidence:['价格转正'],metrics:{price:{value:1,delta:2,acceleration:1},breadth:{value:30,delta:20,acceleration:10},direction:{value:20,delta:15,acceleration:8},activity:{value:60,delta:5,acceleration:2}}},
+  drivers:{primary:{label:'方向成交',direction:'positive',strength:70,evidence:'方向成交改善'},agreement_count:2,event_source:{label:'事件源未自动接入',note:'人工记录'},domains:[{label:'方向成交',direction:'positive',strength:70,evidence:'改善',available:true}]},
+  structure:{label:'龙头扩散',state:'leader_diffusion',advance_ratio_pct:65,top5_amount_share_pct:50,effective_participation_pct:12,leader_persistence_5d:.5,leader_labels:['龙头A'],leaders:[{name:'龙头A',code:'000001'}]},
+  tradability:{mode_label:'T+1确认',mode:'next_open_confirm',can_trade:true,liquidity_score:80,estimated_cost_bps:8,cost_kind:'估算',carrier:{name:'测试ETF',code:'510001',avg_amount_20d:5e8},microstructure:{note:'盘中确认'}},
+  probability:{label:'研究样本',available:true,samples:200,independent_dates:80,ci_t5:[45,60],trust_score:65,horizons:[],reason:'历史频率',precision_note:'不伪造'},
+  trade_plan:{signal_time:'收盘',horizon:'T1-T5',trigger:'等待',confirmation:'两项确认',action:'观察',invalidation:['转弱'],risk_upgrade:'风险升级',max_risk:'1R',position_band:'观察仓',danger_level:'normal'},
+  transmission:{nodes:[{id:'driver',type:'driver',label:'方向成交',status:'positive'},{id:'industry',type:'industry',label:'测试行业',status:'leader_diffusion'}],edges:[{from:'driver',to:'industry',label:'数据归因'}]},
+  radar:{sentiment_label:'中性',danger:{label:'正常'}}, opportunity:{confirmation_count:2,conflicts:[],risks:[],vetoes:[]}, alerts:[]
+};
+const payload = {
+  as_of:'20260106', quality:{status:'valid',label:'可决策',as_of:'20260106',warnings:[],sources:{capital_flow:{date:'20260106',status:'aligned'}}},
+  regime:{label:'健康轮动',permission:'allowed',reason:'宽度改善',metrics:{market_return_pct:1,breadth_pct:50,breadth_change_pp:10,activity_percentile:70,amount_ratio_20:1.2,style_spread_pct:1,temperature:60},style:{groups:[]},indices:[],strategy_fit:{breakout:60,reversal:50,rotation:80,defense:20},risks:[],evidence:['宽度改善']},
+  battle_cards:[card], catalog:[{industry:'测试行业',change_label:'首次转强',structure_label:'龙头扩散'}], alerts:[], counts:{industries:1}
+};
+const errors=[];const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',e=>errors.push(e));
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'http://localhost/decision-center.html',virtualConsole,beforeParse(window){window.fetch=async()=>({ok:true,status:200,json:async()=>JSON.parse(JSON.stringify(payload))});window.alert=()=>{};}});
+setTimeout(()=>{
+  assert.deepStrictEqual(errors.map(e=>e.message),[]);
+  assert.ok(dom.window.document.querySelector('#battleCards').textContent.includes('测试行业'));
+  assert.ok(dom.window.document.querySelector('#detailGrid').textContent.includes('概率可信度'));
+  console.log('ok');
+},80);
+"""
+        result = subprocess.run(
+            ["node", "-e", script],
+            cwd=Path(__file__).parent,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
+
+    def test_sentiment_radar_is_a_separate_dual_probability_page(self):
+        app = (STATIC / "app.html").read_text(encoding="utf-8")
+        page = (STATIC / "sentiment-radar.html").read_text(encoding="utf-8")
+        guide = (STATIC / "page-guide.js").read_text(encoding="utf-8")
+        self.assertIn('data-tab="radar"', app)
+        self.assertIn('src="/sentiment-radar.html"', app)
+        for text in (
+            "板块情绪雷达", "底部反弹", "顶部退潮", "T1—T5历史条件频率",
+            "支持证据与反对证据", "/api/sentiment-radar?scheme=",
+            "板块个股", "/api/sentiment-radar/stocks?", "stockSearch",
+            "成交影响", "stockpage.10jqka.com.cn",
+        ):
+            self.assertIn(text, page)
+        self.assertIn("'sentiment-radar.html'", guide)
+        self.assertIn("申万三级按有效成分数以κ=20", guide)
+        self.assertIn("点击查看成分股", guide)
+        self.assertIn("个股行情严格截断到雷达信号日", guide)
+
     def test_strategy_restores_real_controls_without_removed_ids(self):
         source = (STATIC / "app.html").read_text(encoding="utf-8")
         for removed in ("sourceHighs", "sourceLows", "sourceFlow", "sourceBasics",
@@ -14,6 +102,37 @@ class UiContractTest(unittest.TestCase):
             self.assertNotIn(removed, source)
         self.assertIn("selected_datasets: getSelectedDatasets()", source)
         self.assertIn("refresh_days: getRefreshDays()", source)
+
+    def test_all_batch_refresh_entry_points_honor_the_saved_dataset_strategy(self):
+        app = (STATIC / "app.html").read_text(encoding="utf-8")
+        status = (STATIC / "data-status.js").read_text(encoding="utf-8")
+        server = Path("server.py").read_text(encoding="utf-8")
+        electron = Path("electron/main.ts").read_text(encoding="utf-8")
+
+        self.assertIn('value="market_cap" checked', app)
+        self.assertIn("body: JSON.stringify({days:1})", app)
+        self.assertNotIn(
+            "datasets:['highs','lows','capital_flow','margin_financing']",
+            app,
+        )
+        self.assertIn("var mcapFrame = document.querySelector('#panel-mcap iframe')", app)
+        self.assertIn("fetchJsonChecked('/api/update-config')", app)
+        self.assertIn("configured.filter(function(k){ return !!states[k]; })", app)
+
+        self.assertIn("def _resolve_refresh_datasets", server)
+        self.assertIn('strategy.get("selected_datasets")', server)
+        self.assertIn('strategy.get("refresh_days", 1)', server)
+        self.assertIn('strategy.get("update_mode", "auto")', server)
+        self.assertIn('"etf", "market_cap"', server)
+
+        self.assertIn('getBackendJson("/api/update-config")', electron)
+        self.assertIn('"margin_financing", "market_cap"', electron)
+        self.assertIn("function postRefresh(days?: number)", electron)
+        self.assertNotIn('JSON.stringify({ days, mode: "auto" })', electron)
+
+        self.assertIn("var monitoredDatasets = CORE_DATASETS.slice()", status)
+        self.assertIn("strategy.config.selected_datasets", status)
+        self.assertNotIn("datasets: CORE_DATASETS", status)
 
     def test_capital_flow_v2_adapter_preserves_legacy_newest_first_history(self):
         source = (STATIC / "capital-flow.html").read_text(encoding="utf-8")
@@ -36,6 +155,45 @@ class UiContractTest(unittest.TestCase):
         self.assertIn("Array.isArray(row.series)", source)
         self.assertIn("TREE_LIMITS={1:5,5:12,20:25}", source)
         self.assertNotIn("maxAbsChg", source)
+
+    def test_market_cap_compass_can_expand_zoom_pan_and_reset(self):
+        source = (STATIC / "market-cap.html").read_text(encoding="utf-8")
+        for text in (
+            'id="compassPanel"',
+            'id="compassZoomOut"',
+            'id="compassZoomIn"',
+            'id="compassReset"',
+            'id="compassExpand"',
+            '.compass-panel.compass-expanded',
+            'var compassView={scale:1,centerX:0,centerY:0,baseDomain:2}',
+            'function zoomCompassAt(multiplier,anchorX,anchorY)',
+            "wrap.addEventListener('wheel'",
+            "wrap.addEventListener('pointerdown'",
+            "wrap.addEventListener('pointermove'",
+            'function resetCompassView(shouldRender)',
+            'fill="transparent" stroke="none" pointer-events="all"',
+            'hitR=Math.max(r+5,12)',
+            'resetCompassView(false)',
+            '支持滚轮缩放和拖拽平移',
+        ):
+            self.assertIn(text, source)
+        self.assertIn('aria-pressed="false"', source)
+        guide = (STATIC / "page-guide.js").read_text(encoding="utf-8")
+        self.assertIn("罗盘放大操作", guide)
+        self.assertIn("小行业会绘制在大气泡上层", guide)
+
+    def test_market_cap_treemap_labels_stay_crisp_in_light_and_dark_themes(self):
+        source = (STATIC / "market-cap.html").read_text(encoding="utf-8")
+        for text in (
+            "color:#f8fafc",
+            "text-shadow:none",
+            "-webkit-font-smoothing:antialiased",
+            ".tile-name { color:#fff",
+            ".tile-value,.tile-return { color:#f2f6fb; opacity:.96",
+        ):
+            self.assertIn(text, source)
+        self.assertNotIn("text-shadow:0 1px 3px #000b", source)
+        self.assertNotIn("color:var(--c-f2f5f9", source)
 
     def test_market_cap_numeric_correctness_contracts_in_jsdom(self):
         script = r"""
@@ -156,6 +314,21 @@ function chip(window, label) {
   assert.ok(d.querySelector('#marketAttributionBody').textContent.includes('+77.0 bp'));
   assert.strictEqual(d.querySelector('#marketAttributionStatus').textContent, '部分归因');
 
+  const compassHit = d.querySelector('#compassWrap [data-industry] circle[pointer-events="all"]');
+  assert.ok(compassHit);
+  assert.ok(Number(compassHit.getAttribute('r')) >= 12);
+  assert.strictEqual(d.querySelector('#compassZoomLevel').textContent, '100%');
+  d.querySelector('#compassZoomIn').click();
+  assert.strictEqual(d.querySelector('#compassZoomLevel').textContent, '128%');
+  assert.ok(d.querySelector('#compassWrap').classList.contains('zoomed'));
+  d.querySelector('#compassExpand').click();
+  assert.ok(d.querySelector('#compassPanel').classList.contains('compass-expanded'));
+  assert.strictEqual(d.querySelector('#compassExpand').getAttribute('aria-pressed'), 'true');
+  d.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+  assert.ok(!d.querySelector('#compassPanel').classList.contains('compass-expanded'));
+  d.querySelector('#compassReset').click();
+  assert.strictEqual(d.querySelector('#compassZoomLevel').textContent, '100%');
+
   Object.defineProperty(d.querySelector('#treemap'), 'offsetWidth', {value: 800, configurable: true});
   Object.defineProperty(d.querySelector('#treemap'), 'offsetHeight', {value: 500, configurable: true});
   w.switchView('treemap');
@@ -189,6 +362,11 @@ function chip(window, label) {
   w.metricCache.clear();
   w.renderAll();
   w.openDrawer('行业甲');
+  const stockLink = d.querySelector('#stocksBody .stock-link');
+  assert.strictEqual(stockLink.href, 'https://stockpage.10jqka.com.cn/000001/');
+  assert.strictEqual(stockLink.rel, 'noopener noreferrer');
+  assert.ok(stockLink.textContent.includes('最新股票'));
+  assert.ok(stockLink.textContent.includes('000001'));
   assert.ok(!d.querySelector('#attributionBody').textContent.includes('+99.0 bp'));
   assert.ok(!d.querySelector('#attributionBody').textContent.includes('+77.0 bp'));
   assert.ok(d.querySelector('#attributionBody').textContent.includes('Share Snapshot 股本快照修订效应'));
@@ -369,6 +547,25 @@ function chip(window, label) {
         ):
             self.assertIn(text, source)
 
+    def test_opportunity_industry_name_opens_latest_high_detail(self):
+        source = (STATIC / "industry-heatmap.html").read_text(encoding="utf-8")
+        for text in (
+            'class="industry-high-link"',
+            "function openLatestIndustryHighs(industry)",
+            "latest.label || latest.full_label",
+            "currentDirection = 'highs'",
+            "tableData = highsData",
+            "openDetail(industry, dateLabel, count)",
+            "industryHighLink.getAttribute('data-industry')",
+        ):
+            self.assertIn(text, source)
+        self.assertLess(
+            source.index("var industryHighLink = e.target.closest('.industry-high-link')"),
+            source.index("var opportunityRow = e.target.closest('.opportunity-row')"),
+        )
+        guide = (STATIC / "page-guide.js").read_text(encoding="utf-8")
+        self.assertIn("点击行业名可直接打开该行业最新一期创新高个股列表", guide)
+
     def test_heatmap_quadrant_uses_gated_relative_metrics(self):
         source = (STATIC / "industry-heatmap.html").read_text(encoding="utf-8")
         for text in (
@@ -388,11 +585,13 @@ function chip(window, label) {
 
     def test_every_business_page_has_a_collapsible_usage_guide(self):
         pages = (
+            "opportunity-summary.html",
             "industry-heatmap.html",
             "market-temperature.html",
             "index-constituents.html",
             "crowding.html",
             "capital-flow.html",
+            "margin-financing.html",
             "market-cap.html",
             "etf-recommend.html",
             "momentum-etf.html",
@@ -405,11 +604,13 @@ function chip(window, label) {
         for text in (
             "page-guide-details",
             "pageUsageGuide",
+            "机会汇总使用说明",
             "行业机会热力图使用说明",
             "市场参与强度使用说明",
             "股指成分监控使用说明",
             "交易拥挤度使用说明",
             "成交动能使用说明",
+            "板块融资融券使用说明",
             "市值结构与行情归因使用说明",
             "ETF 下一热点使用说明",
             "动量 ETF 使用说明",
@@ -417,6 +618,137 @@ function chip(window, label) {
         ):
             self.assertIn(text, guide)
         self.assertIn("document.querySelector('.container')", guide)
+
+    def test_every_business_page_has_a_data_status_bar(self):
+        pages = (
+            "opportunity-summary.html",
+            "industry-heatmap.html",
+            "market-temperature.html",
+            "index-constituents.html",
+            "crowding.html",
+            "capital-flow.html",
+            "margin-financing.html",
+            "market-cap.html",
+            "etf-recommend.html",
+            "momentum-etf.html",
+            "etf-backtest.html",
+        )
+        for filename in pages:
+            source = (STATIC / filename).read_text(encoding="utf-8")
+            self.assertIn('<script src="/data-status.js" defer></script>', source, filename)
+        standalone = (STATIC / "industry-heatmap-standalone.html").read_text(encoding="utf-8")
+        self.assertNotIn("/data-status.js", standalone)
+        script = (STATIC / "data-status.js").read_text(encoding="utf-8")
+        for text in (
+            "/api/refresh-data/check",
+            "/api/refresh-data",
+            "/api/refresh-data/status",
+            "dataStatusBar",
+            "window !== window.top",
+            "location.reload()",
+        ):
+            self.assertIn(text, script)
+
+    def test_content_pages_distinguish_reload_from_update(self):
+        pages = (
+            "crowding.html",
+            "capital-flow.html",
+            "margin-financing.html",
+            "market-cap.html",
+            "opportunity-summary.html",
+            "market-temperature.html",
+        )
+        for filename in pages:
+            source = (STATIC / filename).read_text(encoding="utf-8")
+            self.assertIn("↻ 重新加载", source, filename)
+            self.assertNotIn("刷新数据", source, filename)
+
+    def test_theme_system_is_wired_into_every_page(self):
+        pages = (
+            "app.html",
+            "opportunity-summary.html",
+            "industry-heatmap.html",
+            "market-temperature.html",
+            "index-constituents.html",
+            "crowding.html",
+            "capital-flow.html",
+            "margin-financing.html",
+            "market-cap.html",
+            "etf-recommend.html",
+            "momentum-etf.html",
+            "etf-backtest.html",
+        )
+        for filename in pages:
+            source = (STATIC / filename).read_text(encoding="utf-8")
+            self.assertIn('<script src="/theme.js"></script>', source, filename)
+        standalone = (STATIC / "industry-heatmap-standalone.html").read_text(encoding="utf-8")
+        self.assertNotIn("/theme.js", standalone)
+        themes = (STATIC / "themes.css").read_text(encoding="utf-8")
+        self.assertIn('html[data-theme="light"]', themes)
+        # ":root" 是 html 本身,"html[data-theme] :root" 后代选择器永不命中,
+        # 变量必须直接定义在 html[data-theme] 规则里
+        self.assertNotIn("] :root", themes)
+        self.assertIn("--bg: #f4f5f7", themes)
+        for variable in ("--bg", "--panel", "--text", "--muted", "--border", "--accent"):
+            self.assertIn(variable, themes)
+        script = (STATIC / "theme.js").read_text(encoding="utf-8")
+        for text in ("localStorage", "storage", "AppTheme", "data-theme", "/themes.css"):
+            self.assertIn(text, script)
+        app = (STATIC / "app.html").read_text(encoding="utf-8")
+        for text in ('id="sec-theme"', "theme-card", "setTheme", 'data-theme="light"'):
+            self.assertIn(text, app)
+        for component in ("data-status.js", "page-guide.js"):
+            source = (STATIC / component).read_text(encoding="utf-8")
+            self.assertIn("var(--panel", source, component)
+
+    def test_opportunity_summary_is_integrated_into_the_desktop_shell(self):
+        app = (STATIC / "app.html").read_text(encoding="utf-8")
+        server = Path("server.py").read_text(encoding="utf-8")
+        builder = Path("electron-builder.yml").read_text(encoding="utf-8")
+        for text in (
+            'data-tab="summary"',
+            'id="panel-summary"',
+            "/opportunity-summary.html",
+            "DATA_FRAME_PATHS",
+            "function reloadSummaryFrame",
+            "iframe.contentWindow.location",
+            "new URLSearchParams(current.search)",
+            "['scheme', 'period', 'mode']",
+            "window.electronAPI.onDataUpdated",
+        ):
+            self.assertIn(text, app)
+        self.assertIn('@app.get("/api/opportunity-summary")', server)
+        self.assertIn("build_opportunity_summary", server)
+        self.assertIn("opportunity_summary.py", builder)
+
+    def test_opportunity_summary_preserves_evidence_and_safe_drilldowns(self):
+        page = (STATIC / "opportunity-summary.html").read_text(encoding="utf-8")
+        for text in (
+            "/api/opportunity-summary?",
+            "independent_confirmations",
+            "confirmation_total",
+            "laneLimits:{confirmed:10,watch:10,rejected:10}",
+            "market.message || market.reason",
+            "function syncSourceFrame",
+            "view.switchScheme(context.scheme)",
+            '#modeToggle [data-mode="',
+            '#typeToggle [data-type="',
+            "非触发域",
+            "同一证据域内的同源衍生指标只计一票",
+            "https://stockpage.10jqka.com.cn/",
+            'target="_blank"',
+            'rel="noopener noreferrer"',
+            r"/(^|\D)(\d{6})(?!\d)/",
+            "无合格 ETF · 仅参考",
+            "原页为申万三级 · 当前不跳转",
+            '<script src="/page-guide.js" defer></script>',
+        ):
+            self.assertIn(text, page)
+        self.assertIn("return state.candidates.filter(function(row)", page)
+        filtered = page.split("function filteredCandidates()", 1)[1].split(
+            "function renderCandidates()", 1
+        )[0]
+        self.assertNotIn(".sort(", filtered)
 
     def test_standalone_heatmap_embeds_all_schemes_and_opportunity_states(self):
         source = Path("generate_standalone.py").read_text(encoding="utf-8")
@@ -484,6 +816,35 @@ function chip(window, label) {
         self.assertNotIn("var persistence=score100(", page)
         self.assertEqual(page.count("function renderHero("), 1)
 
+    def test_turnover_momentum_compass_can_expand_box_zoom_pan_and_reset(self):
+        page = (STATIC / "capital-flow.html").read_text(encoding="utf-8")
+        for text in (
+            'id="compassPanel"',
+            'id="compassZoomOut"',
+            'id="compassZoomIn"',
+            'id="compassReset"',
+            'id="compassBoxZoom"',
+            'id="compassExpand"',
+            '.compass-panel.compass-expanded',
+            'var compassView = {scale:1, centerX:0, centerY:50}',
+            'function zoomCompassAt(multiplier,anchorX,anchorY)',
+            'function closestCompassBubble(clientX,clientY)',
+            'function resetCompassView(shouldRender)',
+            'function toggleCompassExpanded(force)',
+            "wrap.addEventListener('wheel'",
+            "wrap.addEventListener('pointerdown'",
+            "wrap.addEventListener('pointermove'",
+            'class="bubble-hit"',
+            "currentScheme==='sw3'?14:12",
+            'class="compass-selection"',
+            'resetCompassView(false)',
+            '支持滚轮缩放、框选放大和拖拽平移',
+        ):
+            self.assertIn(text, page)
+        guide = (STATIC / "page-guide.js").read_text(encoding="utf-8")
+        self.assertIn("罗盘放大与点选", guide)
+        self.assertIn("点“框选”后在图中拖出矩形", guide)
+
     def test_turnover_momentum_scheme_switch_is_race_safe_and_timestamped(self):
         page = (STATIC / "capital-flow.html").read_text(encoding="utf-8")
         self.assertIn("requestGeneration", page)
@@ -512,12 +873,68 @@ function chip(window, label) {
         self.assertIn("document.querySelector('#panel-flow iframe').src = '/capital-flow.html?_=' + Date.now()", app)
 
     def test_three_industry_schemes_are_available_on_all_views(self):
-        for filename in ("industry-heatmap.html", "capital-flow.html", "market-cap.html"):
+        for filename in ("industry-heatmap.html", "capital-flow.html", "margin-financing.html", "market-cap.html"):
             source = (STATIC / filename).read_text(encoding="utf-8")
             self.assertIn('option value="sw3"', source)
         heatmap = (STATIC / "industry-heatmap.html").read_text(encoding="utf-8")
         self.assertIn("schemeSuffix(currentScheme)", heatmap)
         self.assertIn("/api/custom-heatmap?window=' + currentWindow + '&scheme=' + currentScheme", heatmap)
+
+    def test_every_individual_stock_detail_view_links_to_ths(self):
+        pages = {
+            filename: (STATIC / filename).read_text(encoding="utf-8")
+            for filename in (
+                "index.html",
+                "industry-heatmap.html",
+                "index-constituents.html",
+                "crowding.html",
+                "capital-flow.html",
+                "margin-financing.html",
+                "market-cap.html",
+            )
+        }
+        for source in pages.values():
+            self.assertIn("function stockLink(", source)
+            self.assertIn("https://stockpage.10jqka.com.cn/", source)
+            self.assertIn('target="_blank"', source)
+            self.assertIn('rel="noopener noreferrer"', source)
+            self.assertIn(r"/^\d{6}$/", source)
+        self.assertIn("stockLink(item.code,escapeHtml(label),label)", pages["industry-heatmap.html"])
+        self.assertIn("stockLink(q.code, stockTitle, name)", pages["index.html"])
+        self.assertIn("stockMetricHtml('首要驱动',topPositive)", pages["index-constituents.html"])
+        self.assertIn("return stockLink(code, escapeHtml(label), label)", pages["crowding.html"])
+        self.assertIn("var stockCell=stockLink(", pages["capital-flow.html"])
+        self.assertIn("stockLink(r.code,r.name,r.name)", pages["margin-financing.html"])
+        self.assertIn("var stockCell=stockLink(", pages["market-cap.html"])
+
+    def test_margin_financing_page_is_integrated_and_drills_down_to_ths(self):
+        page = (STATIC / "margin-financing.html").read_text(encoding="utf-8")
+        app = (STATIC / "app.html").read_text(encoding="utf-8")
+        server = Path("server.py").read_text(encoding="utf-8")
+        builder = Path("electron-builder.yml").read_text(encoding="utf-8")
+        for text in (
+            'option value="sw"',
+            'option value="ths"',
+            'option value="sw3"',
+            "/api/margin-financing?scheme=",
+            "industry-link",
+            "https://stockpage.10jqka.com.cn/",
+            "融资余额",
+            "融资买入额",
+            "买入强度",
+            "融券余额",
+        ):
+            self.assertIn(text, page)
+        for text in (
+            'data-tab="margin"',
+            'id="panel-margin"',
+            "/margin-financing.html",
+            'value="margin_financing"',
+            "function runMarginFinancing()",
+        ):
+            self.assertIn(text, app)
+        self.assertIn('@app.get("/api/margin-financing")', server)
+        self.assertIn('from: "margin_financing.py"', builder)
 
     def test_index_constituents_is_an_evidence_gated_futures_monitor(self):
         source = (STATIC / "index-constituents.html").read_text(encoding="utf-8")
@@ -590,15 +1007,55 @@ function chip(window, label) {
         self.assertIn("escapeHtml(error && error.message", source)
         self.assertNotIn("推荐 Top10", source)
 
-    def test_momentum_has_recommendation_dynamic_pool_and_manageable_manual_pools(self):
+    def test_momentum_matches_reference_rank_engine_and_trajectory(self):
         source = (STATIC / "momentum-etf.html").read_text(encoding="utf-8")
-        self.assertIn("动态池 · ETF 热点候选", source)
-        self.assertIn("模型允许今日无信号", source)
-        self.assertIn('data-variant="china"', source)
-        self.assertIn('data-variant="dynamic"', source)
-        self.assertIn("function addPoolItem(key)", source)
-        self.assertIn("function removePoolItem(key, code)", source)
         self.assertIn("https://stockpage.10jqka.com.cn/", source)
+        for text in (
+            'id="chart"',
+            "function renderChart()",
+            "function computeDays()",
+            "短期年化下限 (%)",
+            "启用盈利保护",
+            "盈利保护回撤 (%)",
+            "倒序排名（分数从低到高）",
+            'const DEFAULT_GROUP = "wufu"',
+            "const rows = Math.min(cfg.topN",
+            "members.get(m.code).points.push",
+            '"首日"',
+            '"最新"',
+            'esc(clip(info.name, 8)) + " 退出"',
+            "prevRank === undefined || prevRank > state.cfg.topN",
+            "segment.map((p) => x(p.i) + \",\" + y(p.rank))",
+            "Math.max(cfg.lookbackDays, cfg.shortLookbackDays, cfg.profitProtectionLookback)",
+            "refresh(false)",
+        ):
+            self.assertIn(text, source)
+        self.assertNotIn("排名轨迹已开始累计", source)
+
+    def test_momentum_uses_the_shared_dashboard_visual_language(self):
+        source = (STATIC / "momentum-etf.html").read_text(encoding="utf-8")
+        for text in (
+            'class="shell"',
+            'class="topbar"',
+            'class="toolbar"',
+            'class="status-panel"',
+            'id="overviewCards" class="metric-grid"',
+            'class="panel-head"',
+            'class="panel-title"',
+            'class="table-scroll"',
+            "max-width:1580px",
+            "--bg:#0c111a",
+            "--panel:#131b28",
+            "--accent:#6ea8fe",
+            "--up:#ef6a67",
+            "--down:#52a7d8",
+            "function renderOverview()",
+            'cssColor("--muted"',
+            '红 = 上涨　蓝 = 下跌',
+        ):
+            self.assertIn(text, source)
+        self.assertNotIn("max-width: 960px", source)
+        self.assertNotIn("position: sticky; top: 0", source)
 
     def test_settings_guide_covers_current_modules_and_metric_boundaries(self):
         source = (STATIC / "app.html").read_text(encoding="utf-8")
@@ -639,6 +1096,34 @@ function chip(window, label) {
         self.assertIn("/api/crowding?scheme=", source)
         self.assertIn("三套口径分别计算历史分位与 HHI", source)
 
+    def test_crowding_risk_matrix_can_expand_zoom_pan_and_reset(self):
+        source = (STATIC / "crowding.html").read_text(encoding="utf-8")
+        for text in (
+            'id="matrixZoomOut"',
+            'id="matrixZoomIn"',
+            'id="matrixReset"',
+            'id="matrixExpand"',
+            'class="matrix-zoom-level"',
+            '.matrix-panel.matrix-expanded',
+            'const MATRIX_VIEW = {minX:0, maxX:100, minY:0, maxY:100}',
+            'function zoomMatrixAt(factor, centerX, centerY)',
+            "svg.addEventListener('wheel'",
+            "svg.addEventListener('pointerdown'",
+            "svg.addEventListener('pointermove'",
+            'function resetMatrixView(shouldRender=true)',
+            "event.key === 'Escape'",
+            "'data-matrix-industry':industry.name",
+            'r:Math.max(radius + 5, 12)',
+            "fill:'transparent', stroke:'none', 'pointer-events':'all'",
+            'resetMatrixView(false)',
+        ):
+            self.assertIn(text, source)
+        self.assertIn('aria-pressed="false"', source)
+        self.assertIn('支持滚轮缩放和拖拽平移', source)
+        guide = (STATIC / "page-guide.js").read_text(encoding="utf-8")
+        self.assertIn("矩阵放大操作", guide)
+        self.assertIn("气泡的可点击范围略大于可见圆点", guide)
+
     def test_etf_backtest_uses_strict_out_of_sample_metrics_and_disables_intraday_proxy(self):
         source = (STATIC / "etf-backtest.html").read_text(encoding="utf-8")
         self.assertIn('id="tabIntraday"', source)
@@ -646,12 +1131,18 @@ function chip(window, label) {
         self.assertIn("14:50 策略回测已停用", source)
         self.assertIn("日线数据无法无穿越复现", source)
         self.assertIn("round_trip_bps", source)
-        self.assertIn("benchmark_ret_t5", source)
+        self.assertIn("DATA.benchmark", source)
         self.assertIn("excess_ret_t5", source)
         self.assertIn("precision_at_k", source)
         self.assertIn("rank_ic", source)
         self.assertIn("按预测日聚类", source)
         self.assertIn("校准中", source)
+        self.assertIn("SHORT_HORIZONS = [1, 2, 3, 4, 5]", source)
+        for day in range(1, 6):
+            self.assertIn(f"T+{day} 净", source)
+        self.assertIn("概率统一使用 T+5 标签", source)
+        self.assertNotIn("T+10", source)
+        self.assertNotIn("t10", source)
         self.assertNotIn("累计净值曲线", source)
         self.assertNotIn("+1% 止盈", source)
 

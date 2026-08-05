@@ -224,6 +224,20 @@ class StockDB:
     def replace_heatmap_batch(self, slices):
         """Replace multiple heatmap slices in one transaction."""
         with self.conn:
+            # 热表保留窗口先删后插:若先插后删,回填早于 cutoff 的历史日期会
+            # 在同一事务内被立即删除。目标日取本次写入日期与库内最大日期的较大者,
+            # 回填旧日期时不会误删新数据。
+            anchors = [d for item in slices for d in (item.get("dates") or [])]
+            for t in ("daily_new_highs", "daily_new_lows"):
+                row = self.conn.execute(f"SELECT MAX(date) FROM {t}").fetchone()
+                if row and row[0]:
+                    anchors.append(row[0])
+            if anchors:
+                cutoff = (datetime.strptime(max(anchors), "%Y%m%d")
+                          - timedelta(days=RETENTION_DAYS)).strftime("%Y%m%d")
+                self.conn.execute("DELETE FROM daily_new_highs WHERE date < ?", [cutoff])
+                self.conn.execute("DELETE FROM daily_new_lows WHERE date < ?", [cutoff])
+                self.conn.execute("DELETE FROM stock_details WHERE date < ?", [cutoff])
             for item in slices:
                 direction = item["direction"]
                 period = item["period"]
@@ -260,19 +274,6 @@ class StockDB:
                     "INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)",
                     (f"{direction}_updated", datetime.now().isoformat()),
                 )
-            # 热表保留窗口：删除早于(目标日 - RETENTION_DAYS 个自然日)的旧行。
-            # 目标日取本次写入日期与库内最大日期的较大者，回填旧日期时不会误删新数据。
-            anchors = [d for item in slices for d in (item.get("dates") or [])]
-            for t in ("daily_new_highs", "daily_new_lows"):
-                row = self.conn.execute(f"SELECT MAX(date) FROM {t}").fetchone()
-                if row and row[0]:
-                    anchors.append(row[0])
-            if anchors:
-                cutoff = (datetime.strptime(max(anchors), "%Y%m%d")
-                          - timedelta(days=RETENTION_DAYS)).strftime("%Y%m%d")
-                self.conn.execute("DELETE FROM daily_new_highs WHERE date < ?", [cutoff])
-                self.conn.execute("DELETE FROM daily_new_lows WHERE date < ?", [cutoff])
-                self.conn.execute("DELETE FROM stock_details WHERE date < ?", [cutoff])
 
     @_synchronized
     def replace_capital_flow_batch(self, records, dates_by_scheme):
@@ -548,10 +549,11 @@ class StockDB:
 
         industries = list(ind_map.values())
         for r in industries:
-            r["turnover"] = r["daily_turnover"][0]
-            r["stock_count"] = r["daily_stock_counts"][0]
+            # dates 升序,最新值在末尾
+            r["turnover"] = r["daily_turnover"][-1]
+            r["stock_count"] = r["daily_stock_counts"][-1]
             if not r["is_total"]:
-                total = sum(x["daily_turnover"][0] for x in industries if not x.get("is_total"))
+                total = sum(x["daily_turnover"][-1] for x in industries if not x.get("is_total"))
                 r["share"] = round(r["turnover"] / max(total, 1) * 100, 1)
 
         date_info = [{"label": self._format_label(d), "full_label": self._format_full(d)} for d in dates]
@@ -582,10 +584,11 @@ class StockDB:
 
         industries = list(ind_map.values())
         for r in industries:
-            r["mcap"] = r["daily_mcap"][0]
+            # dates 升序,最新值在末尾
+            r["mcap"] = r["daily_mcap"][-1]
             r["change_pct"] = None
             if not r["is_total"]:
-                total = sum(x["daily_mcap"][0] for x in industries if not x.get("is_total"))
+                total = sum(x["daily_mcap"][-1] for x in industries if not x.get("is_total"))
                 r["share"] = round(r["mcap"] / max(total, 1) * 100, 1)
 
         date_info = [{"label": self._format_label(d), "full_label": self._format_full(d)} for d in dates]

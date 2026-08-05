@@ -38,6 +38,7 @@ SEED_PATTERNS = (
     "crowding*.json",
     "capital_flow*.json",
     "market_cap*.json",
+    "margin_financing*.json",
     "highs_period_counts.json",
     "lows_period_counts.json",
     "stock_shares.json",
@@ -81,6 +82,11 @@ MARKET_CAP_V2_SEED_FILES = (
     "market_cap_v2_sw3.json",
     "market_cap_share_history_cninfo.json",
     "market_cap_point_in_time_shares.json",
+)
+MARGIN_FINANCING_SEED_FILES = (
+    "margin_financing.json",
+    "margin_financing_ths.json",
+    "margin_financing_sw3.json",
 )
 
 
@@ -165,6 +171,17 @@ def _seed_market_cap_v2(copied: list[str]) -> None:
         copied.append(filename)
 
 
+def _seed_margin_financing(copied: list[str]) -> None:
+    """Seed the newly added margin page for existing installations."""
+    for filename in MARGIN_FINANCING_SEED_FILES:
+        source = os.path.join(RESOURCE_STATIC_DIR, filename)
+        destination = os.path.join(DATA_DIR, filename)
+        if not os.path.isfile(source) or os.path.exists(destination):
+            continue
+        _copy_seed_file(source, destination)
+        copied.append(filename)
+
+
 def initialize_data_dir() -> list[str]:
     """Seed a new data directory without replacing existing user data."""
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -187,6 +204,7 @@ def initialize_data_dir() -> list[str]:
     _seed_new_crowding_schemes(copied)
     _seed_capital_flow_v2(copied)
     _seed_market_cap_v2(copied)
+    _seed_margin_financing(copied)
 
     marker = os.path.join(DATA_DIR, INITIALIZED_MARKER)
     if os.path.exists(marker):

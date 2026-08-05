@@ -178,6 +178,35 @@ class RuntimePathsTest(unittest.TestCase):
             self.assertIn(
                 '"user"', (data_dir / "market_cap_v2.json").read_text())
 
+    def test_existing_install_receives_margin_financing_seeds(self):
+        with tempfile.TemporaryDirectory() as root:
+            resource_dir = Path(root, "resources")
+            data_dir = Path(root, "data")
+            user_dir = Path(root, "user")
+            resource_dir.mkdir()
+            data_dir.mkdir()
+            (data_dir / ".stock-finance-initialized").touch()
+            for filename in (
+                "margin_financing.json",
+                "margin_financing_ths.json",
+                "margin_financing_sw3.json",
+            ):
+                (resource_dir / filename).write_text(
+                    f'{{"name":"{filename}"}}', encoding="utf-8")
+            (data_dir / "margin_financing.json").write_text(
+                '{"name":"user"}', encoding="utf-8")
+
+            paths = self._load(
+                str(resource_dir), str(data_dir), str(user_dir))
+            copied = paths.initialize_data_dir()
+
+            self.assertEqual(
+                set(copied),
+                {"margin_financing_ths.json", "margin_financing_sw3.json"},
+            )
+            self.assertIn(
+                '"user"', (data_dir / "margin_financing.json").read_text())
+
     def test_new_feature_data_is_seeded_and_managed(self):
         with tempfile.TemporaryDirectory() as root:
             paths = self._load(root, root, root)
@@ -199,6 +228,9 @@ class RuntimePathsTest(unittest.TestCase):
                 "market_cap_v2_sw3.json",
                 "market_cap_share_history_cninfo.json",
                 "market_cap_point_in_time_shares.json",
+                "margin_financing.json",
+                "margin_financing_ths.json",
+                "margin_financing_sw3.json",
                 "etf_backtest.json",
                 "momentum_state.json",
                 "index_constituents_cache.json",

@@ -1,19 +1,20 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<script src="/theme.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>成交集中与拥挤风险</title>
 <style>
   :root {
     --bg:#1a1d23; --panel:#21252b; --panel-2:#1c2027; --text:#abb2bf;
-    --strong:#e5e5e5; --muted:#737b88; --border:#333842; --blue:#61afef;
+    --strong:#e5e5e5; --muted:#737b88; --border:var(--c-333842, #333842); --blue:#61afef;
     --green:#98c379; --amber:#e5c07b; --orange:#d9824b; --red:#e06c75;
     --purple:#c678dd;
   }
   * { box-sizing:border-box; }
   html, body {
-    min-height:100%; margin:0; background:var(--bg); color:var(--text);
+    min-height:100%; margin:0; background: var(--bg); color:var(--text);
     font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   }
   button, input, select { font:inherit; }
@@ -23,28 +24,28 @@
   .container { max-width:1320px; margin:0 auto; padding:20px; }
   .header { text-align:center; position:relative; margin-bottom:10px; }
   .header h1 { margin:0; color:var(--strong); font-size:1.28em; }
-  .header .sub { margin-top:5px; color:#8b93a0; font-size:.78em; }
+  .header .sub { margin-top:5px; color:var(--c-8b93a0, #8b93a0); font-size:.78em; }
   .scheme-select {
     margin-left:8px; padding:3px 8px; color:var(--text);
-    border:1px solid var(--border); border-radius:5px; background:#282c34;
+    border:1px solid var(--border); border-radius:5px; background: var(--c-282c34, #282c34);
     font-size:.65em; cursor:pointer; vertical-align:2px;
   }
   .refresh-btn {
     position:absolute; right:0; top:0; padding:6px 13px; cursor:pointer;
     color:var(--text); border:1px solid var(--border); border-radius:6px;
-    background:var(--panel);
+    background: var(--panel);
   }
   .refresh-btn:hover { color:var(--strong); border-color:var(--blue); }
   .refresh-btn:disabled { opacity:.55; cursor:default; }
   .proxy-note {
-    margin:0 0 14px; padding:9px 12px; border:1px solid #425063;
-    border-radius:8px; background:#61afef0c; color:#9aa7b8; font-size:.77em;
+    margin:0 0 14px; padding:9px 12px; border:1px solid var(--c-425063, #425063);
+    border-radius:8px; background: #61afef0c; color:var(--c-9aa7b8, #9aa7b8); font-size:.77em;
     line-height:1.55; text-align:center;
   }
-  .proxy-note strong { color:#bfd7ef; }
+  .proxy-note strong { color:var(--c-bfd7ef, #bfd7ef); }
   .panel {
     margin-bottom:16px; padding:14px 16px; border:1px solid var(--border);
-    border-radius:10px; background:var(--panel);
+    border-radius:10px; background: var(--panel);
   }
   .section-title {
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
@@ -61,35 +62,35 @@
   .dual-state { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .state-card {
     min-height:96px; padding:12px 14px; border:1px solid var(--border);
-    border-radius:9px; background:var(--panel-2);
+    border-radius:9px; background: var(--panel-2);
   }
   .state-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  .state-name { color:#8b93a0; font-size:.72em; }
+  .state-name { color:var(--c-8b93a0, #8b93a0); font-size:.72em; }
   .state-value { margin-top:8px; color:var(--strong); font-size:1.28em; font-weight:750; }
-  .state-detail { margin-top:4px; color:#8b93a0; font-size:.72em; line-height:1.45; }
+  .state-detail { margin-top:4px; color:var(--c-8b93a0, #8b93a0); font-size:.72em; line-height:1.45; }
   .badge {
     display:inline-flex; align-items:center; gap:4px; padding:3px 8px;
     border:1px solid var(--border); border-radius:999px; white-space:nowrap;
     font-size:.69em; font-weight:700;
   }
-  .badge.normal { color:#8fc8ee; border-color:#31526b; background:#61afef10; }
-  .badge.watch { color:var(--amber); border-color:#665933; background:#e5c07b10; }
-  .badge.fragile { color:#efa36f; border-color:#70472f; background:#d9824b12; }
-  .badge.unwind { color:#f0909a; border-color:#713d45; background:#e06c7514; }
-  .badge.unknown { color:#969eaa; border-color:#49505a; background:#ffffff06; }
+  .badge.normal { color:var(--c-8fc8ee, #8fc8ee); border-color:var(--c-31526b, #31526b); background: #61afef10; }
+  .badge.watch { color:var(--amber); border-color:#665933; background: #e5c07b10; }
+  .badge.fragile { color:var(--c-efa36f, #efa36f); border-color:#70472f; background: #d9824b12; }
+  .badge.unwind { color:var(--c-f0909a, #f0909a); border-color:#713d45; background: #e06c7514; }
+  .badge.unknown { color:var(--c-969eaa, #969eaa); border-color:var(--c-49505a, #49505a); background: #ffffff06; }
   .conclusion {
     margin-top:12px; padding:11px 13px; border-left:3px solid var(--blue);
-    border-radius:0 7px 7px 0; background:#61afef0b; color:#cbd2da;
+    border-radius:0 7px 7px 0; background: #61afef0b; color:var(--c-cbd2da, #cbd2da);
     font-size:.82em; line-height:1.65;
   }
   .meta-grid {
     display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px;
     margin-top:11px;
   }
-  .meta-item { padding:8px 10px; border-radius:7px; background:#1a1d23; min-width:0; }
+  .meta-item { padding:8px 10px; border-radius:7px; background: var(--c-1a1d23, #1a1d23); min-width:0; }
   .meta-label { color:#67707d; font-size:.65em; }
   .meta-value {
-    margin-top:3px; color:#b8c0ca; font-size:.76em; white-space:nowrap;
+    margin-top:3px; color:var(--c-b8c0ca, #b8c0ca); font-size:.76em; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis;
   }
   .evidence-strip {
@@ -97,13 +98,13 @@
     margin-top:9px; color:#6f7885; font-size:.65em;
   }
   .evidence-chip {
-    padding:3px 7px; border:1px solid #39414c; border-radius:999px;
-    background:#181b20; color:#9099a6;
+    padding:3px 7px; border:1px solid var(--c-39414c, #39414c); border-radius:999px;
+    background: var(--c-181b20, #181b20); color:var(--c-9099a6, #9099a6);
   }
-  .evidence-chip.ok { color:#91c7a6; border-color:#355746; }
-  .evidence-chip.partial { color:#e5c07b; border-color:#665933; }
+  .evidence-chip.ok { color:var(--c-91c7a6, #91c7a6); border-color:#355746; }
+  .evidence-chip.partial { color:var(--c-e5c07b, #e5c07b); border-color:#665933; }
   .evidence-chip.unavailable, .evidence-chip.unsupported {
-    color:#7f8792; border-color:#3b4149;
+    color:#7f8792; border-color:var(--c-3b4149, #3b4149);
   }
 
   .metric-grid {
@@ -111,18 +112,46 @@
   }
   .metric-card {
     padding:10px 10px 8px; border:1px solid var(--border);
-    border-radius:8px; background:#1a1d23; min-width:0;
+    border-radius:8px; background: var(--c-1a1d23, #1a1d23); min-width:0;
   }
   .metric-head { display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
-  .metric-name { color:#9aa3af; font-size:.69em; }
+  .metric-name { color:var(--c-9aa3af, #9aa3af); font-size:.69em; }
   .metric-now { color:var(--strong); font:700 .9em "SF Mono","Menlo",monospace; }
   .metric-sub { min-height:1.3em; color:#68717e; font-size:.62em; margin-top:2px; }
   .metric-card svg { display:block; width:100%; height:84px; margin-top:3px; }
   svg text { font-family:"SF Mono","Menlo","Consolas",monospace; }
 
   .analysis-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr); gap:16px; }
-  .matrix-wrap { position:relative; }
-  #riskMatrix { display:block; width:100%; height:390px; }
+  .matrix-panel { min-width:0; }
+  .matrix-toolbar {
+    display:flex; align-items:center; gap:5px; margin-left:auto;
+  }
+  .matrix-tool {
+    min-width:30px; height:28px; padding:3px 8px; cursor:pointer;
+    color:var(--text); border:1px solid var(--border); border-radius:6px;
+    background:var(--c-1a1d23, #1a1d23); font-size:.72em; white-space:nowrap;
+  }
+  .matrix-tool:hover:not(:disabled) { color:var(--strong); border-color:var(--blue); }
+  .matrix-tool:disabled { opacity:.42; cursor:default; }
+  .matrix-zoom-level {
+    min-width:42px; color:var(--c-9aa7b8, #9aa7b8); text-align:center;
+    font:.68em "SF Mono","Menlo",monospace;
+  }
+  .matrix-wrap { position:relative; overflow:hidden; border-radius:7px; }
+  #riskMatrix {
+    display:block; width:100%; height:390px; touch-action:none;
+    user-select:none; -webkit-user-select:none;
+  }
+  .matrix-wrap.zoomed #riskMatrix { cursor:grab; }
+  .matrix-wrap.panning #riskMatrix { cursor:grabbing; }
+  .matrix-panel.matrix-expanded {
+    position:fixed; inset:12px; z-index:1000; margin:0; padding:16px 18px;
+    display:flex; flex-direction:column; overflow:hidden;
+    background:var(--panel); box-shadow:0 18px 70px #000b;
+  }
+  .matrix-panel.matrix-expanded .matrix-wrap { flex:1; min-height:0; }
+  .matrix-panel.matrix-expanded #riskMatrix { height:100%; min-height:440px; }
+  body.matrix-modal-open { overflow:hidden; }
   .matrix-legend {
     display:flex; gap:11px; flex-wrap:wrap; margin-top:4px;
     color:#7e8794; font-size:.67em;
@@ -132,26 +161,26 @@
     border-radius:50%; vertical-align:-1px;
   }
   .hover-line {
-    min-height:1.4em; margin-top:7px; color:#d1d5db;
+    min-height:1.4em; margin-top:7px; color:var(--c-d1d5db, #d1d5db);
     font:.72em "SF Mono","Menlo","Consolas",monospace;
   }
   .source-list { display:grid; gap:7px; }
   .source-row {
     width:100%; padding:7px 8px; color:inherit; text-align:left; cursor:pointer;
-    border:1px solid transparent; border-radius:7px; background:#1a1d23;
+    border:1px solid transparent; border-radius:7px; background: var(--c-1a1d23, #1a1d23);
   }
-  .source-row:hover, .source-row.active { border-color:#4a5565; background:#202630; }
+  .source-row:hover, .source-row.active { border-color:var(--c-4a5565, #4a5565); background: var(--c-202630, #202630); }
   .source-line { display:flex; align-items:center; gap:8px; }
   .source-name { width:76px; color:var(--strong); font-size:.74em; overflow:hidden; text-overflow:ellipsis; }
-  .source-track { flex:1; height:8px; overflow:hidden; border-radius:4px; background:#292e37; }
+  .source-track { flex:1; height:8px; overflow:hidden; border-radius:4px; background: var(--c-292e37, #292e37); }
   .source-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#567ea4,#8db7d7); }
-  .source-num { width:50px; text-align:right; color:#bac2cc; font:.69em "SF Mono","Menlo",monospace; }
+  .source-num { width:50px; text-align:right; color:var(--c-bac2cc, #bac2cc); font:.69em "SF Mono","Menlo",monospace; }
   .source-sub { margin:4px 0 0 84px; color:#69727f; font-size:.62em; }
   .source-foot { margin-top:8px; color:#68717e; font-size:.67em; line-height:1.5; }
 
   .detail {
-    display:none; margin-top:12px; padding:12px; border:1px solid #3a4350;
-    border-radius:8px; background:#1b1f26;
+    display:none; margin-top:12px; padding:12px; border:1px solid var(--c-3a4350, #3a4350);
+    border-radius:8px; background: var(--c-1b1f26, #1b1f26);
   }
   .detail.visible { display:block; }
   .detail-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -161,50 +190,52 @@
     gap:14px; margin-top:9px;
   }
   .detail-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
-  .fact { padding:7px 8px; border-radius:6px; background:#21262e; }
+  .fact { padding:7px 8px; border-radius:6px; background: var(--c-21262e, #21262e); }
   .fact span { display:block; color:#69727f; font-size:.62em; }
-  .fact strong { display:block; margin-top:3px; color:#c2c9d2; font-size:.73em; font-weight:600; }
-  .detail-reason { margin-top:8px; color:#aab2bd; font-size:.73em; line-height:1.55; }
+  .fact strong { display:block; margin-top:3px; color:var(--c-c2c9d2, #c2c9d2); font-size:.73em; font-weight:600; }
+  .detail-reason { margin-top:8px; color:var(--c-aab2bd, #aab2bd); font-size:.73em; line-height:1.55; }
   #detailChart { display:block; width:100%; height:150px; }
-  .driver-list { margin:7px 0 0; padding-left:18px; color:#8993a0; font-size:.69em; line-height:1.6; }
+  .driver-list { margin:7px 0 0; padding-left:18px; color:var(--c-8993a0, #8993a0); font-size:.69em; line-height:1.6; }
+  .stock-link { color:var(--c-b8c6d8, #b8c6d8); text-decoration:none; }
+  .stock-link:hover,.stock-link:focus-visible { color:var(--accent); text-decoration:underline; }
 
   .toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
   .toolbar input, .toolbar select {
     height:30px; padding:4px 8px; color:var(--text); border:1px solid var(--border);
-    border-radius:5px; background:#1a1d23; font-size:.72em;
+    border-radius:5px; background: var(--c-1a1d23, #1a1d23); font-size:.72em;
   }
   .toolbar input { width:150px; }
   .table-scroll { max-height:62vh; overflow:auto; }
   table { width:100%; border-collapse:collapse; font-size:.73em; }
   th {
-    position:sticky; top:0; z-index:1; padding:7px 6px; color:#858e9b;
-    border-bottom:2px solid var(--border); background:var(--panel);
+    position:sticky; top:0; z-index:1; padding:7px 6px; color:var(--c-858e9b, #858e9b);
+    border-bottom:2px solid var(--border); background: var(--panel);
     text-align:right; white-space:nowrap;
   }
   th:first-child, td:first-child, th:last-child, td:last-child { text-align:left; }
   td {
-    padding:7px 6px; border-bottom:1px solid #292e37; text-align:right;
+    padding:7px 6px; border-bottom:1px solid var(--c-292e37, #292e37); text-align:right;
     white-space:nowrap; vertical-align:middle;
   }
   tbody tr { cursor:pointer; }
-  tbody tr:hover td, tbody tr.selected td { background:#252b34; }
+  tbody tr:hover td, tbody tr.selected td { background: var(--c-252b34, #252b34); }
   .industry-name { color:var(--strong); font-weight:650; }
   .muted { color:#6d7683; }
   .reason-cell {
-    max-width:260px; overflow:hidden; color:#8f98a5;
+    max-width:260px; overflow:hidden; color:var(--c-8f98a5, #8f98a5);
     text-overflow:ellipsis; white-space:nowrap;
   }
-  .bar-inline { display:inline-block; width:44px; height:6px; margin-right:5px; background:#2c323b; border-radius:3px; vertical-align:1px; }
-  .bar-inline i { display:block; height:100%; border-radius:3px; background:#7899b6; }
-  .direction-up { color:#d9b96b; }
-  .direction-down { color:#81b5d8; }
+  .bar-inline { display:inline-block; width:44px; height:6px; margin-right:5px; background: var(--c-2c323b, #2c323b); border-radius:3px; vertical-align:1px; }
+  .bar-inline i { display:block; height:100%; border-radius:3px; background: #7899b6; }
+  .direction-up { color:var(--c-d9b96b, #d9b96b); }
+  .direction-down { color:var(--c-81b5d8, #81b5d8); }
   .empty { padding:22px; color:#707987; text-align:center; }
   .error {
-    display:none; margin-bottom:14px; padding:18px; color:#e58a94;
-    border:1px solid #603841; border-radius:8px; background:#e06c750a; text-align:center;
+    display:none; margin-bottom:14px; padding:18px; color:var(--c-e58a94, #e58a94);
+    border:1px solid #603841; border-radius:8px; background: #e06c750a; text-align:center;
   }
   .method { color:#7c8592; font-size:.72em; line-height:1.65; }
-  .method summary { cursor:pointer; color:#aab4c0; font-weight:650; }
+  .method summary { cursor:pointer; color:var(--c-aab4c0, #aab4c0); font-weight:650; }
   .method ul { margin:8px 0 0; padding-left:20px; }
   .update { margin-top:12px; color:#59616d; font-size:.67em; text-align:center; }
 
@@ -221,6 +252,8 @@
     .metric-grid { grid-template-columns:1fr; }
     .toolbar { width:100%; }
     .toolbar input { flex:1; min-width:120px; }
+    .matrix-toolbar { width:100%; margin-left:0; }
+    .matrix-panel.matrix-expanded { inset:5px; padding:11px; }
   }
 </style>
 </head>
@@ -235,7 +268,7 @@
       </select>
     </h1>
     <div class="sub">先识别成交集中，再用价格、宽度、内部集中与流动性确认退出危险</div>
-    <button class="refresh-btn" id="refreshBtn" type="button">🔄 刷新数据</button>
+    <button class="refresh-btn" id="refreshBtn" type="button" title="只重新读取已生成的数据,不更新;更新数据请用右上角状态条">↻ 重新加载</button>
   </header>
 
   <div class="proxy-note">
@@ -286,13 +319,20 @@
   </section>
 
   <div class="analysis-grid">
-    <section class="panel" aria-labelledby="matrixTitle">
+    <section class="panel matrix-panel" id="matrixPanel" aria-labelledby="matrixTitle">
       <div class="section-title" id="matrixTitle">
         行业风险矩阵
-        <span class="hint">横轴为当日市场影响排名，纵轴为行业自身历史异常度</span>
+        <span class="hint">横轴为市场影响，纵轴为自身异常；滚轮或 ＋/− 缩放，放大后拖动画布</span>
+        <div class="matrix-toolbar" role="group" aria-label="风险矩阵缩放工具">
+          <button class="matrix-tool" id="matrixZoomOut" type="button" aria-label="缩小风险矩阵" title="缩小">−</button>
+          <output class="matrix-zoom-level" id="matrixZoomLevel" aria-live="polite">100%</output>
+          <button class="matrix-tool" id="matrixZoomIn" type="button" aria-label="放大风险矩阵" title="放大">＋</button>
+          <button class="matrix-tool" id="matrixReset" type="button" disabled>复位</button>
+          <button class="matrix-tool" id="matrixExpand" type="button" aria-pressed="false">⛶ 放大查看</button>
+        </div>
       </div>
       <div class="matrix-wrap">
-        <svg id="riskMatrix" role="img" aria-label="行业市场影响和历史异常度矩阵"></svg>
+        <svg id="riskMatrix" tabindex="0" role="img" aria-label="行业市场影响和历史异常度矩阵；支持滚轮缩放和拖拽平移"></svg>
       </div>
       <div class="matrix-legend">
         <span><i style="background:#61afef"></i>普通</span>
@@ -302,7 +342,7 @@
         <span><i style="background:#737b88"></i>未评估</span>
         <span>气泡越大 = 行业内 Top5 成交越集中；空心 = 未提供</span>
       </div>
-      <div class="hover-line" id="matrixHover">移动鼠标查看行业证据，点击查看详情</div>
+      <div class="hover-line" id="matrixHover">移动鼠标查看行业证据；滚轮缩放，放大后拖动，点击气泡查看详情</div>
     </section>
 
     <section class="panel" aria-labelledby="sourceTitle">
@@ -388,7 +428,7 @@
         <li>北向逐股日频披露已停止，不参与评分；ETF、基金季报与五档盘口均显示各自数据日期和局限。</li>
         <li>同花顺缺失分类时回退申万一级；申万三级缺失时依次回退二级、一级。三套口径分别计算历史分位与 HHI，不能横向混用排名。</li>
         <li>行业之间不能只比较自身历史分位，还需同时查看市场影响、HHI 贡献和绝对成交占比。</li>
-        <li>页面刷新只检查接口中已生成的数据，不代表后台每分钟重新计算市场拥挤。</li>
+        <li>“重新加载”只重读接口中已生成的数据;要拉取最新行情请用右上角状态条的“更新数据”。</li>
       </ul>
     </details>
   </section>
@@ -404,6 +444,27 @@ let METRIC_SERIES = {};
 let SELECTED_INDUSTRY = null;
 let RENDERED = false;
 let CURRENT_SCHEME = 'sw';
+const MATRIX_MIN_SPAN = 10;
+const MATRIX_VIEW = {minX:0, maxX:100, minY:0, maxY:100};
+let MATRIX_PLOT = null;
+let MATRIX_DRAG = null;
+let MATRIX_RENDER_FRAME = null;
+// URL 恢复视图状态(主题切换等整页重载后保持)
+function syncSchemeUrl(scheme) {
+  try {
+    const p = new URLSearchParams(location.search);
+    p.set('scheme', scheme);
+    history.replaceState(null, '', '?' + p.toString());
+  } catch (e) {}
+}
+(function restoreSchemeFromUrl() {
+  const s = new URLSearchParams(location.search).get('scheme');
+  if (['sw', 'ths', 'sw3'].includes(s)) {
+    CURRENT_SCHEME = s;
+    const sel = document.getElementById('schemeSelect');
+    if (sel) sel.value = s;
+  }
+})();
 let LOAD_GENERATION = 0;
 let SCHEME_SWITCHING = false;
 
@@ -457,6 +518,11 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   })[char]);
+}
+function stockLink(code, content, name) {
+  const safeCode = String(code ?? '').trim();
+  if (!/^\d{6}$/.test(safeCode)) return content || '—';
+  return `<a class="stock-link" href="https://stockpage.10jqka.com.cn/${safeCode}/" target="_blank" rel="noopener noreferrer" title="在同花顺打开${escapeHtml(name || safeCode)}">${content || escapeHtml(safeCode)}</a>`;
 }
 function percentValue(value) {
   const n = number(value);
@@ -886,52 +952,247 @@ function drawMiniChart(metric) {
 }
 
 function riskColor(state) { return (STATE_META[state] || STATE_META.unknown).color; }
+function matrixSpan(axis) {
+  return axis === 'x'
+    ? MATRIX_VIEW.maxX - MATRIX_VIEW.minX
+    : MATRIX_VIEW.maxY - MATRIX_VIEW.minY;
+}
+function matrixZoomPercent() {
+  return Math.round(10000 / Math.max(matrixSpan('x'), matrixSpan('y')));
+}
+function matrixIsZoomed() {
+  return matrixSpan('x') < 99.99 || matrixSpan('y') < 99.99;
+}
+function constrainMatrixRange(minimum, maximum) {
+  let span = clamp(maximum - minimum, MATRIX_MIN_SPAN, 100);
+  let center = (minimum + maximum) / 2;
+  let start = center - span / 2;
+  let end = center + span / 2;
+  if (start < 0) { end -= start; start = 0; }
+  if (end > 100) { start -= end - 100; end = 100; }
+  return [clamp(start, 0, 100 - span), clamp(end, span, 100)];
+}
+function updateMatrixControls() {
+  const zoomed = matrixIsZoomed();
+  const level = document.getElementById('matrixZoomLevel');
+  const zoomOut = document.getElementById('matrixZoomOut');
+  const zoomIn = document.getElementById('matrixZoomIn');
+  const reset = document.getElementById('matrixReset');
+  const expand = document.getElementById('matrixExpand');
+  const panel = document.getElementById('matrixPanel');
+  const wrap = panel && panel.querySelector('.matrix-wrap');
+  if (level) level.textContent = `${matrixZoomPercent()}%`;
+  if (zoomOut) zoomOut.disabled = !zoomed;
+  if (zoomIn) zoomIn.disabled = matrixSpan('x') <= MATRIX_MIN_SPAN + .01;
+  if (reset) reset.disabled = !zoomed;
+  if (wrap) wrap.classList.toggle('zoomed', zoomed);
+  if (expand && panel) {
+    const expanded = panel.classList.contains('matrix-expanded');
+    expand.textContent = expanded ? '↙ 返回' : '⛶ 放大查看';
+    expand.setAttribute('aria-pressed', String(expanded));
+  }
+}
+function scheduleMatrixRender() {
+  if (MATRIX_RENDER_FRAME !== null) return;
+  const schedule = window.requestAnimationFrame || (callback => setTimeout(callback, 16));
+  MATRIX_RENDER_FRAME = schedule(() => {
+    MATRIX_RENDER_FRAME = null;
+    if (DATA) renderMatrix();
+  });
+}
+function setMatrixView(minX, maxX, minY, maxY, shouldRender=true) {
+  const xRange = constrainMatrixRange(minX, maxX);
+  const yRange = constrainMatrixRange(minY, maxY);
+  MATRIX_VIEW.minX = xRange[0]; MATRIX_VIEW.maxX = xRange[1];
+  MATRIX_VIEW.minY = yRange[0]; MATRIX_VIEW.maxY = yRange[1];
+  updateMatrixControls();
+  if (shouldRender) scheduleMatrixRender();
+}
+function resetMatrixView(shouldRender=true) {
+  setMatrixView(0, 100, 0, 100, shouldRender);
+}
+function zoomMatrixAt(factor, centerX, centerY) {
+  const spanX = matrixSpan('x'), spanY = matrixSpan('y');
+  const nextSpanX = clamp(spanX * factor, MATRIX_MIN_SPAN, 100);
+  const nextSpanY = clamp(spanY * factor, MATRIX_MIN_SPAN, 100);
+  const anchorX = clamp(number(centerX) ?? (MATRIX_VIEW.minX + spanX / 2), MATRIX_VIEW.minX, MATRIX_VIEW.maxX);
+  const anchorY = clamp(number(centerY) ?? (MATRIX_VIEW.minY + spanY / 2), MATRIX_VIEW.minY, MATRIX_VIEW.maxY);
+  const ratioX = spanX ? (anchorX - MATRIX_VIEW.minX) / spanX : .5;
+  const ratioY = spanY ? (anchorY - MATRIX_VIEW.minY) / spanY : .5;
+  setMatrixView(
+    anchorX - ratioX * nextSpanX,
+    anchorX + (1 - ratioX) * nextSpanX,
+    anchorY - ratioY * nextSpanY,
+    anchorY + (1 - ratioY) * nextSpanY
+  );
+}
+function matrixDomainAt(clientX, clientY) {
+  const svg = document.getElementById('riskMatrix');
+  if (!svg || !MATRIX_PLOT) return null;
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const svgX = (clientX - rect.left) * MATRIX_PLOT.W / rect.width;
+  const svgY = (clientY - rect.top) * MATRIX_PLOT.H / rect.height;
+  const xRatio = clamp((svgX - MATRIX_PLOT.L) / MATRIX_PLOT.plotWidth, 0, 1);
+  const yRatio = clamp((svgY - MATRIX_PLOT.T) / MATRIX_PLOT.plotHeight, 0, 1);
+  return {
+    x:MATRIX_VIEW.minX + xRatio * matrixSpan('x'),
+    y:MATRIX_VIEW.maxY - yRatio * matrixSpan('y'),
+  };
+}
+function toggleMatrixExpanded(force) {
+  const panel = document.getElementById('matrixPanel');
+  if (!panel) return;
+  const expanded = force === undefined
+    ? !panel.classList.contains('matrix-expanded')
+    : Boolean(force);
+  panel.classList.toggle('matrix-expanded', expanded);
+  document.body.classList.toggle('matrix-modal-open', expanded);
+  updateMatrixControls();
+  scheduleMatrixRender();
+}
+function bindMatrixInteractions() {
+  const svg = document.getElementById('riskMatrix');
+  const panel = document.getElementById('matrixPanel');
+  const wrap = panel.querySelector('.matrix-wrap');
+  document.getElementById('matrixZoomIn').addEventListener('click', () => zoomMatrixAt(.78));
+  document.getElementById('matrixZoomOut').addEventListener('click', () => zoomMatrixAt(1.28));
+  document.getElementById('matrixReset').addEventListener('click', () => resetMatrixView());
+  document.getElementById('matrixExpand').addEventListener('click', () => toggleMatrixExpanded());
+  svg.addEventListener('wheel', event => {
+    if (!DATA) return;
+    event.preventDefault();
+    const point = matrixDomainAt(event.clientX, event.clientY);
+    zoomMatrixAt(event.deltaY < 0 ? .82 : 1.22, point && point.x, point && point.y);
+  }, {passive:false});
+  svg.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || !matrixIsZoomed()) return;
+    if (event.target.closest && event.target.closest('[data-matrix-industry]')) return;
+    const rect = svg.getBoundingClientRect();
+    if (!MATRIX_PLOT || !rect.width || !rect.height) return;
+    MATRIX_DRAG = {
+      pointerId:event.pointerId, startX:event.clientX, startY:event.clientY,
+      minX:MATRIX_VIEW.minX, maxX:MATRIX_VIEW.maxX,
+      minY:MATRIX_VIEW.minY, maxY:MATRIX_VIEW.maxY,
+      plotWidth:rect.width * MATRIX_PLOT.plotWidth / MATRIX_PLOT.W,
+      plotHeight:rect.height * MATRIX_PLOT.plotHeight / MATRIX_PLOT.H,
+    };
+    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+    wrap.classList.add('panning');
+  });
+  svg.addEventListener('pointermove', event => {
+    if (!MATRIX_DRAG || event.pointerId !== MATRIX_DRAG.pointerId) return;
+    const dx = (event.clientX - MATRIX_DRAG.startX) / Math.max(MATRIX_DRAG.plotWidth, 1) * (MATRIX_DRAG.maxX - MATRIX_DRAG.minX);
+    const dy = (event.clientY - MATRIX_DRAG.startY) / Math.max(MATRIX_DRAG.plotHeight, 1) * (MATRIX_DRAG.maxY - MATRIX_DRAG.minY);
+    setMatrixView(
+      MATRIX_DRAG.minX - dx, MATRIX_DRAG.maxX - dx,
+      MATRIX_DRAG.minY + dy, MATRIX_DRAG.maxY + dy
+    );
+  });
+  const finishPan = event => {
+    if (!MATRIX_DRAG || (event.pointerId !== undefined && event.pointerId !== MATRIX_DRAG.pointerId)) return;
+    if (svg.releasePointerCapture && svg.hasPointerCapture && svg.hasPointerCapture(MATRIX_DRAG.pointerId)) {
+      svg.releasePointerCapture(MATRIX_DRAG.pointerId);
+    }
+    MATRIX_DRAG = null;
+    wrap.classList.remove('panning');
+  };
+  svg.addEventListener('pointerup', finishPan);
+  svg.addEventListener('pointercancel', finishPan);
+  svg.addEventListener('mouseleave', () => {
+    document.getElementById('matrixHover').textContent =
+      '移动鼠标查看行业证据；滚轮缩放，放大后拖动，点击气泡查看详情';
+  });
+  svg.addEventListener('keydown', event => {
+    if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomMatrixAt(.78); }
+    else if (event.key === '-') { event.preventDefault(); zoomMatrixAt(1.28); }
+    else if (event.key === '0') { event.preventDefault(); resetMatrixView(); }
+    else if (event.key === 'Escape' && panel.classList.contains('matrix-expanded')) {
+      event.preventDefault(); toggleMatrixExpanded(false);
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && panel.classList.contains('matrix-expanded')) toggleMatrixExpanded(false);
+  });
+  updateMatrixControls();
+}
+function matrixTickLabel(value) {
+  return matrixSpan('x') < 25 ? value.toFixed(1) : value.toFixed(0);
+}
 function renderMatrix() {
   const svg = document.getElementById('riskMatrix');
   svg.innerHTML = '';
-  const W = svg.clientWidth || 760, H = 390, L = 46, R = 18, T = 18, B = 40;
+  const W = svg.clientWidth || 760, H = svg.clientHeight || 390, L = 46, R = 18, T = 18, B = 40;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  const x = value => L + (W - L - R) * clamp(value || 0, 0, 100) / 100;
-  const y = value => T + (H - T - B) * (1 - clamp(value || 0, 0, 100) / 100);
-  el('rect', {x:x(80), y:y(100), width:x(100)-x(80), height:y(80)-y(100), fill:'#e5c07b08'}, svg);
-  for (let value = 0; value <= 100; value += 20) {
-    el('line', {x1:L, x2:W-R, y1:y(value), y2:y(value), stroke:'#2d333d', 'stroke-width':.7}, svg);
-    el('line', {x1:x(value), x2:x(value), y1:T, y2:H-B, stroke:'#2d333d', 'stroke-width':.7}, svg);
-    svgText(svg, 13, y(value)+3, value, {});
-    svgText(svg, x(value)-6, H-20, value, {});
+  const plotWidth = W - L - R, plotHeight = H - T - B;
+  MATRIX_PLOT = {W,H,L,R,T,B,plotWidth,plotHeight};
+  const x = value => L + plotWidth * (Number(value) - MATRIX_VIEW.minX) / matrixSpan('x');
+  const y = value => T + plotHeight * (MATRIX_VIEW.maxY - Number(value)) / matrixSpan('y');
+  const defs = el('defs', {}, svg);
+  const clip = el('clipPath', {id:'risk-matrix-clip'}, defs);
+  el('rect', {x:L, y:T, width:plotWidth, height:plotHeight}, clip);
+  const plotBackground = el('g', {'clip-path':'url(#risk-matrix-clip)'}, svg);
+  el('rect', {x:x(80), y:y(100), width:x(100)-x(80), height:y(80)-y(100), fill:'#e5c07b08'}, plotBackground);
+  for (let index = 0; index <= 5; index += 1) {
+    const xValue = MATRIX_VIEW.minX + matrixSpan('x') * index / 5;
+    const yValue = MATRIX_VIEW.minY + matrixSpan('y') * index / 5;
+    el('line', {x1:L, x2:W-R, y1:y(yValue), y2:y(yValue), stroke:'#2d333d', 'stroke-width':.7}, svg);
+    el('line', {x1:x(xValue), x2:x(xValue), y1:T, y2:H-B, stroke:'#2d333d', 'stroke-width':.7}, svg);
+    svgText(svg, 8, y(yValue)+3, matrixTickLabel(yValue), {'text-anchor':'start'});
+    svgText(svg, x(xValue), H-20, matrixTickLabel(xValue), {'text-anchor':'middle'});
   }
-  el('line', {x1:L, x2:W-R, y1:y(80), y2:y(80), stroke:'#75673e', 'stroke-dasharray':'4 4'}, svg);
-  el('line', {x1:x(80), x2:x(80), y1:T, y2:H-B, stroke:'#4a5563', 'stroke-dasharray':'4 4'}, svg);
+  if (MATRIX_VIEW.minY <= 80 && MATRIX_VIEW.maxY >= 80) {
+    el('line', {x1:L, x2:W-R, y1:y(80), y2:y(80), stroke:'#75673e', 'stroke-dasharray':'4 4'}, svg);
+  }
+  if (MATRIX_VIEW.minX <= 80 && MATRIX_VIEW.maxX >= 80) {
+    el('line', {x1:x(80), x2:x(80), y1:T, y2:H-B, stroke:'#4a5563', 'stroke-dasharray':'4 4'}, svg);
+  }
   svgText(svg, (L+W-R)/2, H-4, '市场影响相对排名（当日）', {'text-anchor':'middle', fill:'#8a93a0'});
   const yLabel = svgText(svg, 11, (T+H-B)/2, '自身历史异常度', {'text-anchor':'middle', fill:'#8a93a0'});
   yLabel.setAttribute('transform', `rotate(-90 11 ${(T+H-B)/2})`);
   svgText(svg, W-R-4, T+12, '系统影响高 / 自身异常高', {'text-anchor':'end', fill:'#8c805c', 'font-size':9});
+  const pointsLayer = el('g', {'clip-path':'url(#risk-matrix-clip)'}, svg);
 
-  INDUSTRIES.forEach(industry => {
-    if (industry.impactScore === null || industry.pctile === null) return;
+  const points = INDUSTRIES.filter(industry =>
+    industry.impactScore !== null && industry.pctile !== null &&
+    industry.impactScore >= MATRIX_VIEW.minX && industry.impactScore <= MATRIX_VIEW.maxX &&
+    industry.pctile >= MATRIX_VIEW.minY && industry.pctile <= MATRIX_VIEW.maxY
+  ).map(industry => {
     const hasInternal = industry.internalTop5 !== null;
     const radius = hasInternal ? clamp(5 + Math.sqrt(Math.max(industry.internalTop5, 0)) * 1.25, 6, 18) : 6;
-    const circle = el('circle', {
+    return {industry, hasInternal, radius};
+  }).sort((a,b) => {
+    if (a.industry.name === SELECTED_INDUSTRY) return 1;
+    if (b.industry.name === SELECTED_INDUSTRY) return -1;
+    return b.radius - a.radius;
+  });
+  points.forEach(({industry, hasInternal, radius}) => {
+    const group = el('g', {
+      'data-matrix-industry':industry.name, tabindex:0, role:'button',
+      'aria-label':`${industry.name}，市场影响${industry.impactScore.toFixed(0)}，自身异常${industry.pctile.toFixed(0)}`
+    }, pointsLayer);
+    el('circle', {
       cx:x(industry.impactScore), cy:y(industry.pctile), r:radius,
       fill:hasInternal ? riskColor(industry.risk) : '#1a1d23',
       'fill-opacity':hasInternal ? .78 : 1,
       stroke:riskColor(industry.risk), 'stroke-width':industry.name === SELECTED_INDUSTRY ? 2.5 : 1.3,
-      'stroke-dasharray':hasInternal ? '' : '3 2', tabindex:0, role:'button',
-      'aria-label':`${industry.name}，市场影响${industry.impactScore.toFixed(0)}，自身异常${industry.pctile.toFixed(0)}`
-    }, svg);
+      'stroke-dasharray':hasInternal ? '' : '3 2', 'pointer-events':'none'
+    }, group);
+    el('circle', {
+      cx:x(industry.impactScore), cy:y(industry.pctile), r:Math.max(radius + 5, 12),
+      fill:'transparent', stroke:'none', 'pointer-events':'all', cursor:'pointer'
+    }, group);
     const description = `${industry.name} · 市场占比 ${fmtPct(industry.share,2)} · 自身异常 ${industry.pctile.toFixed(0)}分位 · ${STATE_META[industry.risk].label}`;
-    circle.addEventListener('mouseenter', () => { document.getElementById('matrixHover').textContent = description; });
-    circle.addEventListener('focus', () => { document.getElementById('matrixHover').textContent = description; });
-    circle.addEventListener('click', () => selectIndustry(industry.name));
-    circle.addEventListener('keydown', event => {
+    group.addEventListener('mouseenter', () => { document.getElementById('matrixHover').textContent = description; });
+    group.addEventListener('focus', () => { document.getElementById('matrixHover').textContent = description; });
+    group.addEventListener('click', event => { event.stopPropagation(); selectIndustry(industry.name); });
+    group.addEventListener('keydown', event => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectIndustry(industry.name); }
     });
-    const title = el('title', {}, circle);
+    const title = el('title', {}, group);
     title.textContent = description;
   });
-  svg.addEventListener('mouseleave', () => {
-    document.getElementById('matrixHover').textContent = '移动鼠标查看行业证据，点击查看详情';
-  });
+  updateMatrixControls();
 }
 
 function renderSources() {
@@ -1068,9 +1329,14 @@ function selectIndustry(name) {
     `<div class="fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
   document.getElementById('detailReason').textContent = `判断依据：${reasonText(industry)}`;
   const driverList = document.getElementById('driverList');
-  const drivers = industry.topStocks.map(driverLabel).filter(Boolean).slice(0,5);
+  const drivers = industry.topStocks.slice(0,5).map(driver => {
+    const label = driverLabel(driver);
+    if (!label) return '';
+    const code = driver && typeof driver === 'object' ? firstValue(driver.code, driver.stock_code) : null;
+    return stockLink(code, escapeHtml(label), label);
+  }).filter(Boolean);
   driverList.innerHTML = drivers.length
-    ? drivers.map(item => `<li>${escapeHtml(item)}</li>`).join('')
+    ? drivers.map(item => `<li>${item}</li>`).join('')
     : '<li>行业内部个股来源未提供；不能据此判断是否依赖少数股票。</li>';
   renderSources();
   renderTable();
@@ -1113,7 +1379,7 @@ function showError(message) {
   if (!message) { node.style.display = 'none'; node.textContent = ''; return; }
   node.style.display = 'block';
   node.textContent = RENDERED
-    ? `刷新失败：${message}。页面保留上一次成功数据。`
+    ? `加载失败：${message}。页面保留上一次成功数据。`
     : `无法加载拥挤数据：${message}。请先在设置中运行数据更新。`;
 }
 function renderAll() {
@@ -1165,15 +1431,24 @@ async function load() {
 async function switchScheme(nextScheme) {
   if (!SCHEME_META[nextScheme] || nextScheme === CURRENT_SCHEME) return;
   const previousScheme = CURRENT_SCHEME;
+  const previousMatrixView = {...MATRIX_VIEW};
   const select = document.getElementById('schemeSelect');
   const refresh = document.getElementById('refreshBtn');
   CURRENT_SCHEME = nextScheme;
+  resetMatrixView(false);
+  syncSchemeUrl(nextScheme);
   SCHEME_SWITCHING = true;
   select.disabled = true;
   refresh.disabled = true;
   const success = await load();
   if (!success) {
     CURRENT_SCHEME = previousScheme;
+    setMatrixView(
+      previousMatrixView.minX, previousMatrixView.maxX,
+      previousMatrixView.minY, previousMatrixView.maxY,
+      false
+    );
+    syncSchemeUrl(previousScheme);
     select.value = previousScheme;
   }
   select.disabled = false;
@@ -1187,7 +1462,7 @@ document.getElementById('refreshBtn').addEventListener('click', async () => {
   button.textContent = '⏳ 检查中';
   await load();
   button.disabled = false;
-  button.textContent = '🔄 刷新数据';
+  button.textContent = '↻ 重新加载';
 });
 document.getElementById('industrySearch').addEventListener('input', renderTable);
 document.getElementById('stateFilter').addEventListener('change', renderTable);
@@ -1205,11 +1480,13 @@ window.addEventListener('resize', () => {
   }
 });
 
+bindMatrixInteractions();
 load();
 setInterval(() => {
-  if (!SCHEME_SWITCHING) load();
+  if (!document.hidden && !SCHEME_SWITCHING) load();
 }, 60000);
 </script>
 <script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
 </body>
 </html>

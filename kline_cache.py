@@ -10,6 +10,7 @@ import json
 import os
 import pickle
 import re
+import threading
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -241,10 +242,15 @@ def fetch_spot(codes, target_date_str):
 # ======================================================================
 
 class KlineCache:
+    # 进程内所有实例共享:ensure/ensure_dates 可能由刷新管线、自定义热力图、
+    # 盘中扫描等不同线程同时触发
+    _LOCK = threading.RLock()
+
     def __init__(self, cache_file=CACHE_FILE, force_refresh=False):
         self.cache_file = cache_file
         self.force_refresh = force_refresh
         self._cache = None
+        self._loaded_mtime = 0.0
 
     def _load(self):
         if self._cache is not None:
@@ -253,6 +259,7 @@ class KlineCache:
             try:
                 with open(self.cache_file, "rb") as f:
                     self._cache = pickle.load(f)
+                self._loaded_mtime = os.path.getmtime(self.cache_file)
                 if self._cache.get("version") != 2:
                     print("[cache] 缓存版本不兼容，重建")
                     self._cache = None
@@ -313,12 +320,49 @@ class KlineCache:
         print(f"[cache] 已修复成交量放大日期: {', '.join(sorted(bad_dates))}")
         return sorted(bad_dates)
 
+    def _merge_disk_into_memory(self):
+        """其他实例/进程在我们加载后写入了缓存时,把磁盘增量并进来,
+        避免 last-writer-wins 回退别人的新数据。冲突行以内存(本实例最新)为准。"""
+        if not os.path.exists(self.cache_file):
+            return
+        if os.path.getmtime(self.cache_file) <= self._loaded_mtime:
+            return
+        try:
+            with open(self.cache_file, "rb") as f:
+                disk = pickle.load(f)
+        except Exception:
+            return
+        if not isinstance(disk, dict) or disk.get("version") != 2:
+            return
+        data = self._cache["data"]
+        for code, disk_df in (disk.get("data") or {}).items():
+            if disk_df is None or disk_df.empty:
+                continue
+            mem_df = data.get(code)
+            if mem_df is None or mem_df.empty:
+                data[code] = disk_df
+                continue
+            combined = pd.concat([mem_df, disk_df], ignore_index=True)
+            combined = (combined.drop_duplicates(subset=["date"], keep="first")
+                        .sort_values("date").reset_index(drop=True))
+            if len(combined) > MAX_WINDOW_DAYS:
+                combined = combined.iloc[-MAX_WINDOW_DAYS:].reset_index(drop=True)
+            data[code] = combined
+        self._cache["codes"] |= set(disk.get("codes") or set())
+        for key in ("alltime_high_before", "alltime_low_before"):
+            merged = dict(disk.get(key) or {})
+            merged.update(self._cache.get(key) or {})
+            self._cache[key] = merged
+
     def _save(self):
-        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
-        tmp = self.cache_file + ".tmp"
-        with open(tmp, "wb") as f:
-            pickle.dump(self._cache, f)
-        os.replace(tmp, self.cache_file)
+        with KlineCache._LOCK:
+            self._merge_disk_into_memory()
+            os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+            tmp = self.cache_file + ".tmp"
+            with open(tmp, "wb") as f:
+                pickle.dump(self._cache, f)
+            os.replace(tmp, self.cache_file)
+            self._loaded_mtime = os.path.getmtime(self.cache_file)
 
     def _init_full(self, codes):
         """冷启动：下载长历史，保留窗口，初始化 alltime 边界"""
@@ -460,58 +504,60 @@ class KlineCache:
         确保缓存包含目标日期的数据，返回 {code: DataFrame}
         need_ohlcv 参数保持接口一致，当前缓存始终保存 OHLCV
         """
-        self._load()
-        codes = list(codes)
+        with KlineCache._LOCK:
+            self._load()
+            codes = list(codes)
 
-        if self.force_refresh or not self._cache["data"]:
-            self._init_full(codes)
-        else:
-            self._update_existing(codes, target_date_str, update_live=update_live)
+            if self.force_refresh or not self._cache["data"]:
+                self._init_full(codes)
+            else:
+                self._update_existing(codes, target_date_str, update_live=update_live)
 
-        self._slide_window()
-        if persist:
-            self._cache["updated_at"] = datetime.now().isoformat()
-            self._save()
+            self._slide_window()
+            if persist:
+                self._cache["updated_at"] = datetime.now().isoformat()
+                self._save()
 
-        return {c: self._cache["data"][c] for c in codes if c in self._cache["data"]}
+            return {c: self._cache["data"][c] for c in codes if c in self._cache["data"]}
 
     def ensure_dates(self, codes, target_dates, min_coverage=0.9):
         """Ensure each requested market date has broad coverage, backfilling gaps when needed."""
-        target_dates = sorted(set(target_dates or []))
-        if not target_dates:
-            return {}
-        data = self.ensure(codes, target_dates[-1])
-        total = max(len(codes), 1)
-        available_dates = {
-            code: set(df["date"].dt.strftime("%Y%m%d"))
-            for code, df in data.items() if df is not None and not df.empty
-        }
-        weak_dates = []
-        for date_str in target_dates:
-            covered = sum(1 for dates in available_dates.values() if date_str in dates)
-            if covered / total < min_coverage:
-                weak_dates.append((date_str, covered / total))
-        if not weak_dates:
-            return data
+        with KlineCache._LOCK:
+            target_dates = sorted(set(target_dates or []))
+            if not target_dates:
+                return {}
+            data = self.ensure(codes, target_dates[-1])
+            total = max(len(codes), 1)
+            available_dates = {
+                code: set(df["date"].dt.strftime("%Y%m%d"))
+                for code, df in data.items() if df is not None and not df.empty
+            }
+            weak_dates = []
+            for date_str in target_dates:
+                covered = sum(1 for dates in available_dates.values() if date_str in dates)
+                if covered / total < min_coverage:
+                    weak_dates.append((date_str, covered / total))
+            if not weak_dates:
+                return data
 
-        summary = ", ".join(f"{d}:{ratio:.0%}" for d, ratio in weak_dates[:5])
-        print(f"[cache] 交易日覆盖不足 ({summary})，回补近期历史...")
-        fetched = fetch_klines_sina(list(codes), datalen=MAX_WINDOW_DAYS)
-        cached_data = self._cache["data"]
-        for code, fresh_df in fetched.items():
-            if fresh_df is None or fresh_df.empty:
-                continue
-            old_df = cached_data.get(code)
-            if old_df is not None and not old_df.empty:
-                combined = pd.concat([old_df, fresh_df], ignore_index=True)
-                combined = combined.drop_duplicates(subset=["date"], keep="last").sort_values("date")
-            else:
-                combined = fresh_df.sort_values("date")
-            cached_data[code] = combined.reset_index(drop=True)
-        self._slide_window()
-        self._cache["updated_at"] = datetime.now().isoformat()
-        self._save()
-        return {c: cached_data[c] for c in codes if c in cached_data}
+            summary = ", ".join(f"{d}:{ratio:.0%}" for d, ratio in weak_dates[:5])
+            print(f"[cache] 交易日覆盖不足 ({summary})，回补近期历史...")
+            fetched = fetch_klines_sina(list(codes), datalen=MAX_WINDOW_DAYS)
+            cached_data = self._cache["data"]
+            for code, fresh_df in fetched.items():
+                if fresh_df is None or fresh_df.empty:
+                    continue
+                old_df = cached_data.get(code)
+                if old_df is not None and not old_df.empty:
+                    combined = pd.concat([old_df, fresh_df], ignore_index=True)
+                    combined = combined.drop_duplicates(subset=["date"], keep="last").sort_values("date")
+                else:
+                    combined = fresh_df.sort_values("date")
+                cached_data[code] = combined.reset_index(drop=True)
+            self._slide_window()
+            self._cache["updated_at"] = datetime.now().isoformat()
+            self._save()
+            return {c: cached_data[c] for c in codes if c in cached_data}
 
     @property
     def alltime_high_before(self):

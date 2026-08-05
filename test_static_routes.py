@@ -70,6 +70,32 @@ class StaticRouteTest(unittest.TestCase):
                     self.assertEqual(response.json()["scheme"], scheme)
                 self.assertEqual(
                     client.get("/api/crowding?scheme=bad").status_code, 400)
+                self.assertEqual(
+                    client.get("/api/sentiment-radar?scheme=bad").status_code,
+                    400,
+                )
+                self.assertEqual(
+                    client.get(
+                        "/api/sentiment-radar/stocks",
+                        params={
+                            "scheme": "bad",
+                            "industry": "测试",
+                            "trade_date": "20260101",
+                        },
+                    ).status_code,
+                    400,
+                )
+                self.assertEqual(
+                    client.get("/api/decision-center?scheme=bad").status_code,
+                    400,
+                )
+                self.assertEqual(
+                    client.get(
+                        "/api/decision-center/portfolio",
+                        params={"scheme": "bad", "industries": "测试"},
+                    ).status_code,
+                    400,
+                )
                 # V2 is preferred when present; a scheme without V2 keeps the
                 # legacy response until its next full momentum rebuild.
                 self.assertEqual(

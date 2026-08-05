@@ -154,7 +154,7 @@ class HeatmapOpportunityTests(unittest.TestCase):
         self.assertFalse(candidate["actionable"])
         self.assertIn("价格延伸", candidate["risk_domains"])
 
-    def test_missing_market_dates_pause_scoring(self):
+    def test_missing_market_dates_degrade_not_pause(self):
         broken_highs = heat_payload(
             {"行业甲": [12, 0, 0, 2, 1], "行业乙": [2, 0, 0, 2, 2]},
             {"行业甲": 40, "行业乙": 60},
@@ -173,24 +173,70 @@ class HeatmapOpportunityTests(unittest.TestCase):
             period="month",
             mode="daily",
         )
-        self.assertEqual(result["quality"]["status"], "invalid")
-        self.assertFalse(result["quality"]["can_score"])
-        self.assertEqual(result["market_permission"]["state"], "paused")
-        self.assertTrue(all(row["stage"] == "insufficient" for row in result["industries"]))
+        # 空白日期从分位历史剔除并降级提示,不再全板停用
+        self.assertEqual(result["quality"]["status"], "degraded")
+        self.assertTrue(result["quality"]["can_score"])
+        self.assertEqual(result["quality"]["invalid_dates"], ["20260723", "20260722"])
+        self.assertTrue(any("空白日期" in text for text in result["quality"]["warnings"]))
+        self.assertFalse(all(row["stage"] == "insufficient" for row in result["industries"]))
 
-    def test_cross_scheme_total_mismatch_is_a_hard_gate(self):
+    def test_cross_scheme_small_mismatch_is_tolerated(self):
         quality = heatmap_opportunity.validate_inputs(
             self.highs,
             self.lows,
             flow_payload(),
             mode="daily",
             peer_totals=[
-                {"scheme": "sw", "date": "20260724", "highs": 14, "lows": 4},
-                {"scheme": "ths", "date": "20260724", "highs": 15, "lows": 4},
+                {"scheme": "sw", "date": "20260724", "highs": 336, "lows": 1336},
+                {"scheme": "ths", "date": "20260724", "highs": 337, "lows": 1339},
             ],
         )
-        self.assertEqual(quality["status"], "invalid")
+        self.assertEqual(quality["status"], "valid")
+        self.assertTrue(quality["peer_totals_consistent"])
+
+    def test_cross_scheme_large_mismatch_degrades_not_pauses(self):
+        quality = heatmap_opportunity.validate_inputs(
+            self.highs,
+            self.lows,
+            flow_payload(),
+            mode="daily",
+            peer_totals=[
+                {"scheme": "sw", "date": "20260724", "highs": 336, "lows": 1336},
+                {"scheme": "sw3", "date": "20260724", "highs": 155, "lows": 391},
+            ],
+        )
+        self.assertEqual(quality["status"], "degraded")
+        self.assertTrue(quality["can_score"])
         self.assertFalse(quality["peer_totals_consistent"])
+
+    def test_sustained_strength_enters_extending_via_cross_section(self):
+        # 行业甲每日创新高数持平(自身历史分位≈50),但横截面强度第一,
+        # 且趋势/成交参与确认、动能未连续(persistence=1)——只有强度通道能捞起它
+        highs = heat_payload(
+            {"行业甲": [4, 4, 4, 4, 4], "行业乙": [0, 0, 0, 0, 0], "行业丙": [0, 0, 0, 0, 0]},
+            {"行业甲": 40, "行业乙": 60, "行业丙": 50},
+            self.dates,
+        )
+        lows = heat_payload(
+            {"行业甲": [0, 0, 0, 0, 0], "行业乙": [2, 2, 2, 2, 2], "行业丙": [3, 3, 3, 3, 3]},
+            {"行业甲": 40, "行业乙": 60, "行业丙": 50},
+            self.dates,
+        )
+        flow = flow_payload()
+        for row in flow["industries"]:
+            row["persistence"] = 1
+        result = heatmap_opportunity.build_opportunity_snapshot(
+            highs,
+            lows,
+            flow,
+            scheme="sw",
+            period="month",
+            mode="daily",
+        )
+        candidate = next(row for row in result["industries"] if row["industry"] == "行业甲")
+        self.assertLess(candidate["breadth_percentile"], 60)
+        self.assertGreaterEqual(candidate["strength_percentile"], 80)
+        self.assertEqual(candidate["stage"], "extending")
 
     def test_intraday_keeps_prior_close_flow_out_of_confirmation(self):
         highs = heat_payload(

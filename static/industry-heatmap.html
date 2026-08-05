@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<script src="/theme.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>行业机会热力图</title>
@@ -8,7 +9,7 @@
   :root {
     --bg: #1a1d23;
     --surface: #21252b;
-    --border: #333842;
+    --border: var(--c-333842, #333842);
     --text: #abb2bf;
     --accent: #61afef;
     --text-bright: #dcdfe4;
@@ -50,7 +51,7 @@
     color: var(--text-dim);
     margin-top: 6px;
   }
-  .subtitle span { color: #e5c07b; }
+  .subtitle span { color: var(--c-e5c07b, #e5c07b); }
 
   /* Header right */
   .header-right {
@@ -87,7 +88,7 @@
   .freshness-badge::before {
     content: ''; width: 6px; height: 6px; border-radius: 50%; background: #98c379;
   }
-  .freshness-badge.stale { color: #e5c07b; border-color: #6d5d34; }
+  .freshness-badge.stale { color: var(--c-e5c07b, #e5c07b); border-color: #6d5d34; }
   .freshness-badge.stale::before { background: #e5c07b; }
   .freshness-badge.danger { color: #e06c75; border-color: #7d3f48; }
   .freshness-badge.danger::before { background: #e06c75; }
@@ -128,15 +129,15 @@
   }
   .custom-window-control input {
     width: 48px; height: 24px; padding: 2px 4px;
-    border: 0; border-bottom: 1px solid #4b5263; outline: none;
+    border: 0; border-bottom: 1px solid var(--c-4b5263, #4b5263); outline: none;
     background: transparent; color: var(--text-bright); text-align: center;
     font-family: "SF Mono", "Menlo", monospace;
   }
   .custom-window-control button {
     width: 24px; height: 24px; border: 0; border-radius: 4px;
-    background: #282c34; color: var(--accent); cursor: pointer;
+    background: var(--c-282c34, #282c34); color: var(--accent); cursor: pointer;
   }
-  .custom-window-control button:hover { background: #343a46; }
+  .custom-window-control button:hover { background: var(--c-343a46, #343a46); }
 
   /* Export button */
   .export-wrap { position: relative; }
@@ -147,7 +148,7 @@
     border: 1px solid #98c379;
     border-radius: 6px;
     background: transparent;
-    color: #98c379;
+    color: var(--c-98c379, #98c379);
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
@@ -178,7 +179,7 @@
     font-family: inherit;
     transition: background 0.1s;
   }
-  .export-dropdown .export-date-option:hover { background: #2a2e36; color: var(--text-bright); }
+  .export-dropdown .export-date-option:hover { background: var(--c-2a2e36, #2a2e36); color: var(--text-bright); }
 
   /* Loading state */
   .loading {
@@ -194,7 +195,7 @@
     width: 20px;
     height: 20px;
     border: 2px solid var(--border);
-    border-top-color: #61afef;
+    border-top-color: var(--c-61afef, #61afef);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin-right: 12px;
@@ -248,8 +249,8 @@
   }
   thead th.col-total,
   thead th.col-ratio {
-    background: #2a3040;
-    color: #61afef;
+    background: var(--c-2a3040, #2a3040);
+    color: var(--c-61afef, #61afef);
   }
 
   /* Body */
@@ -274,8 +275,8 @@
     color: var(--text-bright);
     padding-left: 14px;
   }
-  tbody tr:hover td:first-child { background: #2a2e36; }
-  tbody tr:hover td { background: #2a2e36; }
+  tbody tr:hover td:first-child { background: var(--c-2a2e36, #2a2e36); }
+  tbody tr:hover td { background: var(--c-2a2e36, #2a2e36); }
 
   /* Heatmap cells */
   .heat-cell {
@@ -322,12 +323,12 @@
   /* Stock count & ratio */
   td.col-total, td.col-ratio {
     background: rgba(42,48,64,0.4);
-    color: #abb2bf;
+    color: var(--c-abb2bf, #abb2bf);
     font-weight: 500;
   }
   td.col-mcap, td.col-mcap-change, th.col-mcap, th.col-mcap-change {
     background: rgba(42,48,64,0.4);
-    color: #d5b778;
+    color: var(--c-d5b778, #d5b778);
     min-width: 82px;
   }
   td.col-ratio { font-weight: 600; }
@@ -337,19 +338,19 @@
     font-weight: 700 !important;
     font-size: 13px !important;
     border-top: 2px solid var(--border);
-    background: #252830;
+    background: var(--c-252830, #252830);
     color: var(--text-bright);
   }
   tbody tr.row-total td:first-child {
-    color: #e5c07b;
+    color: var(--c-e5c07b, #e5c07b);
     font-weight: 700;
   }
 
   /* Ratio color classes */
   .ratio-hot  { color: #e06c75 !important; }
-  .ratio-warm { color: #e5c07b !important; }
-  .ratio-cool { color: #61afef !important; }
-  .ratio-cold { color: #98c379 !important; }
+  .ratio-warm { color: var(--c-e5c07b, #e5c07b) !important; }
+  .ratio-cool { color: var(--c-61afef, #61afef) !important; }
+  .ratio-cold { color: var(--c-98c379, #98c379) !important; }
 
   /* Update info */
   .update-note {
@@ -400,7 +401,7 @@
     line-height: 1.3;
     word-break: break-all;
   }
-  .modal-header-info h2 .ind-name { color: #e5c07b; font-weight: 700; }
+  .modal-header-info h2 .ind-name { color: var(--c-e5c07b, #e5c07b); font-weight: 700; }
   .modal-header-info .modal-sub {
     font-size: 11px;
     color: var(--text-dim);
@@ -457,16 +458,16 @@
   .stock-table thead th.col-chg,
   .stock-table tbody td.col-chg { width: 58px; }
   .stock-table thead th.col-mp,
-  .stock-table tbody td.col-mp { width: 46px; color: #d19a66; font-size: 11px; }
+  .stock-table tbody td.col-mp { width: 46px; color: var(--c-d19a66, #d19a66); font-size: 11px; }
   .stock-table thead th.col-name,
   .stock-table tbody td.col-name { min-width: 76px; text-align: left; }
   .stock-table thead th.sortable { cursor: pointer; user-select: none; }
-  .stock-table thead th.sortable:hover { color: var(--text-bright); background: #2a2e36; }
-  .stock-table thead th.sort-active { color: #e5c07b; }
-  .stock-table thead th .sort-arrow { font-size: 9px; margin-left: 2px; color: #e5c07b; }
+  .stock-table thead th.sortable:hover { color: var(--text-bright); background: var(--c-2a2e36, #2a2e36); }
+  .stock-table thead th.sort-active { color: var(--c-e5c07b, #e5c07b); }
+  .stock-table thead th .sort-arrow { font-size: 9px; margin-left: 2px; color: var(--c-e5c07b, #e5c07b); }
   #heatmapTable th.date-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-  #heatmapTable th.date-sortable:hover { color: var(--text-bright); background: #2a2e36; }
-  #heatmapTable th.date-sort-active { color: #e5c07b; }
+  #heatmapTable th.date-sortable:hover { color: var(--text-bright); background: var(--c-2a2e36, #2a2e36); }
+  #heatmapTable th.date-sort-active { color: var(--c-e5c07b, #e5c07b); }
   #heatmapTable th.date-sortable .sort-arrow { margin-left: 3px; font-size: 9px; }
   .stock-table tbody td {
     padding: 5px 4px;
@@ -480,19 +481,20 @@
   }
   .stock-table tbody td.col-idx { color: var(--text-dim); }
   .stock-table tbody td.col-name { text-align: left; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
-  .stock-table tbody td.col-mp { color: #d19a66; font-size: 11px; }
-  .stock-table tbody tr:hover td { background: #2a2e36; }
+  .stock-table tbody td.col-mp { color: var(--c-d19a66, #d19a66); font-size: 11px; }
+  .stock-table tbody tr:hover td { background: var(--c-2a2e36, #2a2e36); }
   .stock-table .change-up { color: #e06c75; }
-  .stock-table .change-down { color: #61afef; }
-  .stock-table .signal-standing { color: #98c379; }
-  .stock-table .signal-pulled { color: #e5c07b; }
-  .stock-table .signal-candidate { color: #61afef; }
+  .stock-table .change-down { color: var(--c-61afef, #61afef); }
+  .stock-table .signal-standing { color: var(--c-98c379, #98c379); }
+  .stock-table .signal-pulled { color: var(--c-e5c07b, #e5c07b); }
+  .stock-table .signal-candidate { color: var(--c-61afef, #61afef); }
 
-  .stock-table .stock-link {
+  .stock-link {
     color: var(--text-bright);
     text-decoration: none;
   }
-  .stock-table .stock-link:hover { color: #61afef; text-decoration: underline; }
+  .stock-link:hover,
+  .stock-link:focus-visible { color: var(--c-61afef, #61afef); text-decoration: underline; }
 
   .modal-footer {
     padding: 8px 14px;
@@ -504,7 +506,7 @@
   /* 全市场弹窗行业分组标题 */
   .industry-group-title {
     font-size: 13px;
-    color: #e5c07b;
+    color: var(--c-e5c07b, #e5c07b);
     margin: 10px 0 4px;
     padding: 4px 0;
     border-bottom: 1px solid var(--border);
@@ -559,16 +561,16 @@
     margin-top: 2px;
   }
   .dashboard .card.strong .val { color: #e06c75; }
-  .dashboard .card.weak .val { color: #61afef; }
-  .dashboard .card.neutral .val { color: #98c379; }
-  .dashboard .card.warn .val { color: #e5c07b; }
+  .dashboard .card.weak .val { color: var(--c-61afef, #61afef); }
+  .dashboard .card.neutral .val { color: var(--c-98c379, #98c379); }
+  .dashboard .card.warn .val { color: var(--c-e5c07b, #e5c07b); }
   .dashboard .card.permission-attack { border-color: rgba(224,108,117,0.55); }
   .dashboard .card.permission-defense { border-color: rgba(97,175,239,0.55); }
   .dashboard .card.permission-watch { border-color: rgba(229,192,123,0.55); }
   .dashboard .card.permission-paused { border-color: rgba(224,108,117,0.75); }
   .dashboard .card.permission-attack .val { color: #e06c75; }
-  .dashboard .card.permission-defense .val { color: #61afef; }
-  .dashboard .card.permission-watch .val { color: #e5c07b; }
+  .dashboard .card.permission-defense .val { color: var(--c-61afef, #61afef); }
+  .dashboard .card.permission-watch .val { color: var(--c-e5c07b, #e5c07b); }
   .dashboard .card.permission-paused .val { color: #e06c75; }
 
   .quality-gate {
@@ -594,7 +596,7 @@
   }
   .quality-gate .quality-title { white-space: nowrap; font-weight: 700; }
   .quality-gate .quality-detail { flex: 1; line-height: 1.5; }
-  .quality-gate .quality-method { white-space: nowrap; color: #d19a66; }
+  .quality-gate .quality-method { white-space: nowrap; color: var(--c-d19a66, #d19a66); }
 
   .intraday-timeline {
     display: none;
@@ -611,7 +613,7 @@
   }
   .timeline-controls { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
   .timeline-toggle { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
-  .timeline-toggle input { width: 13px; height: 13px; accent-color: #98c379; cursor: pointer; }
+  .timeline-toggle input { width: 13px; height: 13px; accent-color: var(--c-98c379, #98c379); cursor: pointer; }
   .timeline-toggle .swatch { width: 8px; height: 8px; border-radius: 2px; }
   .timeline-toggle .swatch.high { background: #e06c75; }
   .timeline-toggle .swatch.low { background: #61afef; }
@@ -624,25 +626,25 @@
   .timeline-tooltip {
     display: none; position: absolute; left: 50%; bottom: calc(100% + 7px);
     transform: translateX(-50%); z-index: 30; min-width: 118px;
-    padding: 7px 9px; border: 1px solid #4b5263; border-radius: 5px;
-    background: #171a1f; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    padding: 7px 9px; border: 1px solid var(--c-4b5263, #4b5263); border-radius: 5px;
+    background: var(--c-171a1f, #171a1f); box-shadow: 0 6px 18px rgba(0,0,0,0.45);
     color: var(--text-bright); font-size: 11px; line-height: 1.6; white-space: nowrap;
     pointer-events: none;
   }
   .timeline-point:hover .timeline-tooltip { display: block; }
-  .timeline-tooltip strong { display: block; color: #e5c07b; font-weight: 600; }
+  .timeline-tooltip strong { display: block; color: var(--c-e5c07b, #e5c07b); font-weight: 600; }
   .timeline-tooltip .high { color: #e06c75; }
-  .timeline-tooltip .low { color: #61afef; }
+  .timeline-tooltip .low { color: var(--c-61afef, #61afef); }
 
   /* ── 净强度/方向切换按钮组 ── */
   #directionToggle .toggle-btn[data-direction="net"] {
-    background: #282c34;
-    color: #d19a66;
-    border-color: #d19a66;
+    background: var(--c-282c34, #282c34);
+    color: var(--c-d19a66, #d19a66);
+    border-color: var(--c-d19a66, #d19a66);
   }
   #directionToggle .toggle-btn[data-direction="opportunity"] {
-    background: #282c34;
-    color: #98c379;
+    background: var(--c-282c34, #282c34);
+    color: var(--c-98c379, #98c379);
   }
   #directionToggle .toggle-btn[data-direction="opportunity"].active {
     background: #98c379;
@@ -653,8 +655,8 @@
     color: #1a1d23;
   }
   #directionToggle .toggle-btn[data-direction="net"]:hover {
-    border-color: #e5c07b;
-    color: #e5c07b;
+    border-color: var(--c-e5c07b, #e5c07b);
+    color: var(--c-e5c07b, #e5c07b);
   }
 
   /* ── 净强度热力图色彩 ── */
@@ -665,7 +667,7 @@
 
   /* ── 趋势箭头 ── */
   .chg-up { color: #e06c75; font-size: 0.7em; margin-left: 2px; }
-  .chg-down { color: #61afef; font-size: 0.7em; margin-left: 2px; }
+  .chg-down { color: var(--c-61afef, #61afef); font-size: 0.7em; margin-left: 2px; }
   .chg-nudge { font-size: 0.68em; display: block; line-height: 1.1; opacity: 0.85; }
   .trend-col { width: 52px; font-size: 10px; white-space: nowrap; overflow: hidden; }
 
@@ -679,9 +681,9 @@
     vertical-align: middle;
   }
   .badge-fire { background: #e06c7533; color: #e06c75; }
-  .badge-down { background: #61afef33; color: #61afef; }
-  .badge-surge { background: #e5c07b33; color: #e5c07b; }
-  .badge-mixed { background: #98c37933; color: #98c379; }
+  .badge-down { background: #61afef33; color: var(--c-61afef, #61afef); }
+  .badge-surge { background: #e5c07b33; color: var(--c-e5c07b, #e5c07b); }
+  .badge-mixed { background: #98c37933; color: var(--c-98c379, #98c379); }
 
   /* ── 行业榜单侧栏 ── */
   .board-wrap {
@@ -704,7 +706,7 @@
   }
   .leaderboard h3 {
     font-size: 0.85em;
-    color: #e5c07b;
+    color: var(--c-e5c07b, #e5c07b);
     margin: 10px 0 6px;
     padding-bottom: 4px;
     border-bottom: 1px solid var(--border);
@@ -731,16 +733,16 @@
     padding: 7px 8px;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: rgba(31,35,41,0.72);
+    background: var(--c-opp-card, rgba(31,35,41,0.72));
     cursor: pointer;
   }
-  .opportunity-card:hover { border-color: #5c6370; background: #282c34; }
+  .opportunity-card:hover { border-color: #5c6370; background: var(--c-282c34, #282c34); }
   .opportunity-card .card-head {
     display: flex; align-items: center; justify-content: space-between; gap: 6px;
   }
   .opportunity-card .card-industry { color: var(--text-bright); font-weight: 700; }
   .opportunity-card .card-reason { margin-top: 4px; color: var(--text); line-height: 1.4; }
-  .opportunity-card .card-risk { margin-top: 3px; color: #e5c07b; line-height: 1.35; }
+  .opportunity-card .card-risk { margin-top: 3px; color: var(--c-e5c07b, #e5c07b); line-height: 1.35; }
   .stage-pill {
     display: inline-flex;
     align-items: center;
@@ -754,9 +756,9 @@
     white-space: nowrap;
   }
   .stage-emerging, .stage-confirmed, .stage-extending { color: #e06c75; }
-  .stage-relative, .stage-intraday_watch { color: #d19a66; }
-  .stage-crowded { color: #e5c07b; }
-  .stage-declining, .stage-failed { color: #61afef; }
+  .stage-relative, .stage-intraday_watch { color: var(--c-d19a66, #d19a66); }
+  .stage-crowded { color: var(--c-e5c07b, #e5c07b); }
+  .stage-declining, .stage-failed { color: var(--c-61afef, #61afef); }
   .stage-insufficient { color: #e06c75; }
   .stage-dormant { color: #7f8792; }
   .raw-diagnostics {
@@ -774,7 +776,34 @@
 
   .opportunity-table { min-width: 1420px; }
   .opportunity-table tbody tr { cursor: pointer; }
-  .opportunity-table tbody tr:hover td { background: #2a2e36 !important; }
+  .opportunity-table tbody tr:hover td { background: var(--c-2a2e36, #2a2e36) !important; }
+  .industry-high-link {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--text-bright);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+  }
+  .industry-high-link::after {
+    content: " ›";
+    color: #e06c75;
+    font-weight: 800;
+  }
+  .industry-high-link:hover,
+  .industry-high-link:focus-visible {
+    color: #e06c75;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .industry-high-link:focus-visible {
+    outline: 2px solid #e06c75;
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
   .opportunity-table th { min-width: 86px; }
   .opportunity-table th:first-child { min-width: 118px; }
   .opportunity-table .reason-col,
@@ -787,8 +816,8 @@
     font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
     line-height: 1.35;
   }
-  .opportunity-table .risk-col { color: #e5c07b; }
-  .opportunity-table .invalid-col { color: #8f96a1; }
+  .opportunity-table .risk-col { color: var(--c-e5c07b, #e5c07b); }
+  .opportunity-table .invalid-col { color: var(--c-8f96a1, #8f96a1); }
   .opportunity-companion {
     margin-top: 18px;
     padding-top: 14px;
@@ -807,7 +836,7 @@
     padding: 9px 11px;
     border: 1px solid var(--border);
     border-radius: 7px;
-    background: #20242b;
+    background: var(--c-20242b, #20242b);
   }
   .opportunity-companion-title {
     color: var(--text-bright);
@@ -826,14 +855,14 @@
     padding: 4px 9px;
     border: 1px solid var(--border);
     border-radius: 5px;
-    background: #282c34;
+    background: var(--c-282c34, #282c34);
     color: var(--text-dim);
     cursor: pointer;
     font-size: 11px;
   }
   .companion-toggle button.active {
-    border-color: #61afef;
-    color: #61afef;
+    border-color: var(--c-61afef, #61afef);
+    color: var(--c-61afef, #61afef);
     background: #61afef18;
   }
   #opportunityRawMatrix {
@@ -869,12 +898,12 @@
     padding: 8px;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: #1d2026;
+    background: var(--c-1d2026, #1d2026);
   }
   .detail-metric .detail-value { color: var(--text-bright); font-weight: 700; }
   .detail-metric .detail-label { margin-top: 2px; color: var(--text-dim); font-size: 10px; }
   .evidence-section { margin: 10px 0; }
-  .evidence-section h4 { margin-bottom: 5px; color: #e5c07b; font-size: 12px; }
+  .evidence-section h4 { margin-bottom: 5px; color: var(--c-e5c07b, #e5c07b); font-size: 12px; }
   .evidence-section ul { margin: 0; padding-left: 18px; color: var(--text); line-height: 1.6; }
 
   @media (max-width: 900px) {
@@ -887,7 +916,7 @@
     position: relative;
     width: 100%;
     height: 520px;
-    background: #1a1d23;
+    background: var(--c-1a1d23, #1a1d23);
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
@@ -930,7 +959,7 @@
   .quadrant-map .dot-label {
     position: absolute;
     font-size: 0.58em;
-    color: #ccc;
+    color: var(--c-ccc, #ccc);
     pointer-events: none;
     transform: translate(-50%, 12px);
     white-space: nowrap;
@@ -942,7 +971,7 @@
   }
   .playback-btn {
     padding: 4px 10px; border: 1px solid var(--border);
-    border-radius: 4px; background: #282c34; color: var(--text);
+    border-radius: 4px; background: var(--c-282c34, #282c34); color: var(--text);
     cursor: pointer; font-size: 0.75em; white-space: nowrap;
   }
   .playback-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -986,9 +1015,9 @@
     white-space: pre-wrap;
   }
   .briefing-content .b-fire { color: #e06c75; }
-  .briefing-content .b-ice { color: #61afef; }
-  .briefing-content .b-warn { color: #e5c07b; }
-  .briefing-content .b-title { color: #e5e5e5; font-size: 1.05em; font-weight: 600; }
+  .briefing-content .b-ice { color: var(--c-61afef, #61afef); }
+  .briefing-content .b-warn { color: var(--c-e5c07b, #e5c07b); }
+  .briefing-content .b-title { color: var(--c-e5e5e5, #e5e5e5); font-size: 1.05em; font-weight: 600; }
   .copy-btn {
     padding: 6px 14px;
     border: 1px solid var(--accent);
@@ -1026,7 +1055,7 @@
 
   <div class="header">
     <div class="title-section">
-      <h1>行业机会热力图 <select id="schemeSelect" onchange="switchScheme(this.value)" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#282c34;color:var(--text);font-size:0.7em;cursor:pointer;vertical-align:middle"><option value="sw">申万一级</option><option value="ths">同花顺细分</option><option value="sw3" title="申万三级，缺少数据时回退二级或一级">申万三级</option></select></h1>
+      <h1>行业机会热力图 <select id="schemeSelect" onchange="switchScheme(this.value)" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background: var(--c-282c34, #282c34);color:var(--text);font-size:0.7em;cursor:pointer;vertical-align:middle"><option value="sw">申万一级</option><option value="ths">同花顺细分</option><option value="sw3" title="申万三级，缺少数据时回退二级或一级">申万三级</option></select></h1>
       <div class="subtitle"><span id="schemeLabel">申万一级</span> · <span id="directionLabel">机会状态</span> · <span id="typeLabel">20日极值宽度</span> · <span id="dateRange"></span></div>
     </div>
     <div class="header-right">
@@ -1039,7 +1068,7 @@
           <span style="background:#e5c73a"></span>
           <span style="background:#e8a236"></span>
           <span style="background:#e06c35"></span>
-          <span style="background:#c93a3a"></span>
+          <span style="background: #c93a3a"></span>
         </div>
         <span id="legendText">失效 → 确认</span>
       </div>
@@ -1090,7 +1119,7 @@
   <div class="scroll-container" id="scrollContainer"></div>
 
   <div class="leaderboard" id="leaderboardPanel">
-    <h3 style="color:#98c379">🎯 状态迁移候选</h3>
+    <h3 style="color:var(--c-98c379, #98c379)">🎯 状态迁移候选</h3>
     <ol id="lbOpportunity" class="opportunity-list"></ol>
     <div id="calibrationNote"></div>
     <details class="raw-diagnostics">
@@ -1103,7 +1132,7 @@
       <ol id="lbStreak"></ol>
       <h3>高分歧行业</h3>
       <ol id="lbDiverge"></ol>
-      <h3 style="color:#d19a66">宽度—活跃度联动</h3>
+      <h3 style="color:var(--c-d19a66, #d19a66)">宽度—活跃度联动</h3>
       <ol id="lbFlowLink"></ol>
       <h3 style="color:#e06c75">原始异动</h3>
       <ol id="lbAnomaly"></ol>
@@ -1172,7 +1201,7 @@
     <div class="modal-body">
       <div class="briefing-content" id="briefingContent"></div>
       <button class="copy-btn" onclick="copyBriefing()">📋 复制简报</button>
-      <span id="copyStatus" style="font-size:0.7em;color:#98c379;margin-left:8px;display:none">已复制!</span>
+      <span id="copyStatus" style="font-size:0.7em;color:var(--c-98c379, #98c379);margin-left:8px;display:none">已复制!</span>
     </div>
   </div>
 </div>
@@ -1199,6 +1228,7 @@ let detailsLoading = false;
 let detailsLoadedType = null;
 let detailsLoadedDirection = null;
 let detailsLoadedMode = null;
+let detailsLoadedScheme = null;
 let heatmapDateSort = { index: null, direction: 'desc' };
 let leaderboardVisible = window.innerWidth >= 1350;
 let sessionState = null;
@@ -1297,6 +1327,13 @@ function escapeHtml(value) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
   });
 }
+function stockLink(code, content, name) {
+  var safeCode=String(code==null?'':code).trim();
+  if(!/^\d{6}$/.test(safeCode))return content||'—';
+  return '<a class="stock-link" href="https://stockpage.10jqka.com.cn/'+safeCode+
+    '/" target="_blank" rel="noopener noreferrer" title="在同花顺打开'+
+    escapeHtml(name||safeCode)+'">'+(content||escapeHtml(safeCode))+'</a>';
+}
 function encodedArg(value) {
   return encodeURIComponent(String(value == null ? '' : value)).replace(/'/g, '%27');
 }
@@ -1326,10 +1363,12 @@ function getUrls() {
 function switchScheme(s) {
   currentScheme = s;
   document.getElementById('schemeLabel').textContent = s === 'ths' ? '同花顺细分' : (s === 'sw3' ? '申万三级' : '申万一级');
+  syncUrlState();
   detailsData = null;
   detailsLoadedType = null;
   detailsLoadedDirection = null;
   detailsLoadedMode = null;
+  detailsLoadedScheme = null;
   multiPeriodCache = {};
   opportunityData = null;
   heatmapDateSort = { index: null, direction: 'desc' };
@@ -1349,20 +1388,21 @@ async function loadData() {
     var flowPromise = fetchJsonWithTimeout('/capital_flow' + schemeSuffix(currentScheme) + '.json?_=' + Date.now(), 8000)
       .catch(function() { return null; });
     var staleSnapshot = false;
+    var newHighs, newLows, newTable, newCustom, newIntradayHistory;
     if (effectiveMode === 'intraday') {
       var intraPayload = await fetchJsonWithTimeout('/api/intraday-snapshot?window=' + selectedWindowDays() + '&scheme=' + currentScheme + '&refresh=true&_=' + Date.now(), 30000);
-      highsData = intraPayload.highs;
-      lowsData = intraPayload.lows;
-      intradayHistory = intraPayload.history || null;
+      newHighs = intraPayload.highs;
+      newLows = intraPayload.lows;
+      newIntradayHistory = intraPayload.history || null;
       staleSnapshot = !!intraPayload.stale;
-      customSnapshot = null;
-      tableData = currentDirection === 'lows' ? lowsData : highsData;
+      newCustom = null;
+      newTable = currentDirection === 'lows' ? newLows : newHighs;
     } else if (currentType === 'custom') {
-      customSnapshot = await fetchJsonWithTimeout('/api/custom-heatmap?window=' + currentWindow + '&scheme=' + currentScheme + '&_=' + Date.now(), 60000);
-      highsData = customSnapshot.highs;
-      lowsData = customSnapshot.lows;
-      intradayHistory = null;
-      tableData = currentDirection === 'lows' ? lowsData : highsData;
+      newCustom = await fetchJsonWithTimeout('/api/custom-heatmap?window=' + currentWindow + '&scheme=' + currentScheme + '&_=' + Date.now(), 60000);
+      newHighs = newCustom.highs;
+      newLows = newCustom.lows;
+      newIntradayHistory = null;
+      newTable = currentDirection === 'lows' ? newLows : newHighs;
     } else {
       var urls = getUrls();
       var results = await Promise.all([
@@ -1370,22 +1410,30 @@ async function loadData() {
         fetchJsonWithTimeout(urls.highsCounts, 10000).catch(function() { return null; }),
         fetchJsonWithTimeout(urls.lowsCounts, 10000).catch(function() { return null; }),
       ]);
-      tableData = results[0];
-      highsData = results[1];
-      lowsData = results[2];
-      intradayHistory = null;
-      customSnapshot = null;
+      newTable = results[0];
+      newHighs = results[1];
+      newLows = results[2];
+      newIntradayHistory = null;
+      newCustom = null;
     }
-    flowData = await flowPromise;
+    var newFlow = await flowPromise;
     var opportunityUrl = '/api/heatmap-opportunities?period=' + currentType +
       '&window=' + selectedWindowDays() + '&scheme=' + currentScheme +
       '&mode=' + effectiveMode + '&_=' + Date.now();
-    opportunityData = await fetchJsonWithTimeout(opportunityUrl, currentType === 'custom' ? 65000 : 12000)
+    var newOpportunity = await fetchJsonWithTimeout(opportunityUrl, currentType === 'custom' ? 65000 : 12000)
       .catch(function(error) {
         console.warn('机会状态暂不可用:', error);
         return null;
       });
+    // 代际检查通过后才写全局,避免慢的旧响应覆盖新 scheme/周期数据
     if (requestId !== loadGeneration) return;
+    highsData = newHighs;
+    lowsData = newLows;
+    tableData = newTable;
+    customSnapshot = newCustom;
+    intradayHistory = newIntradayHistory;
+    flowData = newFlow;
+    opportunityData = newOpportunity;
     updateLabels();
     renderDashboard();
     renderIntradayTimeline();
@@ -1420,7 +1468,7 @@ async function loadData() {
     var scriptName = currentDirection === 'lows' ? 'fetch_new_lows.py' : 'fetch_new_highs.py';
     mainContent.innerHTML =
       '<div class="error-msg">' +
-      '数据加载失败: ' + e.message +
+      '数据加载失败: ' + escapeHtml(e.message) +
       '<br><button onclick="location.reload()">重试</button>' +
       '<br><br><span style="font-size:12px;color:var(--text-dim)">请检查数据更新状态后重试</span>' +
       '</div>';
@@ -1485,18 +1533,25 @@ function detailsFromHeatmap(data) {
 
 async function ensureDetails() {
   var typeKey = detailTypeKey();
-  if (detailsData && detailsLoadedType === typeKey && detailsLoadedDirection === currentDirection && detailsLoadedMode === effectiveMode) return detailsData;
+  var schemeKey = currentScheme;
+  var cacheValid = function() {
+    return detailsData && detailsLoadedType === typeKey && detailsLoadedDirection === currentDirection &&
+      detailsLoadedMode === effectiveMode && detailsLoadedScheme === schemeKey;
+  };
+  if (cacheValid()) return detailsData;
   if (detailsLoading) {
     while (detailsLoading) await new Promise(function(r) { setTimeout(r, 100); });
-    if (detailsData && detailsLoadedType === typeKey && detailsLoadedDirection === currentDirection && detailsLoadedMode === effectiveMode) return detailsData;
+    if (cacheValid()) return detailsData;
   }
   detailsLoading = true;
   try {
     if (effectiveMode === 'intraday') {
+      if (schemeKey !== currentScheme) return null;
       detailsData = detailsFromHeatmap(tableData);
       detailsLoadedType = typeKey;
       detailsLoadedDirection = currentDirection;
       detailsLoadedMode = effectiveMode;
+      detailsLoadedScheme = schemeKey;
       return detailsData;
     }
     if (currentType === 'custom' && customSnapshot) {
@@ -1510,20 +1565,25 @@ async function ensureDetails() {
           });
         });
       });
+      if (schemeKey !== currentScheme) return null;
       detailsData['全市场合计'] = totalByDate;
       detailsLoadedType = typeKey;
       detailsLoadedDirection = currentDirection;
       detailsLoadedMode = effectiveMode;
+      detailsLoadedScheme = schemeKey;
       return detailsData;
     }
     var urls = getUrls();
     if (!urls.details) return null;
     var resp = await fetch(urls.details);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    detailsData = await resp.json();
+    var payload = await resp.json();
+    if (schemeKey !== currentScheme) return null;  // 切方案后在飞响应不落地
+    detailsData = payload;
     detailsLoadedType = typeKey;
     detailsLoadedDirection = currentDirection;
     detailsLoadedMode = effectiveMode;
+    detailsLoadedScheme = schemeKey;
     return detailsData;
   } catch (e) {
     console.error('加载明细失败:', e);
@@ -1980,11 +2040,18 @@ function renderFlowLinkage(rows) {
 // =========================================================================
 
 function metricTone(percentile, negative) {
+  var lightTheme = document.documentElement.dataset.theme === 'light';
   if (percentile === null || percentile === undefined || !Number.isFinite(Number(percentile))) {
-    return {bg:'rgba(75,82,99,0.25)', color:'#8b929d'};
+    return {bg:'rgba(75,82,99,0.25)', color: lightTheme ? '#6b7280' : '#8b929d'};
   }
   var strength = Math.min(Math.max(Number(percentile) / 100, 0), 1);
   var alpha = 0.10 + strength * 0.68;
+  // 浅色主题下淡色格子叠在白底上,弱信号文字要用深色调保持可读
+  if (lightTheme) {
+    return negative
+      ? {bg:'rgba(97,175,239,' + alpha.toFixed(2) + ')', color:strength > 0.58 ? '#0f1821' : '#2e5070'}
+      : {bg:'rgba(224,108,117,' + alpha.toFixed(2) + ')', color:strength > 0.58 ? '#201012' : '#8a3a44'};
+  }
   return negative
     ? {bg:'rgba(97,175,239,' + alpha.toFixed(2) + ')', color:strength > 0.58 ? '#0f1821' : '#b9d8ee'}
     : {bg:'rgba(224,108,117,' + alpha.toFixed(2) + ')', color:strength > 0.58 ? '#201012' : '#efc2c6'};
@@ -2066,7 +2133,10 @@ function renderOpportunityTable() {
       : (row.high_count + '/' + row.total + ' 高 · ' + row.low_count + ' 低');
     html += '<tr class="opportunity-row' + (qualityInvalid ? ' quality-disabled' : '') +
       '" data-opportunity-industry="' + escapeHtml(row.industry) + '">' +
-      '<td>' + escapeHtml(row.industry) + '</td>' +
+      '<td><button type="button" class="industry-high-link" data-industry="' +
+        escapeHtml(row.industry) + '" title="打开' + escapeHtml(row.industry) +
+        '最新创新高列表" aria-label="打开' + escapeHtml(row.industry) +
+        '最新创新高列表">' + escapeHtml(row.industry) + '</button></td>' +
       '<td><span class="stage-pill ' + stageClass(row.stage) + '">' +
         escapeHtml(row.stage_label) + '</span></td>' +
       metricCell(
@@ -2289,7 +2359,7 @@ function renderTable(options) {
           ' data-date="' + escapeHtml(dateLabel3) + '"' +
           ' data-count="' + count + '">' + count.toFixed(1) + '%' + chgHtml + '</td>';
       } else {
-        tableHtml += '<td class="heat-cell no-data" style="background:rgba(75,82,99,0.18);color:#8b929d">0<span class="cell-rate">有效零值</span></td>';
+        tableHtml += '<td class="heat-cell no-data" style="background:rgba(75,82,99,0.18);color:var(--c-8b929d, #8b929d)">0<span class="cell-rate">有效零值</span></td>';
       }
     });
 
@@ -2347,14 +2417,14 @@ function renderTable(options) {
           ' data-date="' + escapeHtml(dateLabel6) + '"' +
           ' data-count="' + count + '">' + count.toFixed(1) + '%</td>';
       } else {
-        tableHtml += '<td class="heat-cell no-data" style="background:rgba(45,58,45,0.3);color:#8aaa8a">0</td>';
+        tableHtml += '<td class="heat-cell no-data" style="background:rgba(45,58,45,0.3);color:var(--c-8aaa8a, #8aaa8a)">0</td>';
       }
     });
     var grandTotal = advInds.reduce(function(s, r) { return s + r.total; }, 0);
     if (isNet) {
       tableHtml += '<td class="trend-col">—</td>';
     } else {
-      tableHtml += '<td class="col-total" style="color:#e5c07b">' + grandTotal + '</td>';
+      tableHtml += '<td class="col-total" style="color:var(--c-e5c07b, #e5c07b)">' + grandTotal + '</td>';
       tableHtml += '<td class="col-ratio">—</td>';
       if (effectiveMode === 'intraday') {
         var totalMcap = Number(totalRow.market_cap || 0);
@@ -2382,10 +2452,29 @@ function renderTable(options) {
 //  事件委托 — 表格点击
 // =========================================================================
 
+function openLatestIndustryHighs(industry) {
+  if (!industry || !highsData || !Array.isArray(highsData.industries)) return;
+  var latest = highsData.dates && highsData.dates[0];
+  var dateLabel = latest && (latest.label || latest.full_label);
+  if (!dateLabel) return;
+  var row = highsData.industries.find(function(item) {
+    return !item.is_total && item.industry === industry;
+  });
+  var count = row && row.daily_counts ? Number(row.daily_counts[0] || 0) : 0;
+  currentDirection = 'highs';
+  tableData = highsData;
+  openDetail(industry, dateLabel, count);
+}
+
 function setupTableClick(tableId) {
   var table = document.getElementById(tableId || 'heatmapTable');
   if (!table) return;
   table.addEventListener('click', function(e) {
+    var industryHighLink = e.target.closest('.industry-high-link');
+    if (industryHighLink) {
+      openLatestIndustryHighs(industryHighLink.getAttribute('data-industry'));
+      return;
+    }
     var opportunityRow = e.target.closest('.opportunity-row');
     if (opportunityRow) {
       openOpportunityDetail(opportunityRow.getAttribute('data-opportunity-industry'));
@@ -2467,7 +2556,8 @@ function openOpportunityDetail(industry) {
   if (row.leaders && row.leaders.length) {
     body += '<div class="evidence-section"><h4>成交动能引领者 · 仅作证据载体</h4><ul>' +
       row.leaders.slice(0, 5).map(function(item) {
-        return '<li>' + escapeHtml(item.name || item.code || '') +
+        var label=item.name||item.code||'';
+        return '<li>' + stockLink(item.code,escapeHtml(label),label) +
           ' · 收益 ' + (Number(item.return_pct || 0) >= 0 ? '+' : '') +
           Number(item.return_pct || 0).toFixed(2) + '%</li>';
       }).join('') + '</ul></div>';
@@ -2633,11 +2723,11 @@ function renderStockRows(stocks) {
     var pe = !isNaN(peVal) && peVal > 0 ? peVal.toFixed(1) : '—';
     // 多周期共振：3个以上周期均有新高/新低
     var resonant = (cnt[0]>0?1:0) + (cnt[1]>0?1:0) + (cnt[2]>0?1:0) + (cnt[3]>0?1:0);
-    var resTag = resonant >= 3 ? ' <span style="color:#e5c07b;font-size:0.65em" title="多周期共振">⚡</span>' : '';
+    var resTag = resonant >= 3 ? ' <span style="color:var(--c-e5c07b, #e5c07b);font-size:0.65em" title="多周期共振">⚡</span>' : '';
     var resRow = resonant >= 3 ? ' style="background:rgba(229,192,123,0.08)"' : '';
     html += '<tr' + resRow + '>' +
       '<td class="col-idx">' + (i + 1) + '</td>' +
-      '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + encodeURIComponent(s.code) + '/" target="_blank">' + escapeHtml(s.code) + '</a></td>' +
+      '<td class="col-code">' + stockLink(s.code,escapeHtml(s.code),s.name) + '</td>' +
       '<td class="col-name">' + escapeHtml(s.name) + resTag + '</td>' +
       '<td class="col-price">' + fmtFixed(s.price, 2) + '</td>' +
       '<td class="col-chg ' + (changeValid ? changeCls : '') + '">' + (changeValid ? sign + changeNum.toFixed(2) + '%' : '—') + '</td>' +
@@ -2742,7 +2832,7 @@ async function openDetail(industry, dateLabel, count) {
   document.getElementById('modalSub').innerHTML =
     typeLabel + ' · <strong>' + rawStocks.length + '</strong> 只 · 占比 <strong>' + ratio + '%</strong> · 行业共 ' + total + ' 只' +
     (effectiveMode === 'intraday' ? ' · 触及 <strong>' + rawStocks.filter(function(s){return s.touched;}).length + '</strong> · 当前站上/破位 <strong>' + rawStocks.filter(function(s){return s.standing;}).length + '</strong>' : '') +
-    (isNet ? ' · <span style="color:#e06c75">新高</span>/<span style="color:#61afef">新低</span>' : '');
+    (isNet ? ' · <span style="color:#e06c75">新高</span>/<span style="color:var(--c-61afef, #61afef)">新低</span>' : '');
 
   var modalBody = document.getElementById('modalBody');
   function render() {
@@ -2791,10 +2881,10 @@ function renderStockTableNet(stocks, sortState) {
     var peVal = peCache && peCache[s.code] ? Number(peCache[s.code]) : NaN;
     var pe = !isNaN(peVal) && peVal > 0 ? peVal.toFixed(1) : '—';
     var isHigh = s._netType === 'high' || s._netType === undefined;
-    var netTag = isHigh ? '<span style="color:#e06c75">🟢新高</span>' : '<span style="color:#61afef">🔴新低</span>';
+    var netTag = isHigh ? '<span style="color:#e06c75">🟢新高</span>' : '<span style="color:var(--c-61afef, #61afef)">🔴新低</span>';
     html += '<tr>' +
       '<td class="col-idx">' + (i + 1) + '</td>' +
-      '<td class="col-code"><a class="stock-link" href="https://stockpage.10jqka.com.cn/' + encodeURIComponent(s.code) + '/" target="_blank">' + escapeHtml(s.code) + '</a></td>' +
+      '<td class="col-code">' + stockLink(s.code,escapeHtml(s.code),s.name) + '</td>' +
       '<td class="col-name">' + escapeHtml(s.name) + '</td>' +
       '<td class="col-price">' + fmtFixed(s.price, 2) + '</td>' +
       '<td class="col-chg ' + (changeValid ? changeCls : '') + '">' + (changeValid ? sign + changeNum.toFixed(2) + '%' : '—') + '</td>' +
@@ -2918,6 +3008,7 @@ document.getElementById('typeToggle').addEventListener('click', function(e) {
 
   currentType = newType;
   currentWindow = selectedWindowDays();
+  syncUrlState();
   var buttons = this.querySelectorAll('.toggle-btn');
   for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
   btn.classList.add('active');
@@ -2963,6 +3054,7 @@ document.getElementById('directionToggle').addEventListener('click', function(e)
 
   currentView = newDir;
   currentDirection = (newDir === 'lows') ? 'lows' : 'highs';
+  syncUrlState();
   var buttons = this.querySelectorAll('.toggle-btn');
   for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
   btn.classList.add('active');
@@ -2982,6 +3074,7 @@ document.getElementById('modeToggle').addEventListener('click', function(e) {
   if (newMode === currentMode) return;
 
   currentMode = newMode;
+  syncUrlState();
   var buttons = this.querySelectorAll('.toggle-btn');
   for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
   btn.classList.add('active');
@@ -3112,7 +3205,20 @@ async function exportToExcel(dateLabel) {
 //  启动
 // =========================================================================
 
-// 检查 URL 参数，支持 ?mode=auto/daily/intraday
+// 视图状态写入 URL:主题切换等整页重载后恢复现场
+function syncUrlState() {
+  if (window.STANDALONE_MODE) return;
+  try {
+    var params = new URLSearchParams();
+    params.set('scheme', currentScheme);
+    params.set('type', currentType);
+    params.set('direction', currentView);
+    params.set('mode', currentMode);
+    history.replaceState(null, '', '?' + params.toString());
+  } catch (e) {}
+}
+
+// 检查 URL 参数，支持 ?mode=auto/daily/intraday&scheme=&type=&direction=
 (function() {
   var params = new URLSearchParams(window.location.search);
   var requestedMode = params.get('mode');
@@ -3127,6 +3233,32 @@ async function exportToExcel(dateLabel) {
       if (modeBtns[i].getAttribute('data-mode') === requestedMode) modeBtns[i].classList.add('active');
     }
   }
+  var requestedScheme = params.get('scheme');
+  if (['sw','ths','sw3'].indexOf(requestedScheme) >= 0) {
+    currentScheme = requestedScheme;
+    var schemeSel = document.getElementById('schemeSelect');
+    if (schemeSel) schemeSel.value = requestedScheme;
+    document.getElementById('schemeLabel').textContent =
+      requestedScheme === 'ths' ? '同花顺细分' : (requestedScheme === 'sw3' ? '申万三级' : '申万一级');
+  }
+  var requestedType = params.get('type');
+  if (['month','60d','120d','1year','alltime'].indexOf(requestedType) >= 0) {
+    currentType = requestedType;
+    currentWindow = selectedWindowDays();
+    var initTypeBtns = document.querySelectorAll('#typeToggle .toggle-btn');
+    for (var t = 0; t < initTypeBtns.length; t++) {
+      initTypeBtns[t].classList.toggle('active', initTypeBtns[t].getAttribute('data-type') === requestedType);
+    }
+  }
+  var requestedView = params.get('direction');
+  if (['opportunity','highs','lows'].indexOf(requestedView) >= 0) {
+    currentView = requestedView;
+    currentDirection = requestedView === 'lows' ? 'lows' : 'highs';
+    var initDirBtns = document.querySelectorAll('#directionToggle .toggle-btn');
+    for (var d = 0; d < initDirBtns.length; d++) {
+      initDirBtns[d].classList.toggle('active', initDirBtns[d].getAttribute('data-direction') === requestedView);
+    }
+  }
 })();
 
 applyLeaderboardVisibility();
@@ -3135,6 +3267,7 @@ loadData();
 async function scheduledRefreshTick() {
   // 独立收盘快照是静态文件，没有实时会话；保留生成时的新鲜度徽标不被覆盖
   if (window.STANDALONE_MODE) return;
+  if (document.hidden) return;  // 嵌入仪表盘且不可见时不轮询
   if (scheduledSessionCheckInProgress || loadInProgress || (currentMode !== 'auto' && currentMode !== 'intraday')) return;
   scheduledSessionCheckInProgress = true;
   try {
@@ -3287,9 +3420,9 @@ function renderQuadrant() {
   html += '<div class="q-label" style="left:4px;top:49%">−' + maxAbsNet + '% 收缩</div>';
   html += '<div class="q-label" style="right:4px;top:49%">扩散 +' + maxAbsNet + '%</div>';
   html += '<div class="q-label" style="left:8px;top:8px;color:#e06c75">收缩 + 高参与 · 风险/杀跌</div>';
-  html += '<div class="q-label" style="right:8px;top:8px;color:#98c379">扩散 + 高参与 · 确认</div>';
-  html += '<div class="q-label" style="left:8px;bottom:8px;color:#61afef">收缩 + 低参与 · 沉寂</div>';
-  html += '<div class="q-label" style="right:8px;bottom:8px;color:#e5c07b">扩散 + 低参与 · 待确认</div>';
+  html += '<div class="q-label" style="right:8px;top:8px;color:var(--c-98c379, #98c379)">扩散 + 高参与 · 确认</div>';
+  html += '<div class="q-label" style="left:8px;bottom:8px;color:var(--c-61afef, #61afef)">收缩 + 低参与 · 沉寂</div>';
+  html += '<div class="q-label" style="right:8px;bottom:8px;color:var(--c-e5c07b, #e5c07b)">扩散 + 低参与 · 待确认</div>';
 
   points.forEach(function(p) {
     var x = p.xPct;
@@ -3466,7 +3599,7 @@ function renderOpportunities() {
     var calibration = opportunityData.calibration || {};
     calibrationEl.innerHTML =
       '<div style="margin-top:8px;padding:7px;border:1px solid var(--border);border-radius:5px;color:var(--text-dim);line-height:1.45">' +
-      '<strong style="color:#d19a66">' + escapeHtml(calibration.label || '校准状态未知') + '</strong> · ' +
+      '<strong style="color:var(--c-d19a66, #d19a66)">' + escapeHtml(calibration.label || '校准状态未知') + '</strong> · ' +
       escapeHtml(calibration.message || '暂不显示成功概率') +
       '<br>入场口径：' + escapeHtml(calibration.entry_rule || '等待定义') + '</div>';
   }
@@ -3622,13 +3755,13 @@ function generateBriefing() {
     lines.push('  ' + (i+1) + '. ' + escapeHtml(r.industry) + ' ' + breadthValue(r, 'highs') + ' 只（' + (breadthRate(r, 'highs') * 100).toFixed(1) + '%）' + extra);
   });
   lines.push('');
-  lines.push('<span style="color:#61afef">❄️ 新低覆盖率 Top3：</span>');
+  lines.push('<span style="color:var(--c-61afef, #61afef)">❄️ 新低覆盖率 Top3：</span>');
   topL.forEach(function(r, i) {
     var extra = isIntraday ? '，当前 ' + (r.standing_count || 0) + ' 只' : '';
     lines.push('  ' + (i+1) + '. ' + escapeHtml(r.industry) + ' ' + breadthValue(r, 'lows') + ' 只（' + (breadthRate(r, 'lows') * 100).toFixed(1) + '%）' + extra);
   });
   lines.push('');
-  lines.push('<span style="color:#d19a66">💰 ' + (isIntraday && sameFlowDate ? '盘中成交额' : '成交额') + ' Top3' + (flowDate.label ? '（' + flowDate.label + '）' : '') + '：</span>');
+  lines.push('<span style="color:var(--c-d19a66, #d19a66)">💰 ' + (isIntraday && sameFlowDate ? '盘中成交额' : '成交额') + ' Top3' + (flowDate.label ? '（' + flowDate.label + '）' : '') + '：</span>');
   topF.forEach(function(r, i) {
     var share = Number.isFinite(r.share) ? r.share : ((r.turnover || 0) / Math.max(flowNow, 1) * 100);
     lines.push('  ' + (i+1) + '. ' + escapeHtml(r.industry) + ' ' + (r.turnover/1e8).toFixed(0) + '亿（' + share.toFixed(1) + '%）');
@@ -3663,5 +3796,6 @@ function copyBriefing() {
 }
 </script>
 <script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
 </body>
 </html>

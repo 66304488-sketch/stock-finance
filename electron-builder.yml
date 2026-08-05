@@ -81,6 +81,12 @@ extraResources:
     to: "scan_intraday.py"
   - from: "heatmap_opportunity.py"
     to: "heatmap_opportunity.py"
+  - from: "opportunity_summary.py"
+    to: "opportunity_summary.py"
+  - from: "sentiment_radar.py"
+    to: "sentiment_radar.py"
+  - from: "decision_intelligence.py"
+    to: "decision_intelligence.py"
   - from: "market_temperature.py"
     to: "market_temperature.py"
   - from: "crowding.py"
@@ -97,6 +103,8 @@ extraResources:
     to: "build_period_counts.py"
   - from: "fetch_market_cap.py"
     to: "fetch_market_cap.py"
+  - from: "margin_financing.py"
+    to: "margin_financing.py"
   - from: "etf_recommend.py"
     to: "etf_recommend.py"
   - from: "build_etf_map.py"
@@ -109,6 +117,8 @@ extraResources:
     to: "index_constituents.py"
   - from: "index_futures.py"
     to: "index_futures.py"
+  - from: "fetch_stock_pe.py"
+    to: "fetch_stock_pe.py"
 
 asar: true
 compression: normal

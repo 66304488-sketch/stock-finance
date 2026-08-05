@@ -1189,7 +1189,9 @@ async def intraday_snapshot(window: int = 20, scheme: str = "sw", refresh: bool 
         "highs": highs,
         "lows": lows,
         "history": history,
-        "stale": time.time() - min(os.path.getmtime(high_path), os.path.getmtime(low_path)) > 120,
+        # 与刷新触发同阈值(75s):75-120s 窗口内前端不再误以为数据新鲜
+        "stale": stale if existing else True,
+        "refreshing": bool(should_refresh),
         "refresh_error": refresh_error,
     }
 
@@ -1259,6 +1261,168 @@ async def heatmap_opportunities(
         raise HTTPException(500, f"热力图机会状态计算失败: {exc}")
 
 
+@app.get("/api/opportunity-summary")
+async def opportunity_summary(
+    period: str = "month",
+    scheme: str = "sw3",
+    mode: str = "auto",
+):
+    """Cross-validate independent evidence domains into auditable candidates."""
+    from heatmap_opportunity import PERIODS, SCHEME_SUFFIX
+    from opportunity_summary import build_opportunity_summary
+
+    if scheme not in SCHEME_SUFFIX:
+        raise HTTPException(400, "scheme must be sw, ths or sw3")
+    if period not in PERIODS:
+        raise HTTPException(
+            400, "period must be month, 60d, 120d, 1year or alltime"
+        )
+    if mode not in ("auto", "daily", "intraday"):
+        raise HTTPException(400, "mode must be auto, daily or intraday")
+    if mode == "intraday" and period == "alltime":
+        raise HTTPException(400, "alltime is only available in daily mode")
+
+    session_info = await market_session()
+    session = session_info["phase"]
+    effective_mode = (
+        session_info["recommended_mode"] if mode == "auto" else mode
+    )
+    mode_note = None
+    if mode == "auto" and effective_mode == "intraday" and period == "alltime":
+        effective_mode = "daily"
+        mode_note = "历史周期仅使用收盘数据"
+    try:
+        result = await asyncio.to_thread(
+            build_opportunity_summary,
+            DATA_DIR,
+            scheme=scheme,
+            period=period,
+            mode=effective_mode,
+        )
+        if isinstance(result, dict):
+            request_meta = result.setdefault("request", {})
+            request_meta.update(
+                {
+                    "scheme": scheme,
+                    "period": period,
+                    "requested_mode": mode,
+                    "effective_mode": effective_mode,
+                    "session": session,
+                    "close_confirmed": session_info["close_confirmed"],
+                    "mode_note": mode_note,
+                }
+            )
+        return result
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except FileNotFoundError as exc:
+        raise HTTPException(503, str(exc))
+    except Exception as exc:
+        logger.exception("机会汇总计算失败")
+        raise HTTPException(500, f"机会汇总计算失败: {exc}")
+
+
+# ======================================================================
+# 统一决策中枢：环境、变化、传导、执行、组合、提醒与概率可信度
+# ======================================================================
+
+@app.get("/api/decision-center")
+async def decision_center(
+    scheme: str = "sw3",
+    period: str = "month",
+    mode: str = "daily",
+):
+    """把现有证据层组织成可审计的短线决策闭环。"""
+    if scheme not in ("sw", "ths", "sw3"):
+        raise HTTPException(400, "行业分类仅支持 sw、ths、sw3")
+    if period not in ("month", "60d", "120d", "1year", "alltime"):
+        raise HTTPException(400, "period 参数无效")
+    if mode not in ("daily", "intraday"):
+        raise HTTPException(400, "mode 仅支持 daily、intraday")
+    if mode == "intraday" and period == "alltime":
+        raise HTTPException(400, "盘中模式不支持 alltime")
+    try:
+        from decision_intelligence import build_decision_center
+
+        missing_info = await asyncio.to_thread(_get_missing_info)
+        expected_date = missing_info.get("latest_trade_date")
+
+        return await asyncio.to_thread(
+            build_decision_center,
+            data_dir,
+            scheme,
+            period,
+            mode,
+            expected_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("决策中枢计算失败")
+        raise HTTPException(500, f"决策中枢计算失败: {exc}") from exc
+
+
+@app.get("/api/decision-center/industry")
+async def decision_center_industry(
+    industry: str,
+    scheme: str = "sw3",
+    period: str = "month",
+    mode: str = "daily",
+):
+    """返回单一行业的变化、驱动、结构、交易计划和传导关系。"""
+    if scheme not in ("sw", "ths", "sw3"):
+        raise HTTPException(400, "行业分类仅支持 sw、ths、sw3")
+    try:
+        from decision_intelligence import build_industry_decision
+
+        missing_info = await asyncio.to_thread(_get_missing_info)
+        expected_date = missing_info.get("latest_trade_date")
+
+        return await asyncio.to_thread(
+            build_industry_decision,
+            data_dir,
+            industry,
+            scheme,
+            period,
+            mode,
+            expected_date,
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("行业决策详情计算失败")
+        raise HTTPException(500, f"行业决策详情计算失败: {exc}") from exc
+
+
+@app.get("/api/decision-center/portfolio")
+async def decision_center_portfolio(
+    industries: str = "",
+    scheme: str = "sw3",
+):
+    """计算用户观察篮子的相关性、共享龙头与拥挤重叠。"""
+    if scheme not in ("sw", "ths", "sw3"):
+        raise HTTPException(400, "行业分类仅支持 sw、ths、sw3")
+    selected = [item.strip() for item in industries.split(",") if item.strip()]
+    if len(selected) > 20:
+        raise HTTPException(400, "一次最多分析20个行业")
+    try:
+        from decision_intelligence import build_portfolio_risk
+
+        return await asyncio.to_thread(
+            build_portfolio_risk,
+            data_dir,
+            selected,
+            scheme,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("组合风险计算失败")
+        raise HTTPException(500, f"组合风险计算失败: {exc}") from exc
+
+
 @app.get("/api/custom-heatmap")
 async def custom_heatmap(window: int = 20, scheme: str = "sw"):
     if not 5 <= window <= 250:
@@ -1307,6 +1471,7 @@ DATASET_LABELS = {
     "highs": "创新高",
     "lows": "创新低",
     "capital_flow": "成交动能",
+    "margin_financing": "融资融券",
     "market_cap": "行业市值",
     "ai": "AI 分析",
     "standalone": "独立 HTML",
@@ -1316,6 +1481,9 @@ DATASET_FILES = {
     "highs": ["new_highs_data_*.json", "new_highs_details_*.json"],
     "lows": ["new_lows_data_*.json", "new_lows_details_*.json"],
     "capital_flow": ["capital_flow.json", "capital_flow_ths.json"],
+    "margin_financing": [
+        "margin_financing.json", "margin_financing_ths.json", "margin_financing_sw3.json",
+    ],
     "market_cap": [
         "market_cap.json", "market_cap_ths.json", "market_cap_sw3.json",
         "market_cap_v2.json", "market_cap_v2_ths.json",
@@ -1328,13 +1496,16 @@ DATASET_FILES = {
     "etf": ["etf_recommend_sw3.json"],
 }
 DEFAULT_UPDATE_CONFIG = {
-    "selected_datasets": ["highs", "lows", "capital_flow", "etf"],
+    "selected_datasets": [
+        "highs", "lows", "capital_flow", "margin_financing", "etf", "market_cap",
+    ],
     "update_mode": "incremental",
     "refresh_days": 1,
     "sources": {
         "highs": "sina_kline",
         "lows": "sina_kline",
         "capital_flow": "sina_kline_cache",
+        "margin_financing": "exchange_public_data",
         "market_cap": "sina_kline_cache",
         "basics": "akshare_excel",
     },
@@ -1342,6 +1513,7 @@ DEFAULT_UPDATE_CONFIG = {
         "highs": False,
         "lows": False,
         "capital_flow": False,
+        "margin_financing": False,
         "market_cap": False,
         "ai": False,
         "standalone": False,
@@ -1351,6 +1523,7 @@ SUPPORTED_SOURCES = {
     "highs": {"sina_kline", "sina_kline_cache"},
     "lows": {"sina_kline", "sina_kline_cache"},
     "capital_flow": {"sina_kline_cache"},
+    "margin_financing": {"exchange_public_data"},
     "market_cap": {"sina_kline_cache"},
     "basics": {"akshare_excel"},
 }
@@ -1485,6 +1658,7 @@ def _get_missing_info(force=False):
         "highs": "new_highs_data_month.json",
         "lows": "new_lows_data_month.json",
         "capital_flow": "capital_flow.json",
+        "margin_financing": "margin_financing.json",
         "market_cap": "market_cap.json",
     }
     for ds, fname in checks.items():
@@ -1504,6 +1678,29 @@ def _get_missing_info(force=False):
                 m = _re.match(r"(\d{4})年(\d{1,2})月(\d{1,2})日", d.get("full_label", ""))
                 if m:
                     existing.add(f"{int(m.group(1)):04d}{int(m.group(2)):02d}{int(m.group(3)):02d}")
+            # 两融明细由沪深交易所分别发布，两所的最新日期偶尔会错开。
+            # 只要本地数据已等于两所共同完整日，就不应该被通用交易日
+            # 逻辑永久标记为“需更新”。
+            if ds == "margin_financing":
+                exchange_latest = data.get("source", {}).get("exchange_latest", {})
+                common_date = exchange_latest.get("complete") or data.get("latest_date")
+                published = [
+                    exchange_latest.get(exchange)
+                    for exchange in ("sse", "szse")
+                    if exchange_latest.get(exchange)
+                ]
+                if (
+                    common_date
+                    and common_date in existing
+                    and (not published or common_date == min(published))
+                ):
+                    info["datasets"][ds] = {
+                        "status": "up_to_date",
+                        "last_date": common_date,
+                        "exchange_latest": exchange_latest,
+                        "source_lag": bool(latest and common_date < latest),
+                    }
+                    continue
             if latest and latest in existing:
                 info["datasets"][ds] = {"status": "up_to_date", "last_date": latest}
             else:
@@ -1820,27 +2017,43 @@ async def refresh_capital_flow():
     return await refresh_data({"days": 1, "datasets": ["capital_flow"]})
 
 
+def _resolve_refresh_datasets(req: dict, strategy: dict | None = None) -> list[str]:
+    """Resolve one dataset policy for UI, menu, scheduler and startup catch-up.
+
+    An explicitly supplied list always wins.  Callers that omit ``datasets``
+    use the saved strategy instead of a second hard-coded default list.
+    """
+    if "datasets" in req:
+        requested = req.get("datasets")
+    else:
+        strategy = strategy or _load_update_manifest().get("config", {})
+        requested = strategy.get("selected_datasets")
+        if requested is None:
+            requested = list(DEFAULT_UPDATE_CONFIG["selected_datasets"])
+    if not isinstance(requested, list):
+        raise HTTPException(400, "datasets 必须是列表")
+    if not requested:
+        raise HTTPException(400, "至少选择一个数据集")
+    unknown = [dataset for dataset in requested if dataset not in DATASET_LABELS]
+    if unknown:
+        raise HTTPException(400, "未知数据集: " + ", ".join(map(str, unknown)))
+    return list(dict.fromkeys(requested))
+
+
 @app.post("/api/refresh-data")
 async def refresh_data(req: dict = None):
-    """启动可分数据集的数据更新流水线。默认增量更新新高、新低、成交动能。"""
+    """启动可分数据集的数据更新流水线。未传 datasets 时使用已保存策略。"""
     import threading
     req = req or {}
+    strategy = _load_update_manifest().get("config", {})
     try:
-        days = int(req.get("days", 1))
+        days = int(req["days"] if "days" in req else strategy.get("refresh_days", 1))
     except (TypeError, ValueError):
         raise HTTPException(400, "days 必须是 1 到 30 的整数")
     if days < 1 or days > 30:
         raise HTTPException(400, "days 必须是 1 到 30 的整数")
-    requested = req.get("datasets") or ["highs", "lows", "capital_flow", "etf"]
-    if not isinstance(requested, list):
-        raise HTTPException(400, "datasets 必须是列表")
-    unknown = [dataset for dataset in requested if dataset not in DATASET_LABELS]
-    if unknown:
-        raise HTTPException(400, "未知数据集: " + ", ".join(map(str, unknown)))
-    datasets = list(dict.fromkeys(requested))
-    if not datasets:
-        raise HTTPException(400, "至少选择一个数据集")
-    mode = req.get("mode") or "auto"
+    datasets = _resolve_refresh_datasets(req, strategy)
+    mode = req["mode"] if "mode" in req else strategy.get("update_mode", "auto")
     if mode not in ("auto", "incremental", "missing", "rebuild"):
         raise HTTPException(400, "mode 必须是 auto/incremental/missing/rebuild")
     force_rebuild = bool(req.get("force_rebuild")) or mode == "rebuild"
@@ -1914,6 +2127,10 @@ async def refresh_data(req: dict = None):
                     elif dataset == "capital_flow":
                         _set_refresh_status(current_step=f"{label} (计算中...)")
                         update_capital_flow(target_dates_list, schemes=["sw", "ths", "sw3"])
+                    elif dataset == "margin_financing":
+                        _set_refresh_status(current_step=f"{label} (交易所明细计算中...)")
+                        from margin_financing import update_margin_financing
+                        update_margin_financing(target_dates_list, schemes=["sw", "ths", "sw3"])
                     elif dataset == "market_cap":
                         _set_refresh_status(current_step=f"{label} (计算中...)")
                         update_market_cap(target_dates_list, schemes=["sw", "ths", "sw3"])
@@ -1990,6 +2207,17 @@ async def refresh_data(req: dict = None):
                 except Exception as e:
                     print(f"动量ETF同步失败(不影响主流程): {e}")
             __import__("export_json").export_all()
+            # 明细弹窗的配套产物:多周期计数与个股 PE,失败不阻断主流程
+            try:
+                from build_period_counts import main as build_counts
+                build_counts()
+            except Exception as e:
+                print(f"周期计数生成失败(不影响主流程): {e}")
+            try:
+                from fetch_stock_pe import update_stock_pe
+                update_stock_pe()
+            except Exception as e:
+                print(f"个股PE刷新失败(不影响主流程): {e}")
             if ("highs" in datasets or "lows" in datasets) and "ai" not in datasets:
                 ok, err = _run_refresh_step("每日市场简报", ["ai_analyzer.py", "--metrics-only"], 120)
                 if ok:
@@ -2341,6 +2569,25 @@ async def market_cap(scheme: str = "sw"):
 
 
 # ======================================================================
+# 行业融资融券端点
+# ======================================================================
+
+@app.get("/api/margin-financing")
+async def margin_financing(scheme: str = "sw"):
+    """返回行业融资融券数据。scheme=sw/ths/sw3。"""
+    import json as _json
+    suffixes = {"sw": "", "ths": "_ths", "sw3": "_sw3"}
+    if scheme not in suffixes:
+        raise HTTPException(400, "行业分类仅支持 sw、ths、sw3")
+    filename = f"margin_financing{suffixes[scheme]}.json"
+    path = os.path.join(data_dir, filename)
+    if not os.path.exists(path):
+        raise HTTPException(404, "融资融券数据尚未生成，请先在设置中更新")
+    with open(path, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+
+# ======================================================================
 # 大盘冷热(市场温度)端点
 # ======================================================================
 
@@ -2406,6 +2653,61 @@ async def market_temperature():
         "session": _session_phase(),
         "now": datetime.now().isoformat(timespec="seconds"),
     }
+
+
+# ======================================================================
+# 板块情绪反转雷达
+# ======================================================================
+
+@app.get("/api/sentiment-radar")
+async def sentiment_radar(scheme: str = "sw"):
+    """底部反弹与顶部退潮分离的板块情绪研究雷达。"""
+    if scheme not in ("sw", "ths", "sw3"):
+        raise HTTPException(400, "行业分类仅支持 sw、ths、sw3")
+    try:
+        from sentiment_radar import build_sentiment_radar
+
+        return await asyncio.to_thread(
+            build_sentiment_radar,
+            data_dir,
+            scheme,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "雷达底层数据尚未生成，请先更新成交动能") from exc
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(503, f"雷达底层数据不可用: {exc}") from exc
+    except Exception as exc:
+        logger.exception("板块情绪雷达计算失败")
+        raise HTTPException(500, f"板块情绪雷达计算失败: {exc}")
+
+
+@app.get("/api/sentiment-radar/stocks")
+async def sentiment_radar_stocks(
+    industry: str,
+    scheme: str = "sw",
+    trade_date: str = "",
+):
+    """返回与雷达信号日对齐的完整板块成分和个股交易指标。"""
+    if scheme not in ("sw", "ths", "sw3"):
+        raise HTTPException(400, "行业分类仅支持 sw、ths、sw3")
+    try:
+        from sentiment_radar import build_sentiment_radar_stocks
+
+        return await asyncio.to_thread(
+            build_sentiment_radar_stocks,
+            data_dir,
+            resource_static_dir,
+            scheme,
+            industry,
+            trade_date,
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("雷达板块个股加载失败")
+        raise HTTPException(500, f"雷达板块个股加载失败: {exc}") from exc
 
 
 # ======================================================================
@@ -2695,29 +2997,34 @@ def _safe_static_path(root: str, filename: str) -> str | None:
     return None
 
 
+# 页面/脚本/样式不发缓存头会被 Chromium 启发式缓存,升级后用户看到的仍是旧 UI;
+# no-cache 表示每次校验,ETag/Last-Modified 仍让未变文件走 304。
+_STATIC_HEADERS = {"Cache-Control": "no-cache"}
+
+
 @app.get("/{filename:path}")
 async def serve_static(filename: str):
     # 仅允许明确的运行时数据文件从用户数据目录公开。
     if is_runtime_data_file(filename):
         data_path = _safe_static_path(data_dir, filename)
         if data_path and os.path.isfile(data_path):
-            return FileResponse(data_path)
+            return FileResponse(data_path, headers=_STATIC_HEADERS)
         raise HTTPException(404, "Not found")
 
     resource_path = _safe_static_path(resource_static_dir, filename)
     if resource_path and os.path.isfile(resource_path):
-        return FileResponse(resource_path)
+        return FileResponse(resource_path, headers=_STATIC_HEADERS)
 
     # 页面可省略 .html 后缀。
     if resource_path:
         html_path = resource_path + ".html"
         if os.path.isfile(html_path):
-            return FileResponse(html_path)
+            return FileResponse(html_path, headers=_STATIC_HEADERS)
 
     if filename in ("", "/", "index"):
         index_path = os.path.join(resource_static_dir, "index.html")
         if os.path.isfile(index_path):
-            return FileResponse(index_path)
+            return FileResponse(index_path, headers=_STATIC_HEADERS)
     raise HTTPException(404, "Not found")
 
 if __name__ == "__main__":

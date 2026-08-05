@@ -94,7 +94,8 @@ def _make_heatmap(db, direction, period, scheme, prefix, suffix, output_dir=None
     output_dir = output_dir or STATIC
     table = "daily_new_highs" if direction == "highs" else "daily_new_lows"
     source_scheme = _source_scheme(scheme)
-    dates = _dates(db, table, 20, source_scheme, period)
+    # 80 天:热力图历史校准需要 >=60 个样本日(heatmap_opportunity._historical_calibration)
+    dates = _dates(db, table, 80, source_scheme, period)
     if not dates: return
     
     rows = db.conn.execute(

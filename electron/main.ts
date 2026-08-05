@@ -8,8 +8,9 @@
  * 4. 定时数据更新调度
  */
 
-import { app, BrowserWindow, Menu, Tray, nativeImage, Notification, dialog, shell, ipcMain } from "electron";
+import { app, BrowserWindow, Menu, Tray, nativeImage, Notification, dialog, shell, ipcMain, session } from "electron";
 import * as path from "path";
+import * as fs from "fs";
 import * as http from "http";
 import { PythonManager } from "./python-manager";
 import { Scheduler } from "./scheduler";
@@ -21,6 +22,22 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let pythonManager: PythonManager;
 let scheduler: Scheduler;
+
+// 旧版本的 Chromium HTTP 缓存会在升级后继续吐出旧页面(新装 App 看不到新 UI),
+// 版本变化时清一次磁盘缓存;userData 下的标记文件记录上次清理时的版本。
+async function clearCacheIfVersionChanged(): Promise<void> {
+  const marker = path.join(app.getPath("userData"), ".app-version");
+  const current = app.getVersion();
+  try {
+    const previous = fs.existsSync(marker) ? fs.readFileSync(marker, "utf8").trim() : "";
+    if (previous === current) return;
+    await session.defaultSession.clearCache();
+    fs.writeFileSync(marker, current);
+    console.log(`[Cache] HTTP cache cleared on version change: ${previous || "(none)"} -> ${current}`);
+  } catch (err) {
+    console.warn("[Cache] version-change cache clear failed:", err);
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -122,7 +139,7 @@ function createTray(): void {
   tray.on("click", showOrCreate);
 }
 
-function postRefresh(days = 1): Promise<boolean> {
+function postRefresh(days?: number): Promise<boolean> {
   return new Promise((resolve) => {
     const req = http.request(
       {
@@ -143,7 +160,9 @@ function postRefresh(days = 1): Promise<boolean> {
       req.destroy();
       resolve(false);
     });
-    req.end(JSON.stringify({ days, mode: "auto" }));
+    const payload: { days?: number } = {};
+    if (days !== undefined) payload.days = days;
+    req.end(JSON.stringify(payload));
   });
 }
 
@@ -197,12 +216,18 @@ async function needsCatchUp(): Promise<boolean> {
     && !session.close_confirmed;
   if (awaitingTodayClose) return false;
 
-  const result = await getBackendJson("/api/refresh-data/check");
+  const [result, strategy] = await Promise.all([
+    getBackendJson("/api/refresh-data/check"),
+    getBackendJson("/api/update-config"),
+  ]);
   if (!result) return false;
   const datasets = result?.datasets || {};
-  return ["highs", "lows", "capital_flow"].some(
-    (name) => datasets[name]?.status !== "up_to_date"
-  );
+  const selected = Array.isArray(strategy?.config?.selected_datasets)
+    ? strategy.config.selected_datasets
+    : ["highs", "lows", "capital_flow", "margin_financing", "market_cap"];
+  return selected
+    .filter((name: string) => datasets[name])
+    .some((name: string) => datasets[name]?.status !== "up_to_date");
 }
 
 interface RefreshStatus {
@@ -266,7 +291,7 @@ function pollRefreshStatus(maxMs = 1200000): Promise<RefreshStatus> {
  */
 let pipelineRunning = false;
 
-async function runDataPipeline(days = 1, interactive = false): Promise<void> {
+async function runDataPipeline(days?: number, interactive = false): Promise<void> {
   if (pipelineRunning) {
     const message = "已有刷新任务在运行中";
     notify("数据更新", message);
@@ -292,7 +317,7 @@ async function runDataPipeline(days = 1, interactive = false): Promise<void> {
     const status = await pollRefreshStatus(1200000);
     if (status.success) {
       notify("数据更新", "✅ 数据更新完成");
-      mainWindow?.webContents.send("data-updated", { days, finishedAt: Date.now() });
+      mainWindow?.webContents.send("data-updated", { days: days ?? null, finishedAt: Date.now() });
       // 设置是 app.html 内的标签页，URL 无法区分；app.html 由页面监听 data-updated
       // 自行决定刷新（避免设置页未保存输入被整页 reload 冲掉），其余页面直接 reload
       const currentUrl = mainWindow?.webContents.getURL() || "";
@@ -326,6 +351,7 @@ function notify(title: string, body: string): void {
 
 app.whenReady().then(async () => {
   createMenu();
+  await clearCacheIfVersionChanged();
 
   // IPC: 打开文件夹对话框
   ipcMain.handle("select-dir", async () => {

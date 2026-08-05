@@ -1,31 +1,32 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<script src="/theme.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>市场参与强度</title>
 <style>
   :root {
     --bg:#171a1f; --surface:#20242b; --surface-2:#191d23; --text:#b7bec9;
-    --muted:#717987; --strong:#f0f2f5; --accent:#61afef; --border:#343a45;
+    --muted:#717987; --strong:#f0f2f5; --accent:#61afef; --border:var(--c-343a45, #343a45);
     --up:#df8798; --down:#8fbc8f; --warm:#e5c07b;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  html,body { min-height:100%; background:var(--bg); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); }
+  html,body { min-height:100%; background: var(--bg); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); }
   .container { max-width:1240px; margin:0 auto; padding:22px; }
   .header { margin-bottom:16px; padding-right:86px; position:relative; }
   .header h1 { font-size:1.35em; color:var(--strong); letter-spacing:0.01em; }
   .header .sub { max-width:820px; font-size:0.76em; color:var(--muted); margin-top:6px; line-height:1.6; }
-  .refresh-btn { position:absolute; right:0; top:0; padding:7px 14px; border:1px solid var(--border); border-radius:7px; background:var(--surface); color:var(--text); cursor:pointer; font-size:0.8em; }
+  .refresh-btn { position:absolute; right:0; top:0; padding:7px 14px; border:1px solid var(--border); border-radius:7px; background: var(--surface); color:var(--text); cursor:pointer; font-size:0.8em; }
   .refresh-btn:hover { border-color:var(--accent); color:var(--strong); }
   .refresh-btn:disabled { opacity:0.6; cursor:default; }
   .badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:999px; font-size:0.65em; border:1px solid var(--border); margin-left:8px; vertical-align:middle; }
-  .badge.live { color:#9dcc8d; border-color:#496044; background:#243026; }
-  .badge.close { color:#aeb5c0; background:#282d35; }
-  .badge.wait { color:#e5c07b; border-color:#5b5135; background:#302c22; }
+  .badge.live { color:var(--c-9dcc8d, #9dcc8d); border-color:#496044; background: var(--c-243026, #243026); }
+  .badge.close { color:var(--c-aeb5c0, #aeb5c0); background: var(--c-282d35, #282d35); }
+  .badge.wait { color:var(--c-e5c07b, #e5c07b); border-color:#5b5135; background: var(--c-302c22, #302c22); }
 
   .top { display:grid; grid-template-columns:250px minmax(0,1fr); gap:14px; margin-bottom:14px; }
-  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:15px 17px; box-shadow:0 8px 26px rgba(0,0,0,0.12); }
+  .panel { background: var(--surface); border:1px solid var(--border); border-radius:12px; padding:15px 17px; box-shadow:0 8px 26px rgba(0,0,0,0.12); }
   .gauge-panel { text-align:center; display:flex; flex-direction:column; justify-content:center; min-height:270px; }
   .gauge-val { font-size:2.55em; font-weight:800; font-family:"SF Mono","Menlo","Consolas",monospace; line-height:1; }
   .gauge-label { font-size:0.9em; margin-top:7px; color:var(--strong); }
@@ -33,17 +34,17 @@
   .status-panel { min-width:0; }
   .eyebrow { color:var(--accent); font-size:0.67em; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:7px; }
   .status-title { color:var(--strong); font-size:1.28em; line-height:1.35; }
-  .status-copy { color:#939ba7; font-size:0.79em; line-height:1.7; margin-top:7px; }
+  .status-copy { color:var(--c-939ba7, #939ba7); font-size:0.79em; line-height:1.7; margin-top:7px; }
   .signal-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:15px; }
-  .signal-card { background:var(--surface-2); border:1px solid #303640; border-radius:9px; padding:10px 11px; min-width:0; }
+  .signal-card { background: var(--surface-2); border:1px solid var(--c-303640, #303640); border-radius:9px; padding:10px 11px; min-width:0; }
   .signal-card .val { color:var(--strong); font:700 1.05em "SF Mono","Menlo","Consolas",monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .signal-card .lbl { color:var(--muted); font-size:0.65em; margin-top:4px; }
-  .quality { display:flex; align-items:flex-start; gap:9px; margin-top:12px; padding:9px 11px; border-radius:8px; background:#1b2026; border:1px solid #2e353f; font-size:0.7em; color:#929aa6; line-height:1.55; }
-  .quality strong { color:#d5d9df; white-space:nowrap; }
+  .quality { display:flex; align-items:flex-start; gap:9px; margin-top:12px; padding:9px 11px; border-radius:8px; background: var(--c-1b2026, #1b2026); border:1px solid var(--c-2e353f, #2e353f); font-size:0.7em; color:var(--c-929aa6, #929aa6); line-height:1.55; }
+  .quality strong { color:var(--c-d5d9df, #d5d9df); white-space:nowrap; }
 
   .snapshot-panel,.drivers-panel,.chart-panel { margin-bottom:14px; }
   .cards { display:grid; grid-template-columns:repeat(10,minmax(82px,1fr)); gap:7px; }
-  .card { background:var(--surface-2); border:1px solid #303640; border-radius:8px; padding:9px 8px; text-align:center; }
+  .card { background: var(--surface-2); border:1px solid var(--c-303640, #303640); border-radius:8px; padding:9px 8px; text-align:center; }
   .card .val { font-size:1em; font-weight:700; color:var(--strong); font-family:"SF Mono","Menlo","Consolas",monospace; }
   .card .lbl { font-size:0.62em; color:var(--muted); margin-top:3px; }
   .up { color:var(--up) !important; }
@@ -51,28 +52,28 @@
 
   .factors { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 16px; }
   .factor-row { display:grid; grid-template-columns:72px minmax(90px,1fr) 36px 72px; align-items:center; gap:8px; min-height:34px; font-size:0.72em; }
-  .factor-row .name { color:#aeb5c0; }
+  .factor-row .name { color:var(--c-aeb5c0, #aeb5c0); }
   .factor-row .name small { display:block; color:#5f6875; margin-top:2px; font-size:0.82em; }
-  .factor-row .bar-track { height:8px; background:#171a1f; border-radius:5px; position:relative; overflow:hidden; }
+  .factor-row .bar-track { height:8px; background: var(--c-171a1f, #171a1f); border-radius:5px; position:relative; overflow:hidden; }
   .factor-row .bar-fill { position:absolute; left:0; top:0; bottom:0; border-radius:5px; }
-  .factor-row .mid { position:absolute; left:50%; top:0; bottom:0; width:1px; background:#3b424d; }
-  .factor-row .pct { text-align:right; font-family:"SF Mono","Menlo","Consolas",monospace; color:#c8cdd5; }
+  .factor-row .mid { position:absolute; left:50%; top:0; bottom:0; width:1px; background: #3b424d; }
+  .factor-row .pct { text-align:right; font-family:"SF Mono","Menlo","Consolas",monospace; color:var(--c-c8cdd5, #c8cdd5); }
   .factor-row .raw { text-align:right; color:#777f8b; font-family:"SF Mono","Menlo","Consolas",monospace; overflow:hidden; text-overflow:ellipsis; }
 
   .chart-title { font-size:0.84em; color:var(--strong); margin-bottom:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .chart-title .hint { font-size:0.8em; color:var(--muted); font-weight:400; }
   .range-tabs { display:flex; gap:4px; margin-left:auto; align-items:center; }
-  .range-tab { padding:4px 10px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:0.75em; background:var(--surface-2); color:var(--text); }
-  .range-tab.active { background:var(--accent); color:#14202a; border-color:var(--accent); font-weight:700; }
-  .range-input { width:54px; padding:4px 6px; border:1px solid var(--border); border-radius:5px; background:var(--surface-2); color:var(--text); font-size:0.75em; }
+  .range-tab { padding:4px 10px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:0.75em; background: var(--surface-2); color:var(--text); }
+  .range-tab.active { background: var(--accent); color:#14202a; border-color:var(--accent); font-weight:700; }
+  .range-input { width:54px; padding:4px 6px; border:1px solid var(--border); border-radius:5px; background: var(--surface-2); color:var(--text); font-size:0.75em; }
   svg text { font-family:"SF Mono","Menlo","Consolas",monospace; }
-  .legend { display:flex; gap:11px; font-size:0.68em; color:#8d96a2; flex-wrap:wrap; }
+  .legend { display:flex; gap:11px; font-size:0.68em; color:var(--c-8d96a2, #8d96a2); flex-wrap:wrap; }
   .legend i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
-  .hover-line { font-size:0.72em; color:#d9dde3; min-height:1.2em; margin-top:6px; font-family:"SF Mono","Menlo","Consolas",monospace; }
+  .hover-line { font-size:0.72em; color:var(--c-d9dde3, #d9dde3); min-height:1.2em; margin-top:6px; font-family:"SF Mono","Menlo","Consolas",monospace; }
   .formula summary { cursor:pointer; color:var(--accent); font-size:0.82em; font-weight:600; }
   .formula .f-table { width:100%; border-collapse:collapse; font-size:0.75em; margin-top:8px; }
-  .formula .f-table td,.formula .f-table th { padding:5px 8px; border-bottom:1px solid #2d333c; text-align:left; }
-  .formula .f-table th { color:#8e97a3; font-weight:600; }
+  .formula .f-table td,.formula .f-table th { padding:5px 8px; border-bottom:1px solid var(--c-2d333c, #2d333c); text-align:left; }
+  .formula .f-table th { color:var(--c-8e97a3, #8e97a3); font-weight:600; }
   .formula .f-eq { font-family:"SF Mono","Menlo","Consolas",monospace; color:var(--warm); font-size:0.77em; line-height:1.7; }
   .formula .f-note { color:var(--muted); font-size:0.72em; margin-top:8px; line-height:1.65; }
   .update { text-align:center; font-size:0.69em; color:#5f6875; margin-top:14px; }
@@ -99,7 +100,7 @@
   <div class="header">
     <h1>市场参与强度<span id="sessionBadge"></span></h1>
     <div class="sub">0–100 描述全市场上涨参与度，不预测下一日涨跌。主指标采用稳定的涨跌宽度与涨跌停口径；其他因子用于解释和交叉验证。</div>
-    <button class="refresh-btn" id="refreshBtn" onclick="manualRefresh()">🔄 刷新</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="manualRefresh()" title="只重新读取已生成的数据,不更新;更新数据请用右上角状态条">↻ 重新加载</button>
   </div>
   <div class="error" id="errorBox" style="display:none"></div>
 
@@ -134,7 +135,7 @@
   </div>
 
   <div class="panel chart-panel" id="intradayPanel">
-    <div class="chart-title">最近交易日盘中路径<span id="intradayDate" style="color:#61afef"></span>
+    <div class="chart-title">最近交易日盘中路径<span id="intradayDate" style="color:var(--c-61afef, #61afef)"></span>
       <span class="hint">盘中三因子估算，仅在交易时段且日期匹配时作为首屏主值</span>
     </div>
     <svg id="intradayChart" width="100%" height="200"></svg>
@@ -212,13 +213,21 @@ const FACTOR_META = {
   mcap: {name:'市值变化', note:'辅助验证'},
 };
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
 function showError(msg) {
   const box = document.getElementById('errorBox');
   if (!msg) { box.style.display = 'none'; return; }
   box.style.display = '';
+  // msg 可能来自服务端响应,必须先转义再进 innerHTML
+  const safe = escapeHtml(String(msg));
   box.innerHTML = RENDERED
-    ? `⚠️ 刷新失败: ${msg}（保留上次数据,60 秒后自动重试）`
-    : `⚠️ ${msg}<br><br><span style="color:#666;font-size:0.8em">请先在「设置 → 数据更新」中运行批量更新，生成市场宽度数据。</span>`;
+    ? `⚠️ 加载失败: ${safe}（保留上次数据,60 秒后自动重试）`
+    : `⚠️ ${safe}<br><br><span style="color:#666;font-size:0.8em">请先在「设置 → 数据更新」中运行批量更新，生成市场宽度数据。</span>`;
 }
 
 const TEMP_STOPS = [
@@ -875,10 +884,10 @@ async function load() {
 async function manualRefresh() {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
-  btn.textContent = '⏳ 刷新中';
+  btn.textContent = '⏳ 加载中';
   await load();
   btn.disabled = false;
-  btn.textContent = '🔄 刷新';
+  btn.textContent = '↻ 重新加载';
 }
 
 function redrawCharts() {
@@ -906,8 +915,9 @@ document.getElementById('rangeTabs').addEventListener('click', ev => {
 });
 window.addEventListener('resize', () => { if (DATA) { redrawCharts(); drawIntradayChart(); } });
 load();
-setInterval(load, 60000);
+setInterval(function() { if (!document.hidden) load(); }, 60000);
 </script>
 <script src="/page-guide.js" defer></script>
+<script src="/data-status.js" defer></script>
 </body>
 </html>

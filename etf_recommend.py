@@ -212,18 +212,28 @@ def _etf_stats(closes: list[float], volumes: list[float], last_date: str = "") -
 # 1. 映射表
 # ------------------------------------------------------------------
 
-def ensure_etf_map() -> dict:
-    path = data_path(MAP_FILE)
+def _map_file(scheme: str) -> str:
+    return f"industry_etf_map_{scheme}.json"
+
+
+def _output_file(scheme: str) -> str:
+    return f"etf_recommend_{scheme}.json"
+
+
+def ensure_etf_map(scheme: str = SCHEME) -> dict:
+    path = data_path(_map_file(scheme))
     if not os.path.exists(path):
-        # 老数据目录没有映射表（升级场景）→ 优先从打包资源复制，否则自动生成
-        bundled = resource_path(MAP_FILE)
+        # 老数据目录没有映射表（升级场景）→ 优先从打包资源复制
+        bundled = resource_path(_map_file(scheme))
         if os.path.exists(bundled):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             shutil.copy2(bundled, path)
-        else:
+        elif scheme == SCHEME:
             print("映射表不存在，自动生成...")
             import build_etf_map
             build_etf_map.main()
+        else:
+            raise FileNotFoundError(f"缺少 {scheme} 行业 ETF 映射表: {path}")
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -297,12 +307,12 @@ def fetch_etf_snapshot(codes: list[str], ref_date: str | None = None) -> dict:
 # 3. 行业信号 + 综合评分
 # ------------------------------------------------------------------
 
-def _pivot_counts(db, table: str, period: str, dates: list[str]) -> dict[str, dict]:
+def _pivot_counts(db, table: str, period: str, dates: list[str], scheme: str = SCHEME) -> dict[str, dict]:
     """{industry: {"counts": [最新在前], "total": int}}"""
     rows = db.conn.execute(
         f"SELECT industry, date, count, total_stocks FROM {table} "
         f"WHERE scheme=? AND period=? AND is_total=0 AND date IN ({','.join('?' * len(dates))})",
-        [SCHEME, period] + dates,
+        [scheme, period] + dates,
     ).fetchall()
     out = {}
     for ind, d, cnt, total in rows:
@@ -312,11 +322,11 @@ def _pivot_counts(db, table: str, period: str, dates: list[str]) -> dict[str, di
     return out
 
 
-def _pivot_flow(db, dates: list[str]) -> dict[str, dict]:
+def _pivot_flow(db, dates: list[str], scheme: str = SCHEME) -> dict[str, dict]:
     rows = db.conn.execute(
         "SELECT industry, date, turnover, net_flow FROM daily_capital_flow "
         f"WHERE scheme=? AND is_total=0 AND date IN ({','.join('?' * len(dates))})",
-        [SCHEME] + dates,
+        [scheme] + dates,
     ).fetchall()
     out = {}
     for ind, d, to, nf in rows:
@@ -576,15 +586,15 @@ def _candidate_links(candidates: list[dict], snap_etfs: dict) -> list[dict]:
     return sorted(links.values(), key=lambda item: (-item["match_weight"], item["etf"]["code"]))
 
 
-def _score_rows(db, dates: list[str], mapping: dict, snap_etfs: dict) -> list[dict]:
+def _score_rows(db, dates: list[str], mapping: dict, snap_etfs: dict, scheme: str = SCHEME) -> list[dict]:
     """对指定日期窗口（最新在前）计算全部行业评分行。
     snap_etfs: {code: {price, ret_2d, ret_5d, ma20_distance, ...}}
     回测时传入历史切片快照即可复现当日推荐。
     """
-    highs = _pivot_counts(db, "daily_new_highs", "month", dates)
-    highs60 = _pivot_counts(db, "daily_new_highs", "60d", dates)
-    lows = _pivot_counts(db, "daily_new_lows", "month", dates)
-    flow = _pivot_flow(db, dates)
+    highs = _pivot_counts(db, "daily_new_highs", "month", dates, scheme)
+    highs60 = _pivot_counts(db, "daily_new_highs", "60d", dates, scheme)
+    lows = _pivot_counts(db, "daily_new_lows", "month", dates, scheme)
+    flow = _pivot_flow(db, dates, scheme)
 
     # ---- 原始指标 ----
     metrics = {}
@@ -1340,8 +1350,8 @@ def _write_prediction_log(result: dict) -> None:
 
 
 def build_recommendations(map_obj: dict | None = None, snapshot: dict | None = None,
-                          ref_date: str | None = None) -> dict:
-    map_obj = map_obj or ensure_etf_map()
+                          ref_date: str | None = None, scheme: str = SCHEME) -> dict:
+    map_obj = map_obj or ensure_etf_map(scheme)
     if snapshot is None:
         with open(data_path(SNAPSHOT_FILE), encoding="utf-8") as f:
             snapshot = json.load(f)
@@ -1351,20 +1361,21 @@ def build_recommendations(map_obj: dict | None = None, snapshot: dict | None = N
     if ref_date:
         dates = [r[0] for r in db.conn.execute(
             "SELECT DISTINCT date FROM daily_new_highs WHERE scheme=? AND period='month' "
-            "AND date<=? ORDER BY date DESC LIMIT ?", [SCHEME, ref_date, BASE_DAYS]).fetchall()]
+            "AND date<=? ORDER BY date DESC LIMIT ?", [scheme, ref_date, BASE_DAYS]).fetchall()]
     else:
         dates = [r[0] for r in db.conn.execute(
             "SELECT DISTINCT date FROM daily_new_highs WHERE scheme=? AND period='month' "
-            "ORDER BY date DESC LIMIT ?", [SCHEME, BASE_DAYS]).fetchall()]
+            "ORDER BY date DESC LIMIT ?", [scheme, BASE_DAYS]).fetchall()]
     if len(dates) < RECENT_DAYS + 5:
         raise RuntimeError(f"行业数据不足 ({len(dates)} 天)")
 
     latest = dates[0]
     mapping = map_obj.get("mapping", {})
-    rows = _score_rows(db, dates, mapping, snap_etfs)
+    rows = _score_rows(db, dates, mapping, snap_etfs, scheme)
     regime = _build_market_regime(
         _load_optional_json("market_temperature.json"), latest)
-    crowding_payload = _load_optional_json("crowding_sw3.json")
+    crowding_payload = _load_optional_json(
+        "crowding.json" if scheme == "sw" else f"crowding_{scheme}.json")
     crowding = _crowding_index(crowding_payload, latest)
     external_payload = _load_optional_json("crowding_external.json")
     external = _external_etf_index(external_payload, latest)
@@ -1420,7 +1431,7 @@ def build_recommendations(map_obj: dict | None = None, snapshot: dict | None = N
     result = {
         "model_version": V3_MODEL_VERSION,
         "score_label": "ETF热点机会分",
-        "scheme": SCHEME,
+        "scheme": scheme,
         "date": latest,
         "etf_date": Counter(
             str(item.get("last_date", "")).replace("-", "") for item in snap_etfs.values()
@@ -1471,8 +1482,9 @@ def build_recommendations(map_obj: dict | None = None, snapshot: dict | None = N
         "industries": public_industries,
     }
     if ref_date is None:
-        _atomic_json_dump(result, data_path(OUTPUT_FILE))
-        _write_prediction_log(result)
+        _atomic_json_dump(result, data_path(_output_file(scheme)))
+        if scheme == SCHEME:
+            _write_prediction_log(result)
     return result
 
 
@@ -1480,25 +1492,27 @@ def build_recommendations(map_obj: dict | None = None, snapshot: dict | None = N
 # 入口
 # ------------------------------------------------------------------
 
-def update_etf_recommend() -> dict:
-    map_obj = ensure_etf_map()
-    codes = sorted({c["code"] for cands in map_obj.get("mapping", {}).values() for c in cands})
-    if BENCHMARK_CODE not in codes:
-        codes.append(BENCHMARK_CODE)
-        codes.sort()
-    print(f"[etf] 映射 {sum(1 for v in map_obj.get('mapping', {}).values() if v)} 个行业, "
-          f"{len(codes)} 只候选 ETF")
+def update_etf_recommend(schemes: tuple = ("sw3", "ths")) -> dict:
+    maps = {scheme: ensure_etf_map(scheme) for scheme in schemes}
+    codes = sorted(
+        {c["code"] for map_obj in maps.values()
+         for cands in map_obj.get("mapping", {}).values() for c in cands}
+        | {BENCHMARK_CODE}
+    )
+    print(f"[etf] {len(codes)} 只候选 ETF ({'/'.join(schemes)})")
     db = get_db()
     latest_row = db.conn.execute(
         "SELECT MAX(date) FROM daily_new_highs WHERE scheme=? AND period='month'", [SCHEME]
     ).fetchone()
     ref_date = latest_row[0] if latest_row else None
     snapshot = fetch_etf_snapshot(codes, ref_date=ref_date)
-    result = build_recommendations(map_obj, snapshot)
-    print(f"[etf] 选择性候选 {len(result['top'])}/{V3_TOP_N}:")
-    for r in result["top"]:
-        print(f"  {r['rank']}. {r['industry']} → {r['etf']['name']}({r['etf']['code']}) "
-              f"机会分 {r['score']}  阶段 {r['stage']}  风险 {r['risk']['score']}")
+    result = None
+    for scheme in schemes:
+        result = build_recommendations(maps[scheme], snapshot, scheme=scheme)
+        print(f"[etf:{scheme}] 选择性候选 {len(result['top'])}/{V3_TOP_N}:")
+        for r in result["top"]:
+            print(f"  {r['rank']}. {r['industry']} → {r['etf']['name']}({r['etf']['code']}) "
+                  f"机会分 {r['score']}  阶段 {r['stage']}  风险 {r['risk']['score']}")
     return result
 
 

@@ -158,7 +158,7 @@ class TurnoverMomentumPayloadTest(unittest.TestCase):
             pd.DataFrame(industry),
         )
 
-    def test_payload_has_flat_metrics_and_twenty_day_causal_series(self):
+    def test_payload_has_flat_metrics_and_eighty_day_causal_series(self):
         stocks, market, industry = self._frames()
         payload = build_turnover_momentum_payload(
             stocks,
@@ -177,7 +177,7 @@ class TurnoverMomentumPayloadTest(unittest.TestCase):
         self.assertEqual(payload["model_version"], "turnover-momentum-v2")
         self.assertEqual(payload["scheme"], "ths")
         self.assertEqual(payload["scheme_label"], "同花顺")
-        self.assertEqual(len(payload["dates"]), 20)
+        self.assertEqual(len(payload["dates"]), 80)
         self.assertEqual(
             payload["data_quality"]["classification"]["direct"], 2)
         self.assertIn("不是资金净流入", payload["data_quality"]["proxy_notice"])
@@ -193,7 +193,7 @@ class TurnoverMomentumPayloadTest(unittest.TestCase):
             "risk_level", "risk_reasons", "top_stocks", "series",
         }
         self.assertTrue(required.issubset(row))
-        self.assertEqual(len(row["series"]), 20)
+        self.assertEqual(len(row["series"]), 80)
         self.assertAlmostEqual(row["active_breadth"], 0.5)
         self.assertEqual(row["active_participants"], 1)
         self.assertEqual(row["effective_participants"], 1)

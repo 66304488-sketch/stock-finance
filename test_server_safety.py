@@ -116,6 +116,79 @@ class ServerSafetyTest(unittest.TestCase):
         self.assertEqual(result["monitor"]["impulse_5m"], 4.776)
         self.assertEqual(result["quality"]["confidence"], 95)
 
+    def test_opportunity_summary_route_rejects_invalid_query_combinations(self):
+        cases = (
+            {"scheme": "bad", "period": "month", "mode": "daily"},
+            {"scheme": "sw3", "period": "bad", "mode": "daily"},
+            {"scheme": "sw3", "period": "month", "mode": "bad"},
+            {"scheme": "sw3", "period": "alltime", "mode": "intraday"},
+        )
+        for kwargs in cases:
+            with self.subTest(**kwargs), self.assertRaises(HTTPException) as caught:
+                asyncio.run(server.opportunity_summary(**kwargs))
+            self.assertEqual(caught.exception.status_code, 400)
+
+    def test_opportunity_summary_auto_mode_uses_market_session_recommendation(self):
+        for phase in ("lunch", "awaiting_close"):
+            builder_result = {
+                "schema_version": 1,
+                "quality": {"status": "degraded"},
+                "candidates": [],
+            }
+            session = {
+                "phase": phase,
+                "recommended_mode": "intraday",
+                "close_confirmed": False,
+            }
+            with (
+                self.subTest(phase=phase),
+                mock.patch.object(
+                    server, "market_session", new=mock.AsyncMock(return_value=session)
+                ),
+                mock.patch(
+                    "opportunity_summary.build_opportunity_summary",
+                    return_value=builder_result,
+                ) as builder,
+            ):
+                result = asyncio.run(
+                    server.opportunity_summary(
+                        scheme="sw3", period="120d", mode="auto"
+                    )
+                )
+
+            builder.assert_called_once_with(
+                server.DATA_DIR,
+                scheme="sw3",
+                period="120d",
+                mode="intraday",
+            )
+            self.assertEqual(result["request"]["effective_mode"], "intraday")
+            self.assertEqual(result["request"]["session"], phase)
+
+    def test_opportunity_summary_alltime_auto_mode_falls_back_to_daily(self):
+        session = {
+            "phase": "trading",
+            "recommended_mode": "intraday",
+            "close_confirmed": False,
+        }
+        with (
+            mock.patch.object(
+                server, "market_session", new=mock.AsyncMock(return_value=session)
+            ),
+            mock.patch(
+                "opportunity_summary.build_opportunity_summary",
+                return_value={"quality": {}, "candidates": []},
+            ) as builder,
+        ):
+            result = asyncio.run(
+                server.opportunity_summary(
+                    scheme="sw3", period="alltime", mode="auto"
+                )
+            )
+
+        self.assertEqual(builder.call_args.kwargs["mode"], "daily")
+        self.assertEqual(result["request"]["mode_note"], "历史周期仅使用收盘数据")
+
     def test_tencent_quote_maps_total_and_circulating_market_cap(self):
         fields = [""] * 88
         fields[1] = "比亚迪"
@@ -256,6 +329,60 @@ class ServerSafetyTest(unittest.TestCase):
 
             self.assertEqual(calendar.call_count, 1)
             self.assertEqual(info["latest_trade_date"], "20260720")
+
+    def test_margin_status_accepts_the_exchanges_common_complete_date(self):
+        with tempfile.TemporaryDirectory() as root:
+            data_dir = Path(root)
+            margin = {
+                "latest_date": "20260730",
+                "dates": [{"full_label": "2026年7月30日"}],
+                "source": {
+                    "exchange_latest": {
+                        "sse": "20260731",
+                        "szse": "20260730",
+                        "complete": "20260730",
+                    }
+                },
+            }
+            import json
+            (data_dir / "margin_financing.json").write_text(
+                json.dumps(margin, ensure_ascii=False), encoding="utf-8")
+
+            server._invalidate_missing_info_cache()
+            with (
+                mock.patch.object(server, "data_dir", str(data_dir)),
+                mock.patch.object(
+                    server,
+                    "_get_trade_date_args",
+                    return_value="20260730,20260731",
+                ),
+            ):
+                info = server._get_missing_info(force=True)
+
+            status = info["datasets"]["margin_financing"]
+            self.assertEqual(status["status"], "up_to_date")
+            self.assertEqual(status["last_date"], "20260730")
+            self.assertTrue(status["source_lag"])
+
+    def test_refresh_dataset_policy_uses_saved_strategy_and_keeps_market_cap(self):
+        strategy = {
+            "selected_datasets": [
+                "highs", "market_cap", "capital_flow", "market_cap",
+            ]
+        }
+
+        resolved = server._resolve_refresh_datasets({}, strategy)
+
+        self.assertEqual(resolved, ["highs", "market_cap", "capital_flow"])
+        self.assertIn("market_cap", server.DEFAULT_UPDATE_CONFIG["selected_datasets"])
+        self.assertEqual(
+            server._resolve_refresh_datasets(
+                {"datasets": ["margin_financing"]}, strategy),
+            ["margin_financing"],
+        )
+        with self.assertRaises(HTTPException) as caught:
+            server._resolve_refresh_datasets({"datasets": []}, strategy)
+        self.assertEqual(caught.exception.status_code, 400)
 
 
 if __name__ == "__main__":

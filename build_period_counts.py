@@ -10,7 +10,8 @@
 import json, os, sys
 from collections import defaultdict
 
-STATIC = os.path.join(os.path.dirname(__file__), "static")
+from runtime_paths import data_path
+
 PERIODS = [
     ("20d", "month"),
     ("60d", "60d"),
@@ -37,7 +38,7 @@ def main():
         all_codes: set[str] = set()
         period_counts: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
         for i, (key, suffix) in enumerate(PERIODS):
-            path = os.path.join(STATIC, f"{prefix}_details_{suffix}.json")
+            path = data_path(f"{prefix}_details_{suffix}.json")
             if not os.path.exists(path):
                 print(f"  skip {path} (not found)")
                 continue
@@ -46,7 +47,7 @@ def main():
             all_codes.update(counts.keys())
             for code, cnt in counts.items():
                 period_counts[code][i] = cnt
-        out_path = os.path.join(STATIC, f"{direction}_period_counts.json")
+        out_path = data_path(f"{direction}_period_counts.json")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(period_counts, f, ensure_ascii=False, separators=(",", ":"))
         print(f"  → {out_path} ({len(period_counts)} codes, {os.path.getsize(out_path)} bytes)")
